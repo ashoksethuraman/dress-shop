@@ -1,0 +1,11 @@
+Develop Locally
+Start the Firebase Emulator Suite to run your functions, hosting, and other services locally:
+bash
+
+firebase emulators:start
+In a separate terminal, start your React development server:
+bash
+
+cd client
+npm start
+Before running your TypeScript functions in the emulator, ensure you run npm run build inside the functions directory to compile the TypeScript to JavaScript. You can use the shortcut npm run serve inside the functions directory, which runs the build command first. 
