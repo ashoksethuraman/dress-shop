@@ -1,17 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { firestoreService } from '../services/firestoreService';
+import { productsApi } from '../services/apiClient';
 import { useAppDispatch } from '../store/hooks';
 import { addToCart } from '../store/cartSlice';
-import { getPriceLevel } from '../utils/priceLevel';
+import { getPriceLevel, BADGE_COLORS } from '../utils/priceLevel';
+import { formatPrice } from '../utils/format';
 import { FiChevronLeft, FiChevronRight, FiShoppingCart, FiHeart, FiStar } from 'react-icons/fi';
 import { resolveImageUrl } from '../config/imageConfig';
-
-const BADGE_COLORS: Record<string, string> = {
-  budget:  'bg-green-100 text-green-700',
-  mid:     'bg-yellow-100 text-yellow-700',
-  premium: 'bg-indigo-100 text-indigo-700',
-};
 
 export default function ProductDetailsPage() {
   const { id } = useParams();
@@ -23,11 +19,25 @@ export default function ProductDetailsPage() {
   const dispatch = useAppDispatch();
 
   useEffect(() => {
-    firestoreService.getProducts().then((all) => {
-      const found = all.find((p) => p.id === id);
-      setProduct(found ?? null);
-      setActiveImg(0);
-    });
+    if (!id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        // Fast path: fetch single product by ID via Cloud Function
+        const data = await productsApi.getById(id);
+        if (!cancelled) { setProduct(data as any); setActiveImg(0); }
+      } catch {
+        // Fallback: fetch all from Firestore SDK and find by ID
+        try {
+          const all = await firestoreService.getProducts();
+          const found = all.find((p) => p.id === id) ?? null;
+          if (!cancelled) { setProduct(found); setActiveImg(0); }
+        } catch {
+          if (!cancelled) setProduct(null);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
   }, [id]);
 
   if (!product) return (
@@ -42,7 +52,7 @@ export default function ProductDetailsPage() {
   const nextImg = () => setActiveImg((i) => (i + 1) % images.length);
 
   const handleAddToCart = () => {
-    dispatch(addToCart({ productId: product.id, title: product.title, price: product.price, qty: 1 }));
+    dispatch(addToCart({ productId: product.id, title: product.title, price: product.price, qty: 1, stock: product.stock ?? 'available' }));
     setAdded(true);
     setTimeout(() => setAdded(false), 1200);
   };
@@ -161,7 +171,7 @@ export default function ProductDetailsPage() {
 
           {/* Price */}
           <div className="flex items-baseline gap-3">
-            <span className="text-3xl font-extrabold text-indigo-600">${product.price.toFixed(2)}</span>
+            <span className="text-3xl font-extrabold text-indigo-600">{formatPrice(product.price)}</span>
             {level.className === 'premium' && (
               <span className="text-sm text-gray-400 line-through">${(product.price * 1.43).toFixed(2)}</span>
             )}
@@ -219,20 +229,31 @@ export default function ProductDetailsPage() {
             </div>
           )}
 
+          {/* Out-of-stock banner */}
+          {product.stock === 'out_of_stock' && (
+            <div className="flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm font-semibold">
+              <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+              This product is currently out of stock.
+            </div>
+          )}
+
           {/* Action buttons */}
           <div className="flex gap-3 mt-2">
             <button
               onClick={handleAddToCart}
+              disabled={product.stock === 'out_of_stock'}
               className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-sm transition-all duration-200 ${
-                added
+                product.stock === 'out_of_stock'
+                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  : added
                   ? 'bg-green-500 text-white scale-95'
                   : 'bg-indigo-500 hover:bg-indigo-600 text-white hover:shadow-lg'
               }`}
             >
               <FiShoppingCart size={16} />
-              {added ? '✓ Added to Bag' : 'Add to Bag'}
+              {product.stock === 'out_of_stock' ? 'Out of Stock' : added ? '✓ Added to Bag' : 'Add to Bag'}
             </button>
-            <button
+            {/* <button
               onClick={() => setWishlisted((w) => !w)}
               className={`flex items-center justify-center gap-1.5 px-5 py-3.5 rounded-xl border-2 font-semibold text-sm transition-all duration-200 ${
                 wishlisted
@@ -242,7 +263,7 @@ export default function ProductDetailsPage() {
             >
               <FiHeart size={16} className={wishlisted ? 'fill-pink-500' : ''} />
               Wishlist
-            </button>
+            </button> */}
           </div>
 
           {/* Delivery placeholder */}

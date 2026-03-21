@@ -2,10 +2,12 @@ import React from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import jsPDF from 'jspdf';
 import { FiDownload, FiHome, FiPackage, FiCheckCircle, FiLock } from 'react-icons/fi';
+import { formatPrice, formatAddressLines } from '../utils/format';
 
 export default function OrderSuccessPage() {
-  const loc   = useLocation();
-  const order = (loc.state as any)?.order;
+  const loc         = useLocation();
+  const order       = (loc.state as any)?.order;
+  const verifyFailed = (loc.state as any)?.verifyFailed === true;
 
   /* ── PDF receipt ── */
   const downloadPdf = () => {
@@ -36,15 +38,9 @@ export default function OrderSuccessPage() {
     doc.text('Ship to', 14, 52);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
-    const fullName = `${addr.firstName} ${addr.lastName}`;
     const addrLines = [
-      fullName,
-      addr.company || '',
-      addr.address,
-      addr.apartment || '',
-      `${addr.city}, ${addr.state} - ${addr.pinCode}`,
-      'India',
-      `Phone: ${addr.phone}`,
+      ...formatAddressLines(addr),
+      addr.phone ? `Phone: ${addr.phone}` : '',
     ].filter(Boolean);
     addrLines.forEach((line, i) => doc.text(line, 14, 60 + i * 6));
 
@@ -57,7 +53,7 @@ export default function OrderSuccessPage() {
     doc.text('Razorpay (UPI / Card / Wallet)', 110, 60);
     doc.setTextColor(40, 167, 69);
     doc.setFont('helvetica', 'bold');
-    doc.text(`PAID  ₹${order.total.toFixed(2)}`, 110, 68);
+    doc.text(`PAID  ₹${order.totalAmount?.toFixed(2)}`, 110, 68);
     doc.setTextColor(0);
     doc.setFont('helvetica', 'normal');
 
@@ -74,7 +70,7 @@ export default function OrderSuccessPage() {
     let y = itemsY + 12;
     order.items?.forEach((it: any) => {
       doc.text(`${it.title}  ×  ${it.qty}`, 14, y);
-      doc.text(`₹${(it.price * it.qty).toFixed(2)}`, 180, y, { align: 'right' });
+      doc.text(`₹${(it.unitPrice * it.qty).toFixed(2)}`, 180, y, { align: 'right' });
       y += 8;
     });
 
@@ -82,14 +78,14 @@ export default function OrderSuccessPage() {
     doc.line(14, y, 196, y);
     y += 7;
     doc.text('Subtotal', 140, y);
-    doc.text(`₹${order.total.toFixed(2)}`, 180, y, { align: 'right' });
+    doc.text(`₹${(order.subtotal ?? order.totalAmount)?.toFixed(2)}`, 180, y, { align: 'right' });
     y += 6;
     doc.text('Shipping', 140, y);
-    doc.text('Free', 180, y, { align: 'right' });
+    doc.text(`₹${(order.shippingFee ?? 0).toFixed(2)}`, 180, y, { align: 'right' });
     y += 6;
     doc.setFont('helvetica', 'bold');
     doc.text('Grand Total', 140, y);
-    doc.text(`₹${order.total.toFixed(2)}`, 180, y, { align: 'right' });
+    doc.text(`₹${order.totalAmount?.toFixed(2)}`, 180, y, { align: 'right' });
 
     doc.save(`receipt-${order.id}.pdf`);
   };
@@ -102,8 +98,8 @@ export default function OrderSuccessPage() {
     </div>
   );
 
-  const addr      = order.shippingAddress ?? {};
-  const subtotal  = order.items?.reduce((s: number, i: any) => s + i.price * i.qty, 0) ?? order.total;
+  const addr      = order.shippingAddress ?? order.billingAddress ?? {};
+  const subtotal  = order.subtotal ?? order.items?.reduce((s: number, i: any) => s + i.unitPrice * i.qty, 0) ?? order.totalAmount;
   const placedOn  = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
 
   return (
@@ -118,6 +114,17 @@ export default function OrderSuccessPage() {
           <span>›</span>
           <span className="text-indigo-600 font-medium">Order Details</span>
         </nav>
+
+        {/* Verification-failed warning: money taken but order confirmation call failed */}
+        {verifyFailed && (
+          <div role="alert" className="mb-5 flex items-start gap-3 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+            <span className="mt-0.5 shrink-0 text-yellow-500">&#9888;</span>
+            <span>
+              <strong>Payment received, but we could not automatically confirm your order.</strong>{' '}
+              Please email us at <a href="mailto:support@dressshop.com" className="underline">support@dressshop.com</a> with your order ID <strong>{order?.id}</strong> and we will confirm your order manually.
+            </span>
+          </div>
+        )}
 
         {/* Page heading row */}
         <div className="flex items-start justify-between mb-5 gap-4 flex-wrap">
@@ -149,13 +156,12 @@ export default function OrderSuccessPage() {
             {/* Ship to */}
             <div className="px-6 py-5">
               <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Ship to</p>
-              <p className="text-sm font-semibold text-gray-800">{addr.firstName} {addr.lastName}</p>
-              {addr.company && <p className="text-sm text-gray-600">{addr.company}</p>}
-              <p className="text-sm text-gray-600">{addr.address}</p>
-              {addr.apartment && <p className="text-sm text-gray-600">{addr.apartment}</p>}
-              <p className="text-sm text-gray-600">{addr.city}, {addr.state} {addr.pinCode}</p>
-              <p className="text-sm text-gray-600">India</p>
-            </div>
+                <p className="text-sm font-semibold text-gray-800">{addr.name}</p>
+                <p className="text-sm text-gray-600">{addr.line1}</p>
+                {addr.line2 && <p className="text-sm text-gray-600">{addr.line2}</p>}
+                <p className="text-sm text-gray-600">{addr.city}, {addr.state} {addr.pincode}</p>
+                <p className="text-sm text-gray-600">{addr.country || 'India'}</p>
+              </div>
 
             {/* Payment method */}
             <div className="px-6 py-5">
@@ -168,7 +174,7 @@ export default function OrderSuccessPage() {
                 Paid
               </div>
               <p className="text-xs text-gray-400 mt-1.5 flex items-center gap-1">
-                <FiLock size={10} /> ₹{order.total.toFixed(2)} charged successfully
+                <FiLock size={10} /> ₹{order.totalAmount?.toFixed(2)} charged successfully
               </p>
             </div>
 
@@ -186,11 +192,11 @@ export default function OrderSuccessPage() {
                 </div>
                 <div className="flex justify-between text-gray-600">
                   <span>Total:</span>
-                  <span>₹{order.total.toFixed(2)}</span>
+                  <span>₹{order.totalAmount?.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between font-extrabold text-gray-900 pt-1.5 border-t border-gray-100 mt-1">
                   <span>Grand Total:</span>
-                  <span>₹{order.total.toFixed(2)}</span>
+                  <span>₹{order.totalAmount?.toFixed(2)}</span>
                 </div>
               </div>
             </div>
@@ -228,10 +234,10 @@ export default function OrderSuccessPage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-800">{it.title}</p>
                   <p className="text-xs text-gray-400 mt-0.5">Qty: {it.qty}</p>
-                  <p className="text-sm font-bold text-gray-700 mt-1">₹{it.price.toFixed(2)}</p>
+                  <p className="text-sm font-bold text-gray-700 mt-1">₹{it.unitPrice?.toFixed(2)}</p>
                 </div>
                 <p className="text-sm font-bold text-gray-800 flex-shrink-0">
-                  ₹{(it.price * it.qty).toFixed(2)}
+                  ₹{it.total?.toFixed(2)}
                 </p>
               </div>
             ))}

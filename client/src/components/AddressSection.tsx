@@ -1,6 +1,7 @@
 import React from 'react';
 import { UseFormRegister, FieldErrors } from 'react-hook-form';
 import { CheckoutFormState, INDIAN_STATES } from '../utils/types';
+import FormField from './FormField';
 
 type AddressPrefix = 'shippingAddress' | 'billingAddress';
 
@@ -8,31 +9,6 @@ interface Props {
   prefix: AddressPrefix;
   register: UseFormRegister<CheckoutFormState>;
   errors: FieldErrors<CheckoutFormState>;
-}
-
-/* ─── Reusable text/tel/email input ─────────────────────── */
-function Field({
-  label, id, error, placeholder, type = 'text', optional = false, registration,
-}: {
-  label: string; id: string; error?: string; placeholder?: string;
-  type?: string; optional?: boolean; registration: object;
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-xs text-gray-500">
-        {label}{optional && <span className="text-gray-400 ml-1">(optional)</span>}
-      </label>
-      <input
-        id={id}
-        type={type}
-        placeholder={placeholder ?? label}
-        {...registration}
-        className={`w-full border rounded-xl px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 transition-all
-          ${error ? 'border-red-400 focus:ring-red-100' : 'border-gray-300 focus:border-indigo-400 focus:ring-indigo-100'}`}
-      />
-      {error && <p className="text-xs text-red-500">{error}</p>}
-    </div>
-  );
 }
 
 /* ─── Address Section ────────────────────────────────────── */
@@ -56,12 +32,12 @@ export default function AddressSection({ prefix, register, errors }: Props) {
 
       {/* First / Last name */}
       <div className="grid grid-cols-2 gap-3">
-        <Field
+        <FormField
           label="First name" id={`${prefix}-firstName`}
           error={errs.firstName?.message}
           registration={r('firstName', { required: 'First name is required' })}
         />
-        <Field
+        <FormField
           label="Last name" id={`${prefix}-lastName`}
           error={errs.lastName?.message}
           registration={r('lastName', { required: 'Last name is required' })}
@@ -69,20 +45,20 @@ export default function AddressSection({ prefix, register, errors }: Props) {
       </div>
 
       {/* Company (optional) */}
-      <Field
+      <FormField
         label="Company" id={`${prefix}-company`} optional
         registration={r('company')}
       />
 
       {/* Address */}
-      <Field
+      <FormField
         label="Address" id={`${prefix}-address`} placeholder="House no., Street, Area"
         error={errs.address?.message}
         registration={r('address', { required: 'Address is required' })}
       />
 
       {/* Apartment (optional) */}
-      <Field
+      <FormField
         label="Apartment, suite, etc." id={`${prefix}-apartment`} optional
         placeholder="Apartment, suite, etc."
         registration={r('apartment')}
@@ -90,7 +66,7 @@ export default function AddressSection({ prefix, register, errors }: Props) {
 
       {/* City + State */}
       <div className="grid grid-cols-2 gap-3">
-        <Field
+        <FormField
           label="City" id={`${prefix}-city`}
           error={errs.city?.message}
           registration={r('city', { required: 'City is required' })}
@@ -113,7 +89,7 @@ export default function AddressSection({ prefix, register, errors }: Props) {
 
       {/* PIN code + Phone */}
       <div className="grid grid-cols-2 gap-3">
-        <Field
+        <FormField
           label="PIN code" id={`${prefix}-pinCode`} type="tel" placeholder="6-digit PIN"
           error={errs.pinCode?.message}
           registration={r('pinCode', {
@@ -121,7 +97,7 @@ export default function AddressSection({ prefix, register, errors }: Props) {
             pattern: { value: /^\d{6}$/, message: 'PIN code must be 6 digits' },
           })}
         />
-        <Field
+        <FormField
           label="Phone" id={`${prefix}-phone`} type="tel" placeholder="10-digit mobile"
           error={errs.phone?.message}
           registration={r('phone', {

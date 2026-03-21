@@ -1,30 +1,38 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import Navbar from './components/Navbar';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import AboutPage from './pages/AboutPage';
-import ShippingPage from './pages/ShippingPage';
-import AuthLandingPage from './components/AuthLandingPage';
-import HomePage from './pages/HomePage';
-import ProductDetailsPage from './pages/ProductDetailsPage';
-import CartPage from './pages/CartPage';
-import OrderFormPage from './pages/OrderFormPage';
-import CheckoutPage from './pages/CheckoutPage';
-import OrderSummaryPage from './pages/OrderSummaryPage';
-import ContactUsPage from './pages/ContactUsPage';
-import OrderSuccessPage from './pages/OrderSuccessPage';
-import AdminPage from './pages/AdminPage';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import AdminRoute from './components/AdminRoute';
 import SideMenu from './components/SideMenu';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useAppSelector } from './store/hooks';
 
-function App() {
+// Lazy-load all pages so each route is only downloaded when first visited
+const Login             = lazy(() => import('./pages/Login'));
+const HomePage          = lazy(() => import('./pages/HomePage'));
+const ProductDetailsPage = lazy(() => import('./pages/ProductDetailsPage'));
+const CartPage          = lazy(() => import('./pages/CartPage'));
+const OrderSummaryPage  = lazy(() => import('./pages/OrderSummaryPage'));
+const CheckoutPage      = lazy(() => import('./pages/CheckoutPage'));
+const OrderSuccessPage  = lazy(() => import('./pages/OrderSuccessPage'));
+const ContactUsPage     = lazy(() => import('./pages/ContactUsPage'));
+const AboutPage         = lazy(() => import('./pages/AboutPage'));
+const ShippingPage      = lazy(() => import('./pages/ShippingPage'));
+const AdminPage         = lazy(() => import('./pages/AdminPage'));
+
+const PageFallback = () => (
+  <div className="flex items-center justify-center h-64 text-gray-400 animate-pulse text-lg">Loading…</div>
+);
+
+function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sideCollapsed, setSideCollapsed] = useState(false);
   const cartCount = useAppSelector((s) => s.cart.items.reduce((acc, i) => acc + i.qty, 0));
   const user = useAppSelector((s) => s.user.user);
   const [bump, setBump] = useState(false);
   const prevCount = useRef(cartCount);
+  const location = useLocation();
+
+  const isAuthPage = location.pathname === '/auth';
 
   useEffect(() => {
     if (cartCount > prevCount.current) {
@@ -53,11 +61,11 @@ function App() {
   };
 
   // px offset for the sidebar: 240px expanded, 64px collapsed (desktop ≥992px only)
-  const sideWidth = sideCollapsed ? 'min-[992px]:pl-16' : 'min-[992px]:pl-60';
+  // No offset on the auth/login page
+  const sideWidth = isAuthPage ? '' : sideCollapsed ? 'min-[992px]:pl-16' : 'min-[992px]:pl-60';
 
   return (
-    <BrowserRouter>
-      <div className="min-h-screen flex flex-col bg-gray-50">
+    <div className="min-h-screen flex flex-col bg-gray-50">
         <Navbar
           mobileOpen={mobileOpen}
           setMobileOpen={setMobileOpen}
@@ -66,26 +74,22 @@ function App() {
           bump={bump}
           sideCollapsed={sideCollapsed}
           toggleSide={toggleSide}
+          isAuthPage={isAuthPage}
         />
 
         <main className={`flex-1 mt-16 transition-all duration-300 ${sideWidth}`}>
-          <SideMenu mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} sideCollapsed={sideCollapsed} toggleSide={toggleSide} />
+          {!isAuthPage && (
+            <SideMenu mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} sideCollapsed={sideCollapsed} toggleSide={toggleSide} />
+          )}
 
-          <Routes>
-            <Route path="/auth" element={<AuthLandingPage />} />
+          <Suspense fallback={<PageFallback />}>
+            <Routes>
+            <Route path="/auth" element={<Login />} />
             <Route path="/" element={<HomePage />} />
             <Route path="/product/:id" element={<ProductDetailsPage />} />
             <Route path="/cart" element={<CartPage />} />
             <Route path="/order-summary" element={<OrderSummaryPage />} />
             <Route path="/checkout" element={<CheckoutPage />} />
-            <Route
-              path="/order"
-              element={
-                <ProtectedRoute>
-                  <OrderFormPage />
-                </ProtectedRoute>
-              }
-            />
             <Route path="/contact" element={<ContactUsPage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/shipping" element={<ShippingPage />} />
@@ -99,10 +103,17 @@ function App() {
               }
             />
           </Routes>
+          </Suspense>
         </main>
       </div>
-    </BrowserRouter>
+  );
+}
 
+function App() {
+  return (
+    <BrowserRouter>
+      <AppLayout />
+    </BrowserRouter>
   );
 }
 

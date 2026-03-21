@@ -1,6 +1,10 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import { FiSearch, FiUser, FiHeart, FiShoppingCart, FiLogIn, FiMenu } from 'react-icons/fi';
+import React, { useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { FiSearch, FiUser, FiShoppingCart, FiLogIn, FiMenu, FiLogOut } from 'react-icons/fi';
+import { useAppDispatch } from '../store/hooks';
+import { logout } from '../store/userSlice';
+import { authService } from '../services/authService';
+import { useClickOutside } from '../hooks/useClickOutside';
 
 type Props = {
   mobileOpen: boolean;
@@ -10,10 +14,25 @@ type Props = {
   bump: boolean;
   sideCollapsed: boolean;
   toggleSide: () => void;
+  isAuthPage?: boolean;
 };
 
-export default function Navbar({ mobileOpen, setMobileOpen, cartCount, user, bump, sideCollapsed, toggleSide }: Props) {
+export default function Navbar({ mobileOpen, setMobileOpen, cartCount, user, bump, sideCollapsed, toggleSide, isAuthPage }: Props) {
   const isMenuOpen = mobileOpen || !sideCollapsed;
+  const dispatch = useAppDispatch();
+  const navigate = useNavigate();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useClickOutside(menuRef, () => setMenuOpen(false), menuOpen);
+
+  const handleLogout = async () => {
+    setMenuOpen(false);
+    await authService.signOut();
+    dispatch(logout());
+    navigate('/auth');
+  };
 
   const handleToggle = () => {
     if (window.innerWidth >= 992) {
@@ -65,15 +84,6 @@ export default function Navbar({ mobileOpen, setMobileOpen, cartCount, user, bum
             </div>
 
             {/* Icons */}
-            {[
-              { to: '#profile', icon: <FiUser size={18} />, label: 'Profile' },
-              { to: '#wishlist', icon: <FiHeart size={18} />, label: 'Wishlist' },
-            ].map(({ to, icon, label }) => (
-              <Link key={label} to={to} title={label}
-                className="flex items-center justify-center w-9 h-9 rounded-full text-gray-700 hover:bg-gray-100 hover:text-indigo-500 transition-colors no-underline">
-                {icon}
-              </Link>
-            ))}
 
             <Link to="/cart" title="Cart"
               className="relative flex items-center justify-center w-9 h-9 rounded-full text-gray-700 hover:bg-gray-100 hover:text-indigo-500 transition-colors no-underline">
@@ -85,19 +95,58 @@ export default function Navbar({ mobileOpen, setMobileOpen, cartCount, user, bum
               )}
             </Link>
 
-            {user
-              ? <span className="text-xs font-semibold text-gray-800 max-w-[100px] truncate">{user.name}</span>
-              : <Link to="/auth" title="Login"
-                  className="flex items-center justify-center w-9 h-9 rounded-full text-gray-700 hover:bg-gray-100 hover:text-indigo-500 transition-colors no-underline">
-                  <FiLogIn size={18} />
-                </Link>
-            }
+            {/* User avatar / login */}
+            {user ? (
+              <div className="relative" ref={menuRef}>
+                <button
+                  onClick={() => setMenuOpen((o) => !o)}
+                  title={user.name || 'Account'}
+                  className="flex items-center justify-center w-9 h-9 rounded-full overflow-hidden border-2 border-indigo-300 hover:border-indigo-500 transition-colors focus:outline-none cursor-pointer"
+                >
+                  {user.photoURL ? (
+                    <img src={user.photoURL} alt={user.name || 'Avatar'} className="w-full h-full object-cover" />
+                  ) : user.name ? (
+                    <span className="w-full h-full bg-indigo-500 text-white text-xs font-bold flex items-center justify-center">
+                      {user.name.charAt(0).toUpperCase()}
+                    </span>
+                  ) : (
+                    <span className="w-full h-full bg-gray-100 flex items-center justify-center">
+                      <FiUser size={18} className="text-gray-600" />
+                    </span>
+                  )}
+                </button>
+
+                {menuOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-50">
+                    <div className="px-4 py-3 border-b border-gray-100">
+                      <p className="text-sm font-semibold text-gray-800 truncate">{user.name || 'Account'}</p>
+                      {user.isGuest && <p className="text-xs text-gray-400 mt-0.5">Guest user</p>}
+                    </div>
+                    <Link to="/profile" onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 no-underline transition-colors">
+                      <FiUser size={14} />
+                      Profile
+                    </Link>
+                    <button onClick={handleLogout}
+                      className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors border-none bg-transparent cursor-pointer">
+                      <FiLogOut size={14} />
+                      Logout
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Link to="/auth" title="Login"
+                className="flex items-center justify-center w-9 h-9 rounded-full text-gray-700 hover:bg-gray-100 hover:text-indigo-500 transition-colors no-underline">
+                <FiLogIn size={18} />
+              </Link>
+            )}
           </div>
         </div>
       </header>
 
-      {/* Mobile overlay */}
-      {mobileOpen && (
+      {/* Mobile overlay — hidden on auth page */}
+      {mobileOpen && !isAuthPage && (
         <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setMobileOpen(false)} />
       )}
     </>

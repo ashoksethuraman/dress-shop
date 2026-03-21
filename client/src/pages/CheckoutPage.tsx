@@ -1,39 +1,24 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { clearCart } from '../store/cartSlice';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { generateOrderId } from '../utils/generateOrderId';
 import { firestoreService } from '../services/firestoreService';
-import { initRazorpayPayment } from '../services/paymentService';
-import { FiChevronDown, FiChevronUp, FiLock, FiShoppingBag } from 'react-icons/fi';
+import { paymentsApi, ordersApi } from '../services/apiClient';
+import { initRazorpayPayment, preloadRazorpayScript } from '../services/paymentService';
+import { FiChevronDown, FiChevronUp, FiLock, FiShoppingBag, FiArrowLeft } from 'react-icons/fi';
 import { CheckoutFormState } from '../utils/types';
+import { type CreateOrderPayload, type AddressPayload, getErrorMessage } from '../utils/apiTypes';
 import AddressSection from '../components/AddressSection';
+import FormField from '../components/FormField';
+import MockPaymentModal from '../components/MockPaymentModal';
 
-/* ─── Reusable registered input ─────────────────────────── */
-function Field({
-  label, id, error, placeholder, type = 'text', optional = false, registration,
-}: {
-  label: string; id: string; error?: string; placeholder?: string;
-  type?: string; optional?: boolean; registration: object;
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-xs text-gray-500">
-        {label}{optional && <span className="text-gray-400 ml-1">(optional)</span>}
-      </label>
-      <input
-        id={id}
-        type={type}
-        placeholder={placeholder ?? label}
-        {...registration}
-        className={`w-full border rounded-xl px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 transition-all
-          ${error ? 'border-red-400 focus:ring-red-100' : 'border-gray-300 focus:border-indigo-400 focus:ring-indigo-100'}`}
-      />
-      {error && <p className="text-xs text-red-500">{error}</p>}
-    </div>
-  );
-}
+/**
+ * Flip to `false` and re-enable the Razorpay block below when payment integration is ready.
+ * In mock mode a local dialog simulates success / failure without any real gateway.
+ */
+const USE_MOCK_PAYMENT = true;
 
 /* ─── Main Component ─────────────────────────────────────── */
 export default function CheckoutPage() {
@@ -45,8 +30,21 @@ export default function CheckoutPage() {
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
   const total    = subtotal; // free shipping
 
+  // Redirect to home if cart is empty
+  useEffect(() => {
+    if (items.length === 0) navigate('/', { replace: true });
+  }, [items.length, navigate]);
+
+  // Preload Razorpay SDK only when NOT in mock mode
+  useEffect(() => { if (!USE_MOCK_PAYMENT) preloadRazorpayScript(); }, []);
+
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [loading, setLoading]         = useState(false);
+  const [payError, setPayError]       = useState<string | null>(null);
+  const [mockPayCtx, setMockPayCtx]   = useState<{
+    orderId: string; orderData: any;
+    amount: number; name: string; email: string; phone: string;
+  } | null>(null);
 
   const {
     register,
@@ -63,37 +61,145 @@ export default function CheckoutPage() {
 
   /* ── Submit ── */
   const onSubmit = async (form: CheckoutFormState) => {
+    setPayError(null);
     setLoading(true);
     try {
-      const orderId   = generateOrderId();
-      const orderData = {
-        id: orderId,
-        user: user || { id: 'guest' },
-        contactEmail: form.email,
-        billingAndShippingAddressSame: form.billingOption === 'same',
-        shippingAddress: form.shippingAddress,
-        billingAddress: form.billingOption === 'same'
-          ? form.shippingAddress
-          : form.billingAddress,
-        items,
-        total,
+      const orderId     = generateOrderId();
+      const addressSame = form.billingOption === 'same';
+
+      // Normalize form address to the AddressPayload schema
+      const normalizeAddr = (a: typeof form.shippingAddress): AddressPayload => ({
+        name:    `${a.firstName} ${a.lastName}`.trim(),
+        line1:   a.address,
+        line2:   a.apartment || undefined,
+        city:    a.city,
+        state:   a.state,
+        pincode: a.pinCode,
+        country: 'India',
+        phone:   a.phone,
+      });
+
+      const billingAddr  = normalizeAddr(addressSame ? form.shippingAddress : form.billingAddress!);
+      const shippingAddr = addressSame ? undefined : normalizeAddr(form.shippingAddress);
+
+      const orderPayload: CreateOrderPayload = {
+        id:              orderId,
+        contactEmail:    form.email,
+        billingAddress:  billingAddr,
+        shippingAddress: shippingAddr,
+        items: items.map((i) => ({
+          productId: i.productId,
+          title:     i.title,
+          qty:       i.qty,
+          unitPrice: i.price,
+          total:     +(i.price * i.qty).toFixed(2),
+        })),
+        subtotal:    +total.toFixed(2),
+        taxAmount:   0,
+        shippingFee: 0,
+        discount:    0,
+        totalAmount: +total.toFixed(2),
       };
 
+      // Step 1 — persist order as PLACED/PENDING BEFORE opening payment
+      // Hard-fail if both Cloud Function and Firestore fallback fail
+      try {
+        await ordersApi.create(orderPayload);
+      } catch (err) {
+        try {
+          await firestoreService.createOrder(orderPayload);
+        } catch {
+          setPayError(getErrorMessage(err, 'Could not create your order. Please check your connection and try again.'));
+          setLoading(false);
+          return;
+        }
+      }
+
+      // ── Mock payment mode: show the test-payment dialog instead of Razorpay ──
+      if (USE_MOCK_PAYMENT) {
+        setMockPayCtx({
+          orderId,
+          orderData: orderPayload,
+          amount: total,
+          name:  `${form.shippingAddress.firstName} ${form.shippingAddress.lastName}`,
+          email: form.email,
+          phone: form.shippingAddress.phone,
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Step 2 — create a Razorpay order on the server (HMAC-verifiable)
+      let razorpayOrderId: string | undefined;
+      try {
+        const rzpOrder = await paymentsApi.createRazorpayOrder({ amount: total, orderId });
+        razorpayOrderId = rzpOrder.razorpayOrderId;
+      } catch {
+        // Non-critical: proceed without server-side order (test/dev mode)
+        console.warn('Could not create Razorpay server order; continuing without HMAC verification.');
+      }
+
+      // Step 3 — open Razorpay checkout
       await initRazorpayPayment({
         orderId,
         amount: total,
         name:   `${form.shippingAddress.firstName} ${form.shippingAddress.lastName}`,
         email:  form.email,
         phone:  form.shippingAddress.phone,
-        onSuccess: async (_response: any) => {
-          await firestoreService.createOrder(orderData);
+        razorpayOrderId,
+
+        // ─ Success: money collected — verify signature and confirm order
+        onSuccess: async (response: any) => {
+          try {
+            await paymentsApi.verifyPayment({
+              orderId,
+              razorpay_order_id:   response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature:  response.razorpay_signature,
+            });
+          } catch (err) {
+            // Critical: payment was collected but confirmation failed
+            // Save locally so support can reconcile; do NOT block navigation
+            console.error('Payment verification failed after collection:', err);
+            localStorage.setItem('pendingOrder', JSON.stringify({
+              ...orderPayload,
+              paymentId: response.razorpay_payment_id,
+              verifyFailedAt: new Date().toISOString(),
+            }));
+            navigate('/order-success', { state: { order: orderPayload, verifyFailed: true } });
+            dispatch(clearCart());
+            return;
+          }
           dispatch(clearCart());
-          navigate('/order-success', { state: { order: orderData } });
+          navigate('/order-success', { state: { order: orderPayload } });
         },
-        onDismiss: () => setLoading(false),
+
+        // ─ Dismiss: user closed the modal without paying
+        onDismiss: async () => {
+          try {
+            await paymentsApi.failPayment({ orderId, reason: 'payment_dismissed' });
+          } catch (err) {
+            console.warn('Could not mark order cancelled:', getErrorMessage(err));
+          }
+          setPayError('Payment was cancelled. Your order has not been charged.');
+          setLoading(false);
+        },
+
+        // ─ Payment failed: card declined / bank error (distinct from dismiss)
+        onPaymentFailed: async (error) => {
+          console.error('Razorpay payment failed:', error);
+          try {
+            await paymentsApi.failPayment({ orderId, reason: 'payment_failed' });
+          } catch (err) {
+            console.warn('Could not mark order as payment_failed:', getErrorMessage(err));
+          }
+          setPayError(`Payment failed: ${error.description} — ${error.reason}. Please try again.`);
+          setLoading(false);
+        },
       });
     } catch (err) {
-      console.error(err);
+      console.error('Checkout error:', err);
+      setPayError(getErrorMessage(err));
       setLoading(false);
     }
   };
@@ -132,8 +238,67 @@ export default function CheckoutPage() {
     </div>
   );
 
+  /* ── Mock-payment callbacks ── */
+  const handleMockSuccess = async (response: any) => {
+    const ctx = mockPayCtx!;
+    setMockPayCtx(null);
+    setLoading(true);
+    try {
+      // Write the full payment ledger record (no card data — PCI-DSS safe)
+      await paymentsApi.record({
+        paymentId:        response.razorpay_payment_id,
+        orderId:          ctx.orderId,
+        razorpayOrderId:  response.razorpay_order_id,
+        razorpaySignature: response.razorpay_signature,
+        transactionRef:   response.transactionRef ?? null,
+        utr:              response.utr ?? null,
+        amount:           ctx.amount,
+        currency:         'INR',
+        method:           'mock',
+        cardLast4:        response.cardLast4 ?? null,  // last-4 only — never full PAN
+        cardNetwork:      response.cardNetwork ?? null,
+        customerName:     ctx.name,
+        customerEmail:    ctx.email,
+        isTest:           true,
+      });
+    } catch (err) {
+      // best-effort — order is already persisted; don't block navigation
+      console.warn('Could not record payment ledger entry:', err);
+    }
+    dispatch(clearCart());
+    navigate('/order-success', { state: { order: ctx.orderData } });
+    setLoading(false);
+  };
+
+  const handleMockDismiss = async () => {
+    const ctx = mockPayCtx!;
+    setMockPayCtx(null);
+    try { await paymentsApi.failPayment({ orderId: ctx.orderId, reason: 'payment_dismissed' }); } catch { /* ignore */ }
+    setPayError('Payment was cancelled. Your order has not been charged.');
+  };
+
+  const handleMockFailed = (error: { description: string; reason: string }) => {
+    const ctx = mockPayCtx!;
+    setMockPayCtx(null);
+    paymentsApi.failPayment({ orderId: ctx.orderId, reason: 'payment_failed' }).catch(() => {});
+    setPayError(`Payment failed: ${error.description} — ${error.reason}. Please try again.`);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* ── Mock Payment Modal ── */}
+      {mockPayCtx && (
+        <MockPaymentModal
+          orderId={mockPayCtx.orderId}
+          amount={mockPayCtx.amount}
+          name={mockPayCtx.name}
+          email={mockPayCtx.email}
+          onSuccess={handleMockSuccess}
+          onDismiss={handleMockDismiss}
+          onPaymentFailed={handleMockFailed}
+        />
+      )}
+
       {/* ── Mobile: collapsible order summary bar ── */}
       <div className="lg:hidden bg-white border-b border-gray-200 sticky top-0 z-30">
         <button
@@ -159,6 +324,29 @@ export default function CheckoutPage() {
         {/* ══ LEFT: Form ══ */}
         <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-8">
 
+          {/* Payment error banner */}
+          {payError && (
+            <div role="alert" className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+              <span className="mt-0.5 shrink-0 text-red-500">&#9888;</span>
+              <span>{payError}</span>
+              <button
+                type="button"
+                onClick={() => setPayError(null)}
+                className="ml-auto shrink-0 text-red-400 hover:text-red-600"
+                aria-label="Dismiss error"
+              >&#10005;</button>
+            </div>
+          )}
+
+          {/* Back button */}
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-800 font-medium transition-colors self-start"
+          >
+            <FiArrowLeft size={15} /> Back to order summary
+          </button>
+
           {/* Contact */}
           <section>
             <div className="flex items-center justify-between mb-3">
@@ -166,7 +354,7 @@ export default function CheckoutPage() {
               {!user && <a href="/auth" className="text-sm text-indigo-600 hover:underline font-medium">Sign in</a>}
             </div>
             <div className="flex flex-col gap-3">
-              <Field
+              <FormField
                 label="Email" id="email" type="email" placeholder="you@example.com"
                 error={errors.email?.message}
                 registration={register('email', {

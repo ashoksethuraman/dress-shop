@@ -19,10 +19,8 @@ export default function SideMenu({ mobileOpen, onClose, sideCollapsed }: Props) 
   const asideClass = [
     'fixed top-16 left-0 z-[100] bg-white border-r border-gray-200 shadow-sm',
     'flex flex-col h-[calc(100vh-4rem)] overflow-y-auto transition-all duration-300',
-    // Mobile: hidden (off-screen) unless mobileOpen
     'max-[991px]:w-60 max-[991px]:-translate-x-full max-[991px]:shadow-xl',
     mobileOpen ? 'max-[991px]:translate-x-0' : '',
-    // Desktop: full vs collapsed width
     'min-[992px]:translate-x-0',
     sideCollapsed ? 'min-[992px]:w-16' : 'min-[992px]:w-60',
   ].join(' ');
@@ -30,13 +28,6 @@ export default function SideMenu({ mobileOpen, onClose, sideCollapsed }: Props) 
   return (
     <>
       <aside className={asideClass}>
-        {/* Header label (only visible when expanded on desktop) */}
-        {/* <div className="flex items-center h-12 px-4 border-b border-gray-100 shrink-0">
-          <span className={`text-xs font-bold uppercase tracking-widest text-gray-400 transition-opacity duration-200 ${sideCollapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-            Menu
-          </span>
-        </div> */}
-
         {/* Nav links */}
         <nav className="flex flex-col gap-1 p-3 flex-1">
           {menuItems.map((m) => {

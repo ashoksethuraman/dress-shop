@@ -2,16 +2,10 @@ import React, { useRef, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppDispatch } from '../store/hooks';
 import { addToCart } from '../store/cartSlice';
-import { getPriceLevel } from '../utils/priceLevel';
-import { FiTrash2, FiEye, } from 'react-icons/fi';
+import { getPriceLevel, BADGE_COLORS } from '../utils/priceLevel';
+import { FiTrash2, FiEye } from 'react-icons/fi';
 import { Product } from '../utils/types';
 import { resolveImageUrl } from '../config/imageConfig';
-
-const BADGE_COLORS: Record<string, string> = {
-  budget: 'bg-green-100 text-green-700',
-  mid:    'bg-yellow-100 text-yellow-700',
-  premium:'bg-indigo-100 text-indigo-700',
-};
 
 interface Props {
   product: Product & { id: string };
@@ -49,8 +43,11 @@ export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [hovered, hasMultiple, images.length]);
 
+  const isOutOfStock = p.stock === 'out_of_stock';
+
   const handleAddToCart = () => {
-    dispatch(addToCart({ productId: p.id, title: p.title, price: p.price, qty: 1 }));
+    if (isOutOfStock) return;
+    dispatch(addToCart({ productId: p.id, title: p.title, price: p.price, qty: 1, stock: p.stock ?? 'available' }));
     setAdding(true);
     setTimeout(() => setAdding(false), 600);
   };
@@ -109,6 +106,15 @@ export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
               </span>
             )}
 
+            {/* Out-of-Stock overlay */}
+            {isOutOfStock && (
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
+                <span className="bg-red-500 text-white text-xs font-bold px-4 py-1.5 rounded-full tracking-wide shadow-lg">
+                  Out of Stock
+                </span>
+              </div>
+            )}
+
             {/* Quick-view overlay on hover */}
             <Link
               to={`/product/${p.id}`}
@@ -164,11 +170,14 @@ export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
         </Link>
         <button
           onClick={handleAddToCart}
+          disabled={isOutOfStock}
           className={`flex-1 py-2 rounded-xl text-white text-sm font-semibold transition-all ${
-            adding ? 'bg-green-500 scale-95' : 'bg-indigo-500 hover:bg-indigo-600'
+            isOutOfStock
+              ? 'bg-gray-300 cursor-not-allowed'
+              : adding ? 'bg-green-500 scale-95' : 'bg-indigo-500 hover:bg-indigo-600'
           }`}
         >
-          {adding ? '✓ Added' : 'Add to cart'}
+          {isOutOfStock ? 'Out of Stock' : adding ? '✓ Added' : 'Add to cart'}
         </button>
       </div>
     </div>

@@ -38,10 +38,10 @@ export default function OrderSummaryPage() {
 
         {/* Back link */}
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => navigate('/')}
           className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-800 font-medium mb-6 transition-colors"
         >
-          <FiArrowLeft size={15} /> Back to cart
+          <FiArrowLeft size={15} /> Back to home
         </button>
 
         <h1 className="text-2xl font-extrabold text-gray-900 mb-6">Order Summary</h1>

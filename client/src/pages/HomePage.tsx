@@ -1,9 +1,11 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { firestoreService } from '../services/firestoreService';
+import React from 'react';
+import { invalidateProductsCache } from '../services/firestoreService';
+import { productsApi } from '../services/apiClient';
 import { Link } from 'react-router-dom';
 import { useAppSelector } from '../store/hooks';
 import { FiShoppingCart } from 'react-icons/fi';
 import ProductCard from '../components/ProductCard';
+import { useProducts } from '../hooks/useProducts';
 
 function SkeletonCard() {
   return (
@@ -19,23 +21,19 @@ function SkeletonCard() {
 }
 
 export default function HomePage() {
-  const [products, setProducts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { products, loading, error, refresh } = useProducts();
   const cartCount = useAppSelector(state => state.cart.items.length);
-  const isAdmin = useAppSelector((s) => s.user.user?.isAdmin ?? false);
-
-  const loadProducts = useCallback(async () => {
-    const p = await firestoreService.getProducts();
-    setProducts(p);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { loadProducts(); }, [loadProducts]);
+  const isAdmin   = useAppSelector((s) => s.user.user?.isAdmin ?? false);
 
   const handleAdminDelete = async (id: string, title: string) => {
     if (!window.confirm(`Delete "${title}"?`)) return;
-    await firestoreService.deleteProduct(id);
-    setProducts((prev) => prev.filter((p) => p.id !== id));
+    try {
+      await productsApi.delete(id);
+    } catch {
+      /* Cloud Function failed — product cache will be stale; invalidate then refresh */
+    }
+    invalidateProductsCache();
+    refresh({ bust: true });
   };
 
   return (
@@ -57,14 +55,28 @@ export default function HomePage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
           {loading
             ? Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)
-            : products.map((p) => (
-                <ProductCard
-                  key={p.id}
-                  product={p}
-                  isAdmin={isAdmin}
-                  onDelete={handleAdminDelete}
-                />
-              ))
+            : error
+              ? (
+                <div className="col-span-full text-center py-12 text-gray-500">
+                  <p className="mb-3">Could not load products. Please check your connection and try again.</p>
+                  <button
+                    onClick={() => refresh()}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )
+              : products.length === 0
+                ? <p className="col-span-full text-center py-12 text-gray-400">No products available yet.</p>
+                : products.map((p) => (
+                    <ProductCard
+                      key={p.id}
+                      product={p}
+                      isAdmin={isAdmin}
+                      onDelete={handleAdminDelete}
+                    />
+                  ))
           }
         </div>
       </section>
