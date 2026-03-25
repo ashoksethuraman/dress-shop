@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { clearCart } from '../store/cartSlice';
 import { useNavigate } from 'react-router-dom';
@@ -9,10 +9,12 @@ import { paymentsApi, ordersApi } from '../services/apiClient';
 import { initRazorpayPayment, preloadRazorpayScript } from '../services/paymentService';
 import { FiChevronDown, FiChevronUp, FiLock, FiShoppingBag, FiArrowLeft } from 'react-icons/fi';
 import { CheckoutFormState } from '../utils/types';
-import { type CreateOrderPayload, type AddressPayload, getErrorMessage } from '../utils/apiTypes';
+import { type CreateOrderPayload, type AddressPayload, getErrorMessage, ApiError, type StockValidationIssue } from '../utils/apiTypes';
 import AddressSection from '../components/AddressSection';
 import FormField from '../components/FormField';
 import MockPaymentModal from '../components/MockPaymentModal';
+import { loadCheckoutForm, saveCheckoutForm } from '../services/guestSession';
+import AlertModal from '../components/AlertModal';
 
 /**
  * Flip to `false` and re-enable the Razorpay block below when payment integration is ready.
@@ -32,7 +34,7 @@ export default function CheckoutPage() {
 
   // Redirect to home if cart is empty
   useEffect(() => {
-    if (items.length === 0) navigate('/', { replace: true });
+    if (!navigatedAway.current && items.length === 0) navigate('/', { replace: true });
   }, [items.length, navigate]);
 
   // Preload Razorpay SDK only when NOT in mock mode
@@ -45,6 +47,13 @@ export default function CheckoutPage() {
     orderId: string; orderData: any;
     amount: number; name: string; email: string; phone: string;
   } | null>(null);
+  const [stockIssues, setStockIssues] = useState<StockValidationIssue[] | null>(null);
+
+  // Prevents the "empty cart → go home" redirect from firing after a successful payment navigation
+  const navigatedAway = useRef(false);
+
+  // Load any previously saved form data so returning guests don't re-type their address
+  const savedForm = loadCheckoutForm();
 
   const {
     register,
@@ -52,18 +61,40 @@ export default function CheckoutPage() {
     watch,
     formState: { errors },
   } = useForm<CheckoutFormState>({
-    defaultValues: { billingOption: 'same', emailOffers: false, saveInfo: false, textOffers: false },
+    defaultValues: {
+      billingOption: 'same',
+      emailOffers: false,
+      saveInfo: false,
+      textOffers: false,
+      ...(savedForm ?? {}),
+    },
   });
 
   const billingOption    = watch('billingOption');
   const shippingAddress  = watch('shippingAddress.address' as any);
   const shippingState    = watch('shippingAddress.state' as any);
 
+  // Persist email, address, and billing option on every change.
+  // Address is intentionally kept even after order success so future checkouts are pre-filled.
+  useEffect(() => {
+    const { unsubscribe } = watch((values) => {
+      saveCheckoutForm({
+        email:           values.email,
+        shippingAddress: values.shippingAddress as any,
+        billingAddress:  values.billingAddress as any,
+        billingOption:   values.billingOption,
+      });
+    });
+    return () => unsubscribe();
+  }, [watch]);
+
   /* ── Submit ── */
   const onSubmit = async (form: CheckoutFormState) => {
     setPayError(null);
     setLoading(true);
     try {
+      // ── End validation ─────────────────────────────────────────────────────
+
       const orderId     = generateOrderId();
       const addressSame = form.billingOption === 'same';
 
@@ -79,14 +110,17 @@ export default function CheckoutPage() {
         phone:   a.phone,
       });
 
+      // When addresses differ: billingAddress = billing form, shippingAddress = shipping form.
+      // When same: only billingAddress is stored; shippingAddress is omitted.
       const billingAddr  = normalizeAddr(addressSame ? form.shippingAddress : form.billingAddress!);
       const shippingAddr = addressSame ? undefined : normalizeAddr(form.shippingAddress);
 
       const orderPayload: CreateOrderPayload = {
-        id:              orderId,
-        contactEmail:    form.email,
-        billingAddress:  billingAddr,
-        shippingAddress: shippingAddr,
+        id:                     orderId,
+        contactEmail:           form.email,
+        billingAddress:         billingAddr,
+        ...(shippingAddr ? { shippingAddress: shippingAddr } : {}),
+        billingAndShippingSame: addressSame,
         items: items.map((i) => ({
           productId: i.productId,
           title:     i.title,
@@ -106,6 +140,13 @@ export default function CheckoutPage() {
       try {
         await ordersApi.create(orderPayload);
       } catch (err) {
+        // Stock validation rejected by server — show issues modal, do NOT fall through to Firestore
+        if (err instanceof ApiError && err.status === 422 && err.body?.issues) {
+          setStockIssues(err.body.issues as StockValidationIssue[]);
+          setLoading(false);
+          return;
+        }
+        // Network / 5xx error — try direct Firestore write as fallback
         try {
           await firestoreService.createOrder(orderPayload);
         } catch {
@@ -166,12 +207,18 @@ export default function CheckoutPage() {
               paymentId: response.razorpay_payment_id,
               verifyFailedAt: new Date().toISOString(),
             }));
-            navigate('/order-success', { state: { order: orderPayload, verifyFailed: true } });
+            navigatedAway.current = true;
+            navigate('/order-success', {
+              state: { order: orderPayload, paymentId: response.razorpay_payment_id, paymentMethod: 'Razorpay', verifyFailed: true },
+            });
             dispatch(clearCart());
             return;
           }
+          navigatedAway.current = true;
+          navigate('/order-success', {
+            state: { order: orderPayload, paymentId: response.razorpay_payment_id, paymentMethod: 'Razorpay' },
+          });
           dispatch(clearCart());
-          navigate('/order-success', { state: { order: orderPayload } });
         },
 
         // ─ Dismiss: user closed the modal without paying
@@ -181,8 +228,10 @@ export default function CheckoutPage() {
           } catch (err) {
             console.warn('Could not mark order cancelled:', getErrorMessage(err));
           }
-          setPayError('Payment was cancelled. Your order has not been charged.');
-          setLoading(false);
+          navigatedAway.current = true;
+          navigate('/order-failure', {
+            state: { order: orderPayload, reason: 'payment_dismissed', description: 'Payment was cancelled.' },
+          });
         },
 
         // ─ Payment failed: card declined / bank error (distinct from dismiss)
@@ -193,8 +242,10 @@ export default function CheckoutPage() {
           } catch (err) {
             console.warn('Could not mark order as payment_failed:', getErrorMessage(err));
           }
-          setPayError(`Payment failed: ${error.description} — ${error.reason}. Please try again.`);
-          setLoading(false);
+          navigatedAway.current = true;
+          navigate('/order-failure', {
+            state: { order: orderPayload, reason: 'payment_failed', description: error.description, errorCode: error.reason },
+          });
         },
       });
     } catch (err) {
@@ -218,13 +269,13 @@ export default function CheckoutPage() {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-gray-800 truncate">{it.title}</p>
           </div>
-          <p className="text-sm font-semibold text-gray-800">${(it.price * it.qty).toFixed(2)}</p>
+          <p className="text-sm font-semibold text-gray-800">₹{(it.price * it.qty).toFixed(2)}</p>
         </div>
       ))}
       <div className="border-t border-gray-200 pt-3 flex flex-col gap-1.5">
         <div className="flex justify-between text-sm text-gray-600">
           <span>Subtotal</span>
-          <span>${subtotal.toFixed(2)}</span>
+          <span>₹{subtotal.toFixed(2)}</span>
         </div>
         <div className="flex justify-between text-sm text-gray-600">
           <span>Shipping</span>
@@ -232,7 +283,7 @@ export default function CheckoutPage() {
         </div>
         <div className="flex justify-between text-base font-bold text-gray-900 pt-1 border-t border-gray-200">
           <span>Total</span>
-          <span className="text-indigo-600">${total.toFixed(2)}</span>
+          <span className="text-indigo-600">₹{total.toFixed(2)}</span>
         </div>
       </div>
     </div>
@@ -265,8 +316,15 @@ export default function CheckoutPage() {
       // best-effort — order is already persisted; don't block navigation
       console.warn('Could not record payment ledger entry:', err);
     }
+    navigatedAway.current = true;
+    navigate('/order-success', {
+      state: {
+        order:         ctx.orderData,
+        paymentId:     response.razorpay_payment_id,
+        paymentMethod: response.cardNetwork ? `Mock · ${response.cardNetwork}` : 'Mock Payment',
+      },
+    });
     dispatch(clearCart());
-    navigate('/order-success', { state: { order: ctx.orderData } });
     setLoading(false);
   };
 
@@ -274,18 +332,40 @@ export default function CheckoutPage() {
     const ctx = mockPayCtx!;
     setMockPayCtx(null);
     try { await paymentsApi.failPayment({ orderId: ctx.orderId, reason: 'payment_dismissed' }); } catch { /* ignore */ }
-    setPayError('Payment was cancelled. Your order has not been charged.');
+    navigatedAway.current = true;
+    navigate('/order-failure', {
+      state: { order: ctx.orderData, reason: 'payment_dismissed', description: 'Payment was cancelled by the user.' },
+    });
   };
 
   const handleMockFailed = (error: { description: string; reason: string }) => {
     const ctx = mockPayCtx!;
     setMockPayCtx(null);
     paymentsApi.failPayment({ orderId: ctx.orderId, reason: 'payment_failed' }).catch(() => {});
-    setPayError(`Payment failed: ${error.description} — ${error.reason}. Please try again.`);
+    navigatedAway.current = true;
+    navigate('/order-failure', {
+      state: { order: ctx.orderData, reason: 'payment_failed', description: error.description, errorCode: error.reason },
+    });
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* ── Stock Validation Modal ── */}
+      {stockIssues && (
+        <AlertModal
+          type="warning"
+          title="Some items in your cart are unavailable"
+          messages={stockIssues.map((i) =>
+            i.reason === 'not_found'
+              ? `"${i.title}" is no longer available — please remove it from your cart.`
+              : `"${i.title}" is out of stock — please remove it from your cart.`
+          )}
+          onClose={() => setStockIssues(null)}
+          actionLabel="Go to Cart"
+          onAction={() => { setStockIssues(null); navigate('/cart'); }}
+        />
+      )}
+
       {/* ── Mock Payment Modal ── */}
       {mockPayCtx && (
         <MockPaymentModal
@@ -310,7 +390,7 @@ export default function CheckoutPage() {
             {summaryOpen ? 'Hide' : 'Show'} order summary
             {summaryOpen ? <FiChevronUp size={15} /> : <FiChevronDown size={15} />}
           </span>
-          <span className="text-gray-900 font-bold">${total.toFixed(2)}</span>
+          <span className="text-gray-900 font-bold">₹{total.toFixed(2)}</span>
         </button>
         {summaryOpen && (
           <div className="px-4 pb-4 bg-gray-50 border-t border-gray-100">

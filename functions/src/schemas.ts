@@ -51,16 +51,17 @@ export interface OrderItemSchema {
 // ── Request body interfaces ────────────────────────────────────────────────
 
 export interface CreateOrderBody {
-  id?:               string;
-  contactEmail:      string;
-  billingAddress:    AddressSchema;
-  shippingAddress?:  AddressSchema;   // omitted when same as billing
-  items:             OrderItemSchema[];
-  subtotal:          number;
-  taxAmount:         number;
-  shippingFee:       number;
-  discount:          number;
-  totalAmount:       number;
+  id?:                    string;
+  contactEmail:           string;
+  billingAddress:         AddressSchema;
+  shippingAddress?:       AddressSchema;  // only present when billingAndShippingSame=false
+  billingAndShippingSame: boolean;
+  items:                  OrderItemSchema[];
+  subtotal:               number;
+  taxAmount:              number;
+  shippingFee:            number;
+  discount:               number;
+  totalAmount:            number;
 }
 
 export interface VerifyPaymentBody {
@@ -101,6 +102,45 @@ export interface RecordPaymentBody {
 export interface UpdateOrderStatusBody {
   orderId: string;
   status:  OrderStatus;
+}
+
+// ── Product body interfaces ────────────────────────────────────────────────
+
+export const PRODUCT_CATEGORIES = ["men", "women"] as const;
+export type ProductCategory = typeof PRODUCT_CATEGORIES[number];
+
+export const STOCK_STATUSES = ["available", "out_of_stock"] as const;
+export type StockStatus = typeof STOCK_STATUSES[number];
+
+export interface CreateProductBody {
+  title:        string;
+  description?: string;
+  price:        number;
+  category?:    ProductCategory;
+  images?:      string[];
+  sizes?:       string[];
+  stock?:       StockStatus;
+}
+
+export interface UpdateProductBody {
+  title?:        string;
+  description?:  string;
+  price?:        number;
+  category?:     ProductCategory;
+  images?:       string[];
+  sizes?:        string[];
+  stock?:        StockStatus;
+}
+
+export interface UpdateProfileBody {
+  displayName?: string;
+  phone?:       string;
+  photoURL?:    string;
+}
+
+export interface SetAdminClaimBody {
+  targetUid: string;
+  isAdmin:   boolean;
 }
 
 // ── Response shape interfaces ──────────────────────────────────────────────
@@ -199,10 +239,17 @@ export function validateCreateOrder(body: unknown): ValidationResult {
   if (!isEmail(b.contactEmail))
     return { valid: false, error: "A valid contactEmail is required.", field: "contactEmail" };
 
+  if (typeof b.billingAndShippingSame !== "boolean")
+    return { valid: false, error: "billingAndShippingSame must be a boolean.", field: "billingAndShippingSame" };
+
   const billCheck = validateAddress(b.billingAddress, "billingAddress");
   if (!billCheck.valid) return billCheck;
 
-  if (b.shippingAddress !== undefined) {
+  // When addresses differ, shippingAddress is required and must be valid
+  if (!b.billingAndShippingSame) {
+    const shipCheck = validateAddress(b.shippingAddress, "shippingAddress");
+    if (!shipCheck.valid) return shipCheck;
+  } else if (b.shippingAddress !== undefined) {
     const shipCheck = validateAddress(b.shippingAddress, "shippingAddress");
     if (!shipCheck.valid) return shipCheck;
   }
@@ -302,4 +349,123 @@ export function validateUpdateOrderStatus(body: unknown): ValidationResult {
     };
 
   return { valid: true };
+}
+
+export function validateUpdateProfile(body: unknown): ValidationResult {
+  if (!body || typeof body !== "object")
+    return { valid: false, error: "Request body is required." };
+
+  const b = body as Record<string, unknown>;
+
+  if (
+    b.displayName !== undefined &&
+    (typeof b.displayName !== "string" || (b.displayName as string).trim().length === 0)
+  )
+    return { valid: false, error: "displayName must be a non-empty string.", field: "displayName" };
+
+  if (b.phone !== undefined) {
+    if (typeof b.phone !== "string" || !/^\+[1-9]\d{6,14}$/.test(b.phone as string))
+      return {
+        valid: false,
+        error: "phone must be in E.164 format (e.g. +919876543210).",
+        field: "phone",
+      };
+  }
+
+  if (
+    b.photoURL !== undefined &&
+    (typeof b.photoURL !== "string" || (b.photoURL as string).trim().length === 0)
+  )
+    return { valid: false, error: "photoURL must be a non-empty string.", field: "photoURL" };
+
+  if (
+    b.displayName === undefined &&
+    b.phone === undefined &&
+    b.photoURL === undefined
+  )
+    return { valid: false, error: "At least one of displayName, phone, or photoURL is required." };
+
+  return { valid: true };
+}
+
+export function validateSetAdminClaim(body: unknown): ValidationResult {
+  if (!body || typeof body !== "object")
+    return { valid: false, error: "Request body is required." };
+
+  const b = body as Record<string, unknown>;
+  if (!isNonEmptyString(b.targetUid))
+    return { valid: false, error: "targetUid is required.", field: "targetUid" };
+  if (typeof b.isAdmin !== "boolean")
+    return { valid: false, error: "isAdmin must be a boolean.", field: "isAdmin" };
+
+  return { valid: true };
+}
+
+// ── Product validators ─────────────────────────────────────────────────────
+
+function validateProductFields(b: Record<string, unknown>, requireTitle: boolean): ValidationResult {
+  if (requireTitle && !isNonEmptyString(b.title))
+    return { valid: false, error: "title is required and must be a non-empty string.", field: "title" };
+
+  if (b.title !== undefined && !isNonEmptyString(b.title))
+    return { valid: false, error: "title must be a non-empty string.", field: "title" };
+
+  if (b.description !== undefined && typeof b.description !== "string")
+    return { valid: false, error: "description must be a string.", field: "description" };
+
+  if (requireTitle && b.price === undefined)
+    return { valid: false, error: "price is required.", field: "price" };
+
+  if (b.price !== undefined) {
+    if (typeof b.price !== "number" || !Number.isFinite(b.price) || b.price < 0)
+      return { valid: false, error: "price must be a non-negative finite number.", field: "price" };
+  }
+
+  if (b.category !== undefined && !(PRODUCT_CATEGORIES as readonly string[]).includes(b.category as string))
+    return {
+      valid: false,
+      error: `category must be one of: ${PRODUCT_CATEGORIES.join(", ")}.`,
+      field: "category",
+    };
+
+  if (b.stock !== undefined && !(STOCK_STATUSES as readonly string[]).includes(b.stock as string))
+    return {
+      valid: false,
+      error: `stock must be one of: ${STOCK_STATUSES.join(", ")}.`,
+      field: "stock",
+    };
+
+  if (b.images !== undefined) {
+    if (!Array.isArray(b.images) || (b.images as unknown[]).some((i) => typeof i !== "string"))
+      return { valid: false, error: "images must be an array of strings.", field: "images" };
+  }
+
+  if (b.sizes !== undefined) {
+    if (!Array.isArray(b.sizes) || (b.sizes as unknown[]).some((s) => typeof s !== "string"))
+      return { valid: false, error: "sizes must be an array of strings.", field: "sizes" };
+  }
+
+  return { valid: true };
+}
+
+export function validateCreateProduct(body: unknown): ValidationResult {
+  if (!body || typeof body !== "object")
+    return { valid: false, error: "Request body is required." };
+
+  return validateProductFields(body as Record<string, unknown>, true);
+}
+
+export function validateUpdateProduct(body: unknown): ValidationResult {
+  if (!body || typeof body !== "object")
+    return { valid: false, error: "Request body is required." };
+
+  const b = body as Record<string, unknown>;
+  const allowed: Array<keyof UpdateProductBody> = [
+    "title", "description", "price", "category", "images", "sizes", "stock",
+  ];
+  const hasUpdateField = allowed.some((k) => b[k] !== undefined);
+  if (!hasUpdateField)
+    return { valid: false, error: "At least one field to update is required." };
+
+  return validateProductFields(b, false);
 }

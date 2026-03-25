@@ -22,7 +22,7 @@ function SkeletonCard() {
 
 export default function HomePage() {
   const { products, loading, error, refresh } = useProducts();
-  const cartCount = useAppSelector(state => state.cart.items.length);
+  const cartCount = useAppSelector(state => state.cart.items.reduce((acc, i) => acc + i.qty, 0));
   const isAdmin   = useAppSelector((s) => s.user.user?.isAdmin ?? false);
 
   const handleAdminDelete = async (id: string, title: string) => {

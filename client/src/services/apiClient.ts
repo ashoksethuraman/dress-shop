@@ -53,11 +53,13 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const text = await res.text();
     let message = `Request failed (${res.status}).`;
     let field: string | undefined;
+    let body: Record<string, any> | undefined;
     try {
-      const json = JSON.parse(text) as { error?: string; field?: string };
-      if (json.error) { message = json.error; field = json.field; }
+      const json = JSON.parse(text) as { error?: string; field?: string; [k: string]: unknown };
+      if (json.error) { message = json.error as string; field = json.field as string | undefined; }
+      body = json as Record<string, any>;
     } catch { /* raw text is not JSON — keep generic message */ }
-    throw new ApiError(res.status, message, field);
+    throw new ApiError(res.status, message, field, body);
   }
 
   return res.status === 204 ? (null as unknown as T) : (res.json() as Promise<T>);
@@ -69,23 +71,6 @@ export const apiClient = {
   post:   <T>(path: string, body: unknown)   => request<T>(path, { method: 'POST',   body: JSON.stringify(body) }),
   put:    <T>(path: string, body: unknown)   => request<T>(path, { method: 'PUT',    body: JSON.stringify(body) }),
   delete: <T>(path: string)                  => request<T>(path, { method: 'DELETE' }),
-};
-
-// ── User / Auth ────────────────────────────────────────────────────────────
-export const userApi = {
-  /** GET /apiMe — fetch the current user's profile */
-  me: () => apiClient.get<{
-    uid: string; email: string; name: string; phone: string | null;
-    photoURL: string | null; emailVerified: boolean; isAdmin: boolean; isGuest: boolean;
-  }>('apiMe'),
-
-  /** POST /apiUpdateProfile — update displayName, phone, photoURL */
-  updateProfile: (data: { displayName?: string; phone?: string; photoURL?: string }) =>
-    apiClient.post<{ success: boolean }>('apiUpdateProfile', data),
-
-  /** POST /apiSetAdminClaim — grant/revoke admin (admin only) */
-  setAdminClaim: (targetUid: string, isAdmin: boolean) =>
-    apiClient.post<{ success: boolean }>('apiSetAdminClaim', { targetUid, isAdmin }),
 };
 
 // ── Products ───────────────────────────────────────────────────────────────

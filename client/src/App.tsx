@@ -3,8 +3,8 @@ import Navbar from './components/Navbar';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import AdminRoute from './components/AdminRoute';
 import SideMenu from './components/SideMenu';
-import ProtectedRoute from './components/ProtectedRoute';
 import { useAppSelector } from './store/hooks';
+import Loader from './components/Loader';
 
 // Lazy-load all pages so each route is only downloaded when first visited
 const Login             = lazy(() => import('./pages/Login'));
@@ -13,15 +13,13 @@ const ProductDetailsPage = lazy(() => import('./pages/ProductDetailsPage'));
 const CartPage          = lazy(() => import('./pages/CartPage'));
 const OrderSummaryPage  = lazy(() => import('./pages/OrderSummaryPage'));
 const CheckoutPage      = lazy(() => import('./pages/CheckoutPage'));
-const OrderSuccessPage  = lazy(() => import('./pages/OrderSuccessPage'));
+const OrderStatusPage   = lazy(() => import('./pages/OrderStatusPage')); // handles both success & failure
 const ContactUsPage     = lazy(() => import('./pages/ContactUsPage'));
 const AboutPage         = lazy(() => import('./pages/AboutPage'));
 const ShippingPage      = lazy(() => import('./pages/ShippingPage'));
 const AdminPage         = lazy(() => import('./pages/AdminPage'));
 
-const PageFallback = () => (
-  <div className="flex items-center justify-center h-64 text-gray-400 animate-pulse text-lg">Loading…</div>
-);
+const PageFallback = () => <Loader fullPage label="Loading…" />;
 
 function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -79,7 +77,7 @@ function AppLayout() {
 
         <main className={`flex-1 mt-16 transition-all duration-300 ${sideWidth}`}>
           {!isAuthPage && (
-            <SideMenu mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} sideCollapsed={sideCollapsed} toggleSide={toggleSide} />
+            <SideMenu mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} sideCollapsed={sideCollapsed} />
           )}
 
           <Suspense fallback={<PageFallback />}>
@@ -93,7 +91,8 @@ function AppLayout() {
             <Route path="/contact" element={<ContactUsPage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/shipping" element={<ShippingPage />} />
-            <Route path="/order-success" element={<OrderSuccessPage />} />
+            <Route path="/order-success" element={<OrderStatusPage />} />
+            <Route path="/order-failure" element={<OrderStatusPage />} />
             <Route
               path="/admin"
               element={

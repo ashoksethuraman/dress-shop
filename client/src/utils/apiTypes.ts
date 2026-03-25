@@ -49,16 +49,17 @@ export interface OrderItemPayload {
 // ── POST /apiCreateOrder ───────────────────────────────────────────────────
 
 export interface CreateOrderPayload {
-  id:               string;
-  contactEmail:     string;
-  billingAddress:   AddressPayload;
-  shippingAddress?: AddressPayload;   // omit when same as billing
-  items:            OrderItemPayload[];
-  subtotal:         number;
-  taxAmount:        number;
-  shippingFee:      number;
-  discount:         number;
-  totalAmount:      number;
+  id:                     string;
+  contactEmail:           string;
+  billingAddress:         AddressPayload;
+  shippingAddress?:       AddressPayload;  // only present when billingAndShippingSame=false
+  billingAndShippingSame: boolean;
+  items:                  OrderItemPayload[];
+  subtotal:               number;
+  taxAmount:              number;
+  shippingFee:            number;
+  discount:               number;
+  totalAmount:            number;
 }
 
 export interface CreateOrderResponse {
@@ -160,12 +161,13 @@ export interface TimelineEntry {
 }
 
 export interface StoredOrder {
-  id:               string;
-  orderStatus:      OrderStatus;
-  paymentStatus:    PaymentStatus;
-  contactEmail?:    string;
-  shippingAddress?: StoredAddress;
-  billingAddress?:  StoredAddress;
+  id:                     string;
+  orderStatus:            OrderStatus;
+  paymentStatus:          PaymentStatus;
+  billingAndShippingSame: boolean;
+  contactEmail?:          string;
+  billingAddress?:        StoredAddress;
+  shippingAddress?:       StoredAddress;  // absent when billingAndShippingSame=true
   items:            StoredOrderItem[];
   subtotal:         number;
   taxAmount:        number;
@@ -196,16 +198,19 @@ export interface TrackOrderResponse {
  * with a non-2xx status.  Always carries a human-readable `message` taken
  * from the server's `{ error }` JSON field plus the HTTP `status` code.
  * Optionally carries a `field` name for inline form validation errors.
+ * Carries the full parsed `body` so callers can inspect extra fields (e.g. `issues`).
  */
 export class ApiError extends Error {
   readonly status: number;
   readonly field?: string;
+  readonly body?: Record<string, any>;
 
-  constructor(status: number, message: string, field?: string) {
+  constructor(status: number, message: string, field?: string, body?: Record<string, any>) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.field = field;
+    this.body = body;
   }
 }
 
@@ -214,4 +219,11 @@ export function getErrorMessage(err: unknown, fallback = "Something went wrong. 
   if (err instanceof ApiError) return err.message;
   if (err instanceof Error)    return err.message || fallback;
   return fallback;
+}
+
+/** One item returned in a 422 STOCK_VALIDATION_FAILED response. */
+export interface StockValidationIssue {
+  productId: string;
+  title: string;
+  reason: 'not_found' | 'out_of_stock';
 }

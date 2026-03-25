@@ -6,7 +6,7 @@ import { useAppDispatch } from '../store/hooks';
 import { addToCart } from '../store/cartSlice';
 import { getPriceLevel, BADGE_COLORS } from '../utils/priceLevel';
 import { formatPrice } from '../utils/format';
-import { FiChevronLeft, FiChevronRight, FiShoppingCart, FiHeart, FiStar } from 'react-icons/fi';
+import { FiChevronLeft, FiChevronRight, FiShoppingCart, FiStar } from 'react-icons/fi';
 import { resolveImageUrl } from '../config/imageConfig';
 
 export default function ProductDetailsPage() {
@@ -15,7 +15,6 @@ export default function ProductDetailsPage() {
   const [activeImg, setActiveImg]   = useState(0);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [added, setAdded]           = useState(false);
-  const [wishlisted, setWishlisted] = useState(false);
   const dispatch = useAppDispatch();
 
   useEffect(() => {
@@ -253,17 +252,6 @@ export default function ProductDetailsPage() {
               <FiShoppingCart size={16} />
               {product.stock === 'out_of_stock' ? 'Out of Stock' : added ? '✓ Added to Bag' : 'Add to Bag'}
             </button>
-            {/* <button
-              onClick={() => setWishlisted((w) => !w)}
-              className={`flex items-center justify-center gap-1.5 px-5 py-3.5 rounded-xl border-2 font-semibold text-sm transition-all duration-200 ${
-                wishlisted
-                  ? 'border-pink-400 bg-pink-50 text-pink-500'
-                  : 'border-gray-300 text-gray-600 hover:border-pink-300 hover:text-pink-400'
-              }`}
-            >
-              <FiHeart size={16} className={wishlisted ? 'fill-pink-500' : ''} />
-              Wishlist
-            </button> */}
           </div>
 
           {/* Delivery placeholder */}

@@ -56,6 +56,32 @@ export const apiCreateOrder = onRequest(async (req, res) => {
       updatedAt:        FieldValue.serverTimestamp(),
     };
 
+    // ── Stock validation: check every cart item against live Firestore ────────
+    // Runs in parallel — single round-trip per item via Firestore SDK.
+    // Rejects with 422 before any write so no phantom orders are created.
+    const productSnaps = await Promise.all(
+      body.items.map((item: any) =>
+        admin.firestore().doc(`products/${item.productId}`).get()
+      )
+    );
+
+    const stockIssues: { productId: string; title: string; reason: string }[] = [];
+    body.items.forEach((item: any, idx: number) => {
+      const snap = productSnaps[idx];
+      if (!snap.exists) {
+        stockIssues.push({ productId: item.productId, title: item.title, reason: 'not_found' });
+      } else if ((snap.data() as any)?.stock === 'out_of_stock') {
+        stockIssues.push({ productId: item.productId, title: item.title, reason: 'out_of_stock' });
+      }
+    });
+
+    if (stockIssues.length > 0) {
+      logger.warn('[apiCreateOrder] Stock validation failed', { orderId, stockIssues });
+      res.status(422).json({ error: 'STOCK_VALIDATION_FAILED', issues: stockIssues });
+      return;
+    }
+    // ── End stock validation ──────────────────────────────────────────────────
+
     await admin.firestore().doc(`orders/${orderId}`).set(orderDoc);
 
     logger.info(`Order created: ${orderId} by ${userId}, totalAmount: ${body.totalAmount}`);

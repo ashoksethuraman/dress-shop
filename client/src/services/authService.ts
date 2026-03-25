@@ -4,8 +4,6 @@ import {
   signInAnonymously,
   onAuthStateChanged as fbOnAuthStateChanged,
   updateProfile,
-  updatePhoneNumber,
-  PhoneAuthProvider,
   User as FirebaseUser,
   signOut as fbSignOut,
   signInWithEmailAndPassword,
@@ -106,25 +104,6 @@ export const authService = {
     });
     // Force-refresh token so updated claims propagate immediately
     await user.getIdToken(true);
-  },
-
-  /**
-   * NOTE: Firebase phone number update requires a phone auth credential
-   * (SMS OTP). For simple storage without SMS verification, save the phone
-   * number in Firestore (users/{uid}) and read it back via firestoreService.
-   *
-   * Example Firestore approach (call from your profile page):
-   *   await firestoreService.updateUserPhone(uid, phone);
-   *   // then read it back when displaying the profile.
-   *
-   * If you DO have SMS OTP set up, pass the PhoneAuthCredential here:
-   *   await authService.linkPhoneCredential(credential);
-   */
-  async linkPhoneCredential(credential: ReturnType<typeof PhoneAuthProvider.credential>): Promise<void> {
-    const auth = getFirebaseAuth();
-    const user = auth?.currentUser as FirebaseUser | null;
-    if (!user) throw new Error('No authenticated user.');
-    await updatePhoneNumber(user, credential);
   },
 };
 

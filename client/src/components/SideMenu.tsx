@@ -8,7 +8,6 @@ type Props = {
   mobileOpen?: boolean;
   onClose?: () => void;
   sideCollapsed?: boolean;
-  toggleSide?: () => void;
 };
 
 export default function SideMenu({ mobileOpen, onClose, sideCollapsed }: Props) {

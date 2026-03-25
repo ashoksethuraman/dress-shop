@@ -33,11 +33,6 @@ const FUNCTIONS_BASE =
  * Example: men_polo-shirt_a3f8b120.jpg
  */
 export function generateImageName(category: string, title?: string): string {
-  // const slug = title
-  //   .toLowerCase()
-  //   .replace(/[^a-z0-9]+/g, '-')
-  //   .replace(/^-|-$/g, '')
-  //   .slice(0, 30);
   const rand = uuidv4();
   return `shopping-app-${rand}.jpg`;
 }
