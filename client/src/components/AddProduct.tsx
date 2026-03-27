@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { FiUpload, FiX, FiPlus } from 'react-icons/fi';
-import { firestoreService, invalidateProductsCache } from '../services/firestoreService';
 import { productsApi } from '../services/apiClient';
 import { uploadImages, checkImageSize } from '../services/imageService';
 import { Product, StockStatus } from '../utils/types';
-import Alert from './Alert';
+import { useAppDispatch } from '../store/hooks';
+import { dressShopApi } from '../store/apiSlice';
+import AlertModal from './AlertModal';
 import Loader from './Loader';
 
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
@@ -48,6 +49,7 @@ function validate(
 }
 
 export default function AddProductForm({ onAdded }: Props) {
+  const dispatch = useAppDispatch();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
@@ -89,11 +91,11 @@ export default function AddProductForm({ onAdded }: Props) {
       return;
     }
 
-    const MAX_RAW_BYTES = 60 * 1024; // 60 KB
+    const MAX_RAW_BYTES = 65 * 1024; // 65 KB
     for (const file of files) {
       if (file.size > MAX_RAW_BYTES) {
         setUploadError(
-          `"${file.name}" is ${Math.round(file.size / 1024)} KB — each image must be under 60 KB. ` +
+          `"${file.name}" is ${Math.round(file.size / 1024)} KB — each image must be under 65 KB. ` +
           `Please resize or compress the image before uploading.`
         );
         e.target.value = '';
@@ -152,20 +154,17 @@ export default function AddProductForm({ onAdded }: Props) {
         image: uploadedImages[0] || '',
         stock: stockValue,
       };
-      let addedId: string = product.id;
-      try {
-        const res = await productsApi.add({
-          title: savedTitle, description: description.trim(),
-          price: Number(price), category, sizes, images: uploadedImages,
-          stock: stockValue,
-        });
-        addedId = res.id;
-      } catch (apiErr: any) {
-        // Fall back to Firestore direct write
-        const added = await firestoreService.addProduct(product);
-        addedId = added.id;
-      }
-      invalidateProductsCache();
+      const res = await productsApi.add({
+        title: savedTitle, description: description.trim(),
+        price: Number(price), category, sizes, images: uploadedImages,
+        stock: stockValue,
+      });
+      const addedId = res.id;
+      // Bust RTK Query caches so public listing and admin view refresh immediately
+      dispatch(dressShopApi.util.invalidateTags([
+        { type: 'Product', id: 'LIST' },
+        { type: 'Product', id: 'ADMIN_LIST' },
+      ]));
       setSuccessInfo({ id: addedId, name: savedTitle });
       setTitle(''); setDescription(''); setPrice('');
       setSizes([]); setImageFiles([]); setPreviews([]); setCategory('women');
@@ -202,24 +201,24 @@ export default function AddProductForm({ onAdded }: Props) {
         Add New Product
       </h3>
 
-      {/* Success / Error feedback */}
+      {/* Success popup modal */}
       {successInfo && (
-        <div className="mb-4">
-          <Alert
-            type="success"
-            message={`Product "${successInfo.name}" added successfully! (ID: ${successInfo.id})`}
-            onClose={() => setSuccessInfo(null)}
-          />
-        </div>
+        <AlertModal
+          type="success"
+          title="Product Added"
+          messages={[`"${successInfo.name}" was added successfully.`]}
+          onClose={() => setSuccessInfo(null)}
+        />
       )}
+
+      {/* Error popup modal */}
       {apiError && (
-        <div className="mb-4">
-          <Alert
-            type="error"
-            message={apiError}
-            onClose={() => setApiError(null)}
-          />
-        </div>
+        <AlertModal
+          type="error"
+          title="Failed to Add Product"
+          messages={[apiError]}
+          onClose={() => setApiError(null)}
+        />
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -380,13 +379,14 @@ export default function AddProductForm({ onAdded }: Props) {
           </div>
           <input ref={fileRef} type="file" accept="image/*" multiple onChange={handleImages} className="hidden" />
           <p className="text-xs text-gray-400 mt-1.5">
-            Max {MAX_IMAGES} images · 60 KB per image (up to 300 KB total) · 400 px JPEG
+            Max {MAX_IMAGES} images · 65 KB per image (up to 325 KB total) · 600 px JPEG
           </p>
           {errMsg(fieldErrors.images)}
           {uploadError && (
-            <Alert
+            <AlertModal
               type="error"
-              message={uploadError}
+              title="Image Upload Error"
+              messages={[uploadError]}
               onClose={() => setUploadError(null)}
             />
           )}

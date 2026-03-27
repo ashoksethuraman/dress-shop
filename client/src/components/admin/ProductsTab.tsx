@@ -1,34 +1,48 @@
-import React, { useState } from 'react';
-import { FiPackage, FiTrash2, FiRefreshCw } from 'react-icons/fi';
-import { productsApi } from '../../services/apiClient';
-import { invalidateProductsCache } from '../../services/firestoreService';
+import React from 'react';
+import { FiPackage } from 'react-icons/fi';
+// Listing-related imports commented out — re-enable when product listing is restored
+// import { useState } from 'react';
+// import { FiTrash2, FiRefreshCw } from 'react-icons/fi';
+// import { useDeleteProductMutation } from '../../store/apiSlice';
+// import { useProducts } from '../../hooks/useProducts';
 import AddProductForm from '../AddProduct';
-import { useProducts } from '../../hooks/useProducts';
 
 export default function ProductsTab() {
-  const { products, loading, refresh } = useProducts({ includeAll: true });
-  const [deleting, setDeleting] = useState<string | null>(null);
-  const [filter, setFilter]     = useState<'all' | 'men' | 'women'>('all');
+  // ── Listing hooks & state — commented out to stop the admin API call ──────
+  // const { products, loading, refresh } = useProducts({ includeAll: true });
+  // const [deleting, setDeleting] = useState<string | null>(null);
+  // const [filter, setFilter]     = useState<'all' | 'men' | 'women'>('all');
+  // const [deleteProduct] = useDeleteProductMutation();
 
-  const del = async (id: string, title: string) => {
-    if (!window.confirm(`Delete "${title}"?`)) return;
-    setDeleting(id);
-    try {
-      await productsApi.delete(id);
-    } catch { /* CF unavailable */ }
-    invalidateProductsCache();
-    refresh({ bust: true });
-    setDeleting(null);
-  };
+  // const del = async (id: string, title: string) => {
+  //   if (!window.confirm(`Delete "${title}"?`)) return;
+  //   setDeleting(id);
+  //   try {
+  //     await deleteProduct(id).unwrap();
+  //   } catch {
+  //     refresh({ bust: true });
+  //   }
+  //   setDeleting(null);
+  // };
 
-  const visible = filter === 'all' ? products : products.filter((p) => p.category === filter);
+  // const visible = filter === 'all' ? products : products.filter((p) => p.category === filter);
+  // ─────────────────────────────────────────────────────────────────────────
 
   return (
     <div>
-      {/* Add Product Form */}
-      <AddProductForm onAdded={refresh} />
+      {/* Add Product Form — onAdded is a no-op while listing is disabled */}
+      <AddProductForm onAdded={() => {}} />
 
-      {/* Product list */}
+      {/* ── Admin Product Listing bar ──────────────────────────────────────
+           Feature currently disabled. Remove the comment wrapper below to
+           re-enable the full product list. */}
+      <div className="mt-8 flex items-center gap-3 px-4 py-3 bg-gray-100 border border-dashed border-gray-300 rounded-xl text-sm text-gray-400 select-none">
+        <FiPackage size={16} className="shrink-0 opacity-50" />
+        <span className="font-semibold tracking-wide">Admin Product Listing</span>
+        <span className="ml-auto text-xs bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">disabled</span>
+      </div>
+
+      {/* Product list — commented out; re-enable by removing the block comment
       <div className="mt-10">
         <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
           <div className="flex items-center gap-2">
@@ -129,6 +143,7 @@ export default function ProductsTab() {
           </div>
         )}
       </div>
+      end-of-product-listing-block */}
     </div>
   );
 }

@@ -4,7 +4,6 @@ import { clearCart } from '../store/cartSlice';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { generateOrderId } from '../utils/generateOrderId';
-import { firestoreService } from '../services/firestoreService';
 import { paymentsApi, ordersApi } from '../services/apiClient';
 import { initRazorpayPayment, preloadRazorpayScript } from '../services/paymentService';
 import { FiChevronDown, FiChevronUp, FiLock, FiShoppingBag, FiArrowLeft } from 'react-icons/fi';
@@ -127,6 +126,7 @@ export default function CheckoutPage() {
           qty:       i.qty,
           unitPrice: i.price,
           total:     +(i.price * i.qty).toFixed(2),
+          size:      i.size ?? null,
         })),
         subtotal:    +total.toFixed(2),
         taxAmount:   0,
@@ -136,24 +136,17 @@ export default function CheckoutPage() {
       };
 
       // Step 1 — persist order as PLACED/PENDING BEFORE opening payment
-      // Hard-fail if both Cloud Function and Firestore fallback fail
       try {
         await ordersApi.create(orderPayload);
       } catch (err) {
-        // Stock validation rejected by server — show issues modal, do NOT fall through to Firestore
         if (err instanceof ApiError && err.status === 422 && err.body?.issues) {
           setStockIssues(err.body.issues as StockValidationIssue[]);
           setLoading(false);
           return;
         }
-        // Network / 5xx error — try direct Firestore write as fallback
-        try {
-          await firestoreService.createOrder(orderPayload);
-        } catch {
-          setPayError(getErrorMessage(err, 'Could not create your order. Please check your connection and try again.'));
-          setLoading(false);
-          return;
-        }
+        setPayError(getErrorMessage(err, 'Could not create your order. Please check your connection and try again.'));
+        setLoading(false);
+        return;
       }
 
       // ── Mock payment mode: show the test-payment dialog instead of Razorpay ──

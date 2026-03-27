@@ -1,15 +1,3 @@
-/**
- * apiTypes.ts — Frontend mirror of the backend API contracts.
- *
- * Keep this file in sync with:  functions/src/schemas.ts
- *
- * Rules:
- *  - Every interface here must exactly match the corresponding backend interface.
- *  - Never import from the functions/ folder — this mirror is intentional.
- *  - Use these types in apiClient.ts, page components, and the store.
- */
-
-// ── Status enums (must match functions/src/schemas.ts) ────────────────────
 
 export const ORDER_STATUSES = [
   "PENDING", "PLACED", "CONFIRMED", "PROCESSING", "SHIPPED",
@@ -23,8 +11,6 @@ export const PAYMENT_STATUSES = [
 export type PaymentStatus = typeof PAYMENT_STATUSES[number];
 
 export type FailReason = "payment_dismissed" | "payment_failed";
-
-// ── Sub-schemas ────────────────────────────────────────────────────────────
 
 export interface AddressPayload {
   name:    string;
@@ -46,13 +32,12 @@ export interface OrderItemPayload {
   size?:     string | null;
 }
 
-// ── POST /apiCreateOrder ───────────────────────────────────────────────────
 
 export interface CreateOrderPayload {
   id:                     string;
   contactEmail:           string;
   billingAddress:         AddressPayload;
-  shippingAddress?:       AddressPayload;  // only present when billingAndShippingSame=false
+  shippingAddress?:       AddressPayload;
   billingAndShippingSame: boolean;
   items:                  OrderItemPayload[];
   subtotal:               number;
@@ -66,7 +51,6 @@ export interface CreateOrderResponse {
   id: string;
 }
 
-// ── POST /apiVerifyPayment ─────────────────────────────────────────────────
 
 export interface VerifyPaymentPayload {
   orderId:               string;
@@ -80,14 +64,12 @@ export interface VerifyPaymentResponse {
   paymentId: string;
 }
 
-// ── POST /apiFailPayment ───────────────────────────────────────────────────
 
 export interface FailPaymentPayload {
   orderId: string;
   reason?: FailReason;
 }
 
-// ── POST /apiCreateRazorpayOrder ───────────────────────────────────────────
 
 export interface CreateRazorpayOrderPayload {
   amount:  number;
@@ -100,7 +82,6 @@ export interface CreateRazorpayOrderResponse {
   currency:        string;
 }
 
-// ── POST /apiRecordPayment ─────────────────────────────────────────────────
 
 export interface RecordPaymentPayload {
   paymentId:          string;
@@ -125,14 +106,12 @@ export interface RecordPaymentResponse {
   paymentId: string;
 }
 
-// ── POST /apiUpdateOrderStatus ─────────────────────────────────────────────
 
 export interface UpdateOrderStatusPayload {
   orderId: string;
   status:  OrderStatus;
 }
 
-// ── Stored document shapes (returned from GET endpoints) ──────────────────
 
 export interface StoredAddress {
   name:    string;
@@ -167,7 +146,7 @@ export interface StoredOrder {
   billingAndShippingSame: boolean;
   contactEmail?:          string;
   billingAddress?:        StoredAddress;
-  shippingAddress?:       StoredAddress;  // absent when billingAndShippingSame=true
+  shippingAddress?:       StoredAddress;
   items:            StoredOrderItem[];
   subtotal:         number;
   taxAmount:        number;
@@ -191,15 +170,7 @@ export interface TrackOrderResponse {
   items:            StoredOrderItem[];
 }
 
-// ── Structured API error ───────────────────────────────────────────────────
 
-/**
- * Thrown by the apiClient `request()` helper whenever the server responds
- * with a non-2xx status.  Always carries a human-readable `message` taken
- * from the server's `{ error }` JSON field plus the HTTP `status` code.
- * Optionally carries a `field` name for inline form validation errors.
- * Carries the full parsed `body` so callers can inspect extra fields (e.g. `issues`).
- */
 export class ApiError extends Error {
   readonly status: number;
   readonly field?: string;
@@ -214,14 +185,12 @@ export class ApiError extends Error {
   }
 }
 
-/** Safely extracts a display-friendly message from any thrown value. */
 export function getErrorMessage(err: unknown, fallback = "Something went wrong. Please try again."): string {
   if (err instanceof ApiError) return err.message;
   if (err instanceof Error)    return err.message || fallback;
   return fallback;
 }
 
-/** One item returned in a 422 STOCK_VALIDATION_FAILED response. */
 export interface StockValidationIssue {
   productId: string;
   title: string;

@@ -1,7 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { firestoreService } from '../services/firestoreService';
-import { productsApi } from '../services/apiClient';
+import { useGetProductByIdQuery } from '../store/apiSlice';
 import { useAppDispatch } from '../store/hooks';
 import { addToCart } from '../store/cartSlice';
 import { getPriceLevel, BADGE_COLORS } from '../utils/priceLevel';
@@ -11,35 +10,17 @@ import { resolveImageUrl } from '../config/imageConfig';
 
 export default function ProductDetailsPage() {
   const { id } = useParams();
-  const [product, setProduct]       = useState<any>(null);
-  const [activeImg, setActiveImg]   = useState(0);
+  const [activeImg, setActiveImg]       = useState(0);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
-  const [added, setAdded]           = useState(false);
+  const [sizeError, setSizeError]       = useState(false);
+  const [added, setAdded]               = useState(false);
   const dispatch = useAppDispatch();
 
-  useEffect(() => {
-    if (!id) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        // Fast path: fetch single product by ID via Cloud Function
-        const data = await productsApi.getById(id);
-        if (!cancelled) { setProduct(data as any); setActiveImg(0); }
-      } catch {
-        // Fallback: fetch all from Firestore SDK and find by ID
-        try {
-          const all = await firestoreService.getProducts();
-          const found = all.find((p) => p.id === id) ?? null;
-          if (!cancelled) { setProduct(found); setActiveImg(0); }
-        } catch {
-          if (!cancelled) setProduct(null);
-        }
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [id]);
+  // RTK Query: 5-minute in-memory cache keyed by product ID.
+  // The same data is served instantly on back-navigation without a network hit.
+  const { data: product, isLoading } = useGetProductByIdQuery(id!, { skip: !id });
 
-  if (!product) return (
+  if (isLoading || !product) return (
     <div className="flex items-center justify-center h-64 text-gray-400 animate-pulse text-lg">Loading…</div>
   );
 
@@ -51,7 +32,12 @@ export default function ProductDetailsPage() {
   const nextImg = () => setActiveImg((i) => (i + 1) % images.length);
 
   const handleAddToCart = () => {
-    dispatch(addToCart({ productId: product.id, title: product.title, price: product.price, qty: 1, stock: product.stock ?? 'available' }));
+    const hasSizes = product.sizes && product.sizes.length > 0;
+    if (hasSizes && !selectedSize) {
+      setSizeError(true);
+      return;
+    }
+    dispatch(addToCart({ productId: product.id, title: product.title, price: product.price, qty: 1, size: selectedSize, stock: product.stock ?? 'available' }));
     setAdded(true);
     setTimeout(() => setAdded(false), 1200);
   };
@@ -78,7 +64,7 @@ export default function ProductDetailsPage() {
                     key={idx}
                     src={src}
                     alt={`${product.title} view ${idx + 1}`}
-                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
+                    className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-500 ${
                       idx === activeImg ? 'opacity-100' : 'opacity-0'
                     }`}
                   />
@@ -211,10 +197,12 @@ export default function ProductDetailsPage() {
                 {product.sizes.map((sz: string) => (
                   <button
                     key={sz}
-                    onClick={() => setSelectedSize(sz === selectedSize ? null : sz)}
+                    onClick={() => { setSelectedSize(sz); setSizeError(false); }}
                     className={`w-12 h-12 rounded-full border-2 text-sm font-semibold transition-all duration-150 ${
                       selectedSize === sz
                         ? 'border-indigo-500 bg-indigo-500 text-white shadow-md scale-105'
+                        : sizeError
+                        ? 'border-red-400 text-gray-700 hover:border-indigo-300 hover:text-indigo-500'
                         : 'border-gray-300 text-gray-700 hover:border-indigo-300 hover:text-indigo-500'
                     }`}
                   >
@@ -222,8 +210,8 @@ export default function ProductDetailsPage() {
                   </button>
                 ))}
               </div>
-              {!selectedSize && (
-                <p className="text-xs text-amber-500 mt-1.5">Please select a size</p>
+              {sizeError && (
+                <p className="text-xs text-red-500 font-medium mt-1.5">Please select a size before adding to bag.</p>
               )}
             </div>
           )}

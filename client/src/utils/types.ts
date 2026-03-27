@@ -23,6 +23,7 @@ export type CartItem = {
   title: string;
   price: number;
   qty: number;
+  size?: string | null;
   /** Carried from the product so checkout can block out-of-stock items. */
   stock?: StockStatus;
 };

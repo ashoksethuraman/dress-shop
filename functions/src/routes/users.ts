@@ -1,11 +1,3 @@
-/**
- * routes/users.ts — Users feature router.
- *
- * GET   /users/me               — auth         — current user profile (Auth + Firestore merged)
- * POST  /users/update-profile   — auth         — update displayName, phone, photoURL
- * POST  /users/set-admin        — admin only   — grant / revoke isAdmin custom claim
- */
-
 import { Router, type Request, type Response } from "express";
 import { FieldValue } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
@@ -20,8 +12,6 @@ import {
 
 export const usersRouter = Router();
 
-// ── GET /users/me  (authenticated) ───────────────────────────────────────
-// Returns the authenticated user's profile merged from Firebase Auth + Firestore.
 usersRouter.get("/me", authenticate, async (req: Request, res: Response) => {
   const decoded = req.user!;
 
@@ -45,9 +35,6 @@ usersRouter.get("/me", authenticate, async (req: Request, res: Response) => {
   });
 });
 
-// ── POST /users/update-profile  (authenticated) ───────────────────────────
-// Accepts: { displayName?, phone?, photoURL? }
-// At least one field must be present (enforced by validateUpdateProfile).
 usersRouter.post(
   "/update-profile",
   authenticate,
@@ -56,23 +43,20 @@ usersRouter.post(
     const { displayName, phone, photoURL } = req.body as UpdateProfileBody;
     const uid = req.user!.uid;
 
-    // Firebase Auth update — displayName, photoURL, and phone (E.164 validated by schema)
     const authUpdate: { displayName?: string; photoURL?: string; phoneNumber?: string } = {};
     if (displayName !== undefined) authUpdate.displayName  = displayName;
     if (photoURL    !== undefined) authUpdate.photoURL     = photoURL;
-    if (phone       !== undefined) authUpdate.phoneNumber  = phone; // already E.164 — validated by schema
+    if (phone       !== undefined) authUpdate.phoneNumber  = phone;
 
     if (Object.keys(authUpdate).length > 0) {
       try {
         await auth.updateUser(uid, authUpdate);
         logger.info("[POST /users/update-profile] Auth record updated", { uid, fields: Object.keys(authUpdate) });
       } catch (err) {
-        // Non-fatal: fall through and still update Firestore
         logger.warn("[POST /users/update-profile] Auth updateUser failed", { uid, error: err });
       }
     }
 
-    // Firestore user doc update (merge — preserve existing fields)
     const fsUpdate: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
     if (displayName !== undefined) fsUpdate.displayName = displayName;
     if (phone       !== undefined) fsUpdate.phone       = phone;
@@ -89,9 +73,6 @@ usersRouter.post(
   }
 );
 
-// ── POST /users/set-admin  (admin only) ──────────────────────────────────
-// Body: { targetUid: string, isAdmin: boolean }
-// Grant or revoke the isAdmin custom claim for any user.
 usersRouter.post(
   "/set-admin",
   authenticate,

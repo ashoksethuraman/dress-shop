@@ -182,7 +182,8 @@ function buildPdf({ order, isFailure, reason, paymentId, paymentMethod, placedOn
   tx('ITEM', L); tx('QTY', 125); tx('UNIT PRICE', 148); tx('TOTAL', R, 'right');
   ln(1); hr(210); sf(10); sc(30, 30, 30);
   order.items?.forEach((it: any) => {
-    tx(it.title, L); tx(String(it.qty), 125);
+    const itemLabel = it.size ? `${it.title} (Size: ${it.size})` : it.title;
+    tx(itemLabel, L); tx(String(it.qty), 125);
     tx(`Rs.${Number(it.unitPrice).toFixed(2)}`, 148);
     sf(10, 'bold'); tx(`Rs.${Number(it.total ?? it.unitPrice * it.qty).toFixed(2)}`, R, 'right');
     sf(10); ln();

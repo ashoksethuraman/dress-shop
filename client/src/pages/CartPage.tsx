@@ -50,10 +50,15 @@ export default function CartPage() {
           <h2 className="text-2xl font-bold text-primary mb-6">Your Cart</h2>
           <ul className="flex flex-col gap-3 mb-6">
             {items.map((it) => (
-              <li key={it.productId} className="flex items-center gap-4 bg-white rounded-2xl px-4 py-3 shadow-sm">
-                <div className="flex-1">
+              <li key={`${it.productId}-${it.size ?? 'none'}`} className="flex items-center gap-4 bg-white rounded-2xl px-4 py-3 shadow-sm">
+                <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm text-primary">{it.title}</p>
-                  <p className="text-xs text-muted">₹{it.price.toFixed(2)} each</p>
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    {it.size && (
+                      <span className="text-xs bg-indigo-50 text-indigo-600 border border-indigo-200 font-semibold px-2 py-0.5 rounded">Size: {it.size}</span>
+                    )}
+                    <span className="text-xs text-muted">₹{it.price.toFixed(2)} each</span>
+                  </div>
                   {it.stock === 'out_of_stock' && (
                     <span className="inline-block mt-1 text-xs font-semibold text-red-500 bg-red-50 border border-red-200 rounded px-2 py-0.5">
                       Out of Stock
@@ -65,7 +70,7 @@ export default function CartPage() {
                   value={it.qty}
                   min={1}
                   onChange={(e) =>
-                    dispatch(setQty({ productId: it.productId, qty: Number(e.target.value) || 0 }))
+                    dispatch(setQty({ productId: it.productId, size: it.size, qty: Number(e.target.value) || 0 }))
                   }
                   className="w-14 text-center border border-gray-200 rounded-lg py-1 text-sm outline-none focus:border-indigo-400"
                 />
@@ -73,7 +78,7 @@ export default function CartPage() {
                   ₹{(it.price * it.qty).toFixed(2)}
                 </span>
                 <button
-                  onClick={() => dispatch(removeFromCart(it.productId))}
+                  onClick={() => dispatch(removeFromCart({ productId: it.productId, size: it.size }))}
                   className="text-red-400 hover:text-red-600 transition-colors p-1"
                   title="Remove"
                 >

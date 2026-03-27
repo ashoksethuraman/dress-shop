@@ -1,19 +1,9 @@
-/**
- * middleware.ts — Shared Express middleware.
- *
- * • corsMiddleware   — sets CORS headers; handles OPTIONS preflight
- * • authenticate     — requires a valid Firebase ID token → 401 if missing
- * • optionalAuth     — decodes token if present; sets req.user = null for guests
- * • requireAdmin     — must follow authenticate; rejects non‑admins with 403
- * • validate(fn)     — factory that runs a schema validator and returns 400 on failure
- */
-
 import type { Request, Response, NextFunction } from "express";
 import * as logger from "firebase-functions/logger";
 import { auth } from "./firebase";
 import type { ValidationResult } from "./schemas";
 
-// ── Augment Express Request to carry the decoded Firebase token ───────────
+
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
@@ -23,7 +13,7 @@ declare global {
   }
 }
 
-// ── CORS ──────────────────────────────────────────────────────────────────
+
 const ALLOWED_ORIGINS = [
   "http://localhost:3000",
   `https://${process.env.GCLOUD_PROJECT}.web.app`,
@@ -46,9 +36,7 @@ export function corsMiddleware(req: Request, res: Response, next: NextFunction):
   next();
 }
 
-// ── Auth ──────────────────────────────────────────────────────────────────
 
-/** Requires a valid Bearer token. Sets req.user or responds 401. */
 export async function authenticate(req: Request, res: Response, next: NextFunction): Promise<void> {
   const header = req.headers.authorization ?? "";
   if (!header.startsWith("Bearer ")) {
@@ -63,10 +51,6 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
   }
 }
 
-/**
- * Decodes a Bearer token when present; sets req.user = null for guests/anonymous.
- * Never rejects the request — use for endpoints that work for both auth and guest users.
- */
 export async function optionalAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const header = req.headers.authorization ?? "";
   if (!header.startsWith("Bearer ")) {
@@ -77,15 +61,11 @@ export async function optionalAuth(req: Request, res: Response, next: NextFuncti
   try {
     req.user = await auth.verifyIdToken(header.slice(7));
   } catch {
-    req.user = null; // expired / invalid — treat as guest
+    req.user = null;
   }
   next();
 }
 
-/**
- * Must be used AFTER authenticate. Responds 403 if the user does not
- * have the isAdmin custom claim or the "admin" role claim.
- */
 export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   const user = req.user;
   if (!user || (user["isAdmin"] !== true && user["role"] !== "admin")) {
@@ -95,12 +75,6 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
   next();
 }
 
-/**
- * Middleware factory.
- * Runs the provided validator against req.body; responds 400 on failure.
- *
- * Usage:  router.post("/", validate(validateCreateOrder), handler)
- */
 export function validate(
   fn: (body: unknown) => ValidationResult
 ): (req: Request, res: Response, next: NextFunction) => void {

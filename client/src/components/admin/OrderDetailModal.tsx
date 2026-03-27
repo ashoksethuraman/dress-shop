@@ -1,18 +1,37 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FiX, FiLoader } from 'react-icons/fi';
+import { FiX, FiLoader, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
 import { ordersApi } from '../../services/apiClient';
-import { StoredOrder } from '../../utils/apiTypes';
+import { StoredOrder, OrderStatus } from '../../utils/apiTypes';
 import { formatPrice } from '../../utils/format';
 import { orderStatusBadge, paymentStatusBadge, fmtDate } from './adminHelpers';
+
+// Statuses an admin can manually set (excludes system-only states)
+const ADMIN_STATUSES: { value: OrderStatus; label: string }[] = [
+  { value: 'CONFIRMED',   label: 'Confirmed'   },
+  { value: 'PROCESSING',  label: 'Processing'  },
+  { value: 'SHIPPED',     label: 'Shipped'     },
+  { value: 'DELIVERED',   label: 'Delivered'   },
+  { value: 'CANCELLED',   label: 'Cancelled'   },
+];
 
 interface Props {
   order: StoredOrder;
   onClose: () => void;
+  onStatusUpdated?: (orderId: string, newStatus: OrderStatus) => void;
 }
 
-export default function OrderDetailModal({ order, onClose }: Props) {
-  const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
+export default function OrderDetailModal({ order, onClose, onStatusUpdated }: Props) {
+  const [paymentMethod,  setPaymentMethod]  = useState<string | null>(null);
   const [loadingPayment, setLoadingPayment] = useState(true);
+  // Status update state
+  const [selectedStatus, setSelectedStatus] = useState<OrderStatus>(
+    ADMIN_STATUSES.find(s => s.value === order.orderStatus)?.value ?? 'CONFIRMED'
+  );
+  const [updating,      setUpdating]      = useState(false);
+  const [updateError,   setUpdateError]   = useState<string | null>(null);
+  const [updateSuccess, setUpdateSuccess] = useState(false);
+  // Local mirror so the badge reflects the latest update without closing
+  const [liveStatus,    setLiveStatus]    = useState<OrderStatus>(order.orderStatus);
   const backdropRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -26,6 +45,24 @@ export default function OrderDetailModal({ order, onClose }: Props) {
 
   const handleBackdrop = (e: React.MouseEvent) => {
     if (e.target === backdropRef.current) onClose();
+  };
+
+  const handleUpdateStatus = async () => {
+    if (selectedStatus === liveStatus) return;
+    setUpdating(true);
+    setUpdateError(null);
+    setUpdateSuccess(false);
+    try {
+      await ordersApi.updateStatus(order.id, selectedStatus);
+      setLiveStatus(selectedStatus);
+      setUpdateSuccess(true);
+      onStatusUpdated?.(order.id, selectedStatus);
+      setTimeout(() => setUpdateSuccess(false), 3000);
+    } catch (err: any) {
+      setUpdateError(err?.message ?? 'Failed to update status. Please try again.');
+    } finally {
+      setUpdating(false);
+    }
   };
 
   useEffect(() => {
@@ -62,8 +99,8 @@ export default function OrderDetailModal({ order, onClose }: Props) {
 
           {/* Status badges */}
           <div className="flex flex-wrap gap-2">
-            <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${orderStatusBadge(order.orderStatus)}`}>
-              Order: {order.orderStatus.replace(/_/g, ' ')}
+            <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${orderStatusBadge(liveStatus)}`}>
+              Order: {liveStatus.replace(/_/g, ' ')}
             </span>
             <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${paymentStatusBadge(order.paymentStatus)}`}>
               Payment: {order.paymentStatus}
@@ -133,6 +170,47 @@ export default function OrderDetailModal({ order, onClose }: Props) {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Update Order Status */}
+          <div className="bg-gray-50 rounded-2xl border border-gray-200 px-5 py-4">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Update Order Status</p>
+            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+              <select
+                value={selectedStatus}
+                onChange={(e) => { setSelectedStatus(e.target.value as OrderStatus); setUpdateError(null); setUpdateSuccess(false); }}
+                disabled={updating}
+                className="flex-1 border border-gray-300 rounded-xl px-3 py-2.5 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:border-indigo-400 focus:ring-indigo-100 transition-all disabled:opacity-60"
+              >
+                {ADMIN_STATUSES.map(({ value, label }) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+              <button
+                onClick={handleUpdateStatus}
+                disabled={updating || selectedStatus === liveStatus}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm transition-colors flex-shrink-0"
+              >
+                {updating
+                  ? <><FiLoader size={13} className="animate-spin" /> Updating…</>
+                  : 'Update Status'}
+              </button>
+            </div>
+
+            {/* Feedback */}
+            {updateSuccess && (
+              <p className="mt-2.5 flex items-center gap-1.5 text-sm text-green-600 font-medium">
+                <FiCheckCircle size={14} /> Status updated to <strong>{liveStatus.replace(/_/g, ' ')}</strong>
+              </p>
+            )}
+            {updateError && (
+              <p className="mt-2.5 flex items-center gap-1.5 text-sm text-red-500">
+                <FiAlertCircle size={14} /> {updateError}
+              </p>
+            )}
+            {selectedStatus === liveStatus && !updateSuccess && (
+              <p className="mt-2 text-xs text-gray-400">Select a different status to update.</p>
+            )}
           </div>
 
           {/* Timeline */}

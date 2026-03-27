@@ -1,17 +1,3 @@
-/**
- * routes/orders.ts — Orders feature router.
- *
- * POST   /orders                — guest‑friendly  — create order
- * GET    /orders/me             — auth            — current user's orders
- * GET    /orders                — admin           — all orders (cursor pagination)
- * GET    /orders/track/:id      — public          — safe tracking data only
- * GET    /orders/:id            — auth            — get own order (admin: any)
- * POST   /orders/:id/status     — admin           — update order status
- *
- * NOTE: /me and /track/:id are registered BEFORE /:id so Express matches
- * the literal paths first and never falls through to the param route.
- */
-
 import { Router, type Request, type Response } from "express";
 import { FieldValue } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
@@ -26,12 +12,10 @@ import {
 
 export const ordersRouter = Router();
 
-// ── Helper ────────────────────────────────────────────────────────────────
 function toIso(ts: unknown): string | null {
   return (ts as FirebaseFirestore.Timestamp)?.toDate?.()?.toISOString() ?? null;
 }
 
-// ── POST /orders  (guest‑friendly) ───────────────────────────────────────
 ordersRouter.post(
   "/",
   optionalAuth,
@@ -48,7 +32,6 @@ ordersRouter.post(
         id:                     orderId,
         contactEmail:           body.contactEmail,
         billingAddress:         body.billingAddress,
-        // Only store shippingAddress when it is different from billing
         ...(!body.billingAndShippingSame && body.shippingAddress
           ? { shippingAddress: body.shippingAddress }
           : {}),
@@ -79,7 +62,6 @@ ordersRouter.post(
   }
 );
 
-// ── GET /orders/me  (authenticated) ──────────────────────────────────────
 ordersRouter.get("/me", authenticate, async (req: Request, res: Response) => {
   try {
     const snap = await db
@@ -101,7 +83,6 @@ ordersRouter.get("/me", authenticate, async (req: Request, res: Response) => {
   }
 });
 
-// ── GET /orders  (admin, cursor pagination) ───────────────────────────────
 ordersRouter.get("/", authenticate, requireAdmin, async (req: Request, res: Response) => {
   const statusFilter = req.query.status as string | undefined;
   const limit        = Math.min(Math.max(Number(req.query.limit) || 10, 1), 100);
@@ -122,7 +103,6 @@ ordersRouter.get("/", authenticate, requireAdmin, async (req: Request, res: Resp
       if (cursor.exists) query = query.startAfter(cursor);
     }
 
-    // Fetch one extra doc to determine whether another page exists
     const snap    = await query.limit(limit + 1).get();
     const hasMore = snap.docs.length > limit;
     const docs    = hasMore ? snap.docs.slice(0, limit) : snap.docs;
@@ -140,7 +120,6 @@ ordersRouter.get("/", authenticate, requireAdmin, async (req: Request, res: Resp
   }
 });
 
-// ── GET /orders/track/:id  (public — safe tracking data only) ────────────
 ordersRouter.get("/track/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
@@ -149,7 +128,6 @@ ordersRouter.get("/track/:id", async (req: Request, res: Response) => {
 
     const d = snap.data()!;
 
-    // Best‑effort: look up payment method from the payments ledger
     let paymentMethod: string | null = null;
     if (d.paymentId) {
       try {
@@ -158,7 +136,6 @@ ordersRouter.get("/track/:id", async (req: Request, res: Response) => {
       } catch { /* non‑fatal — tracking works without payment details */ }
     }
 
-    // Return only tracking‑safe fields — never expose PII or payment internals
     res.json({
       id:              snap.id,
       orderStatus:     d.orderStatus  ?? "PLACED",
@@ -184,7 +161,6 @@ ordersRouter.get("/track/:id", async (req: Request, res: Response) => {
   }
 });
 
-// ── GET /orders/:id  (authenticated — own order or admin) ────────────────
 ordersRouter.get("/:id", authenticate, async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
@@ -204,7 +180,6 @@ ordersRouter.get("/:id", authenticate, async (req: Request, res: Response) => {
   }
 });
 
-// ── POST /orders/:id/status  (admin only) ────────────────────────────────
 ordersRouter.post(
   "/:id/status",
   authenticate,

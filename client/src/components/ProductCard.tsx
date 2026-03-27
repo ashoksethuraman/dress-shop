@@ -28,6 +28,8 @@ export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
   const [activeIdx, setActiveIdx]   = useState(0);
   const [hovered,   setHovered]     = useState(false);
   const [adding,    setAdding]      = useState(false);
+  const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [sizeError, setSizeError]   = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   /* Start auto-carousel on hover */
@@ -44,11 +46,18 @@ export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
   }, [hovered, hasMultiple, images.length]);
 
   const isOutOfStock = p.stock === 'out_of_stock';
+  const hasSizes = (p.sizes?.length ?? 0) > 0;
 
   const handleAddToCart = () => {
     if (isOutOfStock) return;
-    dispatch(addToCart({ productId: p.id, title: p.title, price: p.price, qty: 1, stock: p.stock ?? 'available' }));
+    if (hasSizes && !selectedSize) {
+      setSizeError(true);
+      return;
+    }
+    dispatch(addToCart({ productId: p.id, title: p.title, price: p.price, qty: 1, size: selectedSize, stock: p.stock ?? 'available' }));
     setAdding(true);
+    setSelectedSize(null);
+    setSizeError(false);
     setTimeout(() => setAdding(false), 600);
   };
 
@@ -135,22 +144,40 @@ export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
         <h4 className="font-semibold text-base text-primary mb-1 line-clamp-2">{p.title}</h4>
         <p className="text-sm text-muted mb-2 line-clamp-2 flex-1">{p.description}</p>
 
-        {/* Category + sizes */}
-        {(p.category || (p.sizes && p.sizes.length > 0)) && (
-          <div className="flex items-center gap-1.5 flex-wrap mb-2">
-            {p.category && (
-              <span className={`text-xs px-2 py-0.5 rounded-full font-semibold capitalize ${
-                p.category === 'women' ? 'bg-pink-50 text-pink-500' : 'bg-blue-50 text-blue-500'
-              }`}>
-                {p.category}
-              </span>
+        {/* Category */}
+        {p.category && (
+          <div className="mb-2">
+            <span className={`text-xs px-2 py-0.5 rounded-full font-semibold capitalize ${
+              p.category === 'women' ? 'bg-pink-50 text-pink-500' : 'bg-blue-50 text-blue-500'
+            }`}>
+              {p.category}
+            </span>
+          </div>
+        )}
+
+        {/* Selectable sizes */}
+        {hasSizes && (
+          <div className="mb-2">
+            {sizeError && (
+              <p className="text-xs text-red-500 mb-1">Please select a size</p>
             )}
-            {p.sizes?.slice(0, 4).map((sz) => (
-              <span key={sz} className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-medium">{sz}</span>
-            ))}
-            {(p.sizes?.length ?? 0) > 4 && (
-              <span className="text-xs text-gray-400">+{p.sizes!.length - 4}</span>
-            )}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {p.sizes!.map((sz) => (
+                <button
+                  key={sz}
+                  onClick={() => { setSelectedSize(sz); setSizeError(false); }}
+                  className={`px-2 py-0.5 rounded text-xs font-semibold border transition-all ${
+                    selectedSize === sz
+                      ? 'bg-indigo-500 border-indigo-500 text-white'
+                      : sizeError
+                      ? 'border-red-400 text-gray-600 hover:border-indigo-400'
+                      : 'border-gray-300 text-gray-500 hover:border-indigo-400 hover:text-indigo-500'
+                  }`}
+                >
+                  {sz}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 

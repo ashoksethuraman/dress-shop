@@ -71,15 +71,6 @@ export const authService = {
     await fbSignOut(auth);
   },
 
-  /**
-   * Returns the Firebase ID token (JWT) for the current user.
-   * Always call this fresh before each API request — Firebase auto-refreshes
-   * it when it's close to expiry (token lifetime = 1 hour).
-   *
-   * Usage:
-   *   const token = await authService.getIdToken();
-   *   fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-   */
   async getIdToken(forceRefresh = false): Promise<string | null> {
     const auth = getFirebaseAuth();
     const user = auth?.currentUser;
@@ -87,13 +78,6 @@ export const authService = {
     return user.getIdToken(forceRefresh);
   },
 
-  /**
-   * Update Firebase Auth profile fields.
-   * Call this after sign-up or from a profile settings page.
-   *
-   * @param displayName  The name shown in the navbar avatar.
-   * @param photoURL     Absolute URL to a profile picture.
-   */
   async updateUserProfile({ displayName, photoURL }: { displayName?: string; photoURL?: string }): Promise<void> {
     const auth = getFirebaseAuth();
     const user = auth?.currentUser as FirebaseUser | null;
@@ -102,7 +86,6 @@ export const authService = {
       ...(displayName !== undefined && { displayName }),
       ...(photoURL    !== undefined && { photoURL }),
     });
-    // Force-refresh token so updated claims propagate immediately
     await user.getIdToken(true);
   },
 };

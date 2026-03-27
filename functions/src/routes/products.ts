@@ -1,16 +1,3 @@
-/**
- * routes/products.ts — Products feature router.
- *
- * GET    /products      — public        — list all in‑stock products
- * GET    /products/:id  — public        — get one product
- * POST   /products      — admin only    — create product
- * PUT    /products/:id  — admin only    — partial update
- * DELETE /products/:id  — admin only    — delete
- *
- * Admin routes require:  Authorization: Bearer <Firebase ID token>
- * Token must carry the isAdmin custom claim (set via /users/set-admin).
- */
-
 import { Router, type Request, type Response } from "express";
 import { FieldValue } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
@@ -29,7 +16,7 @@ function isInStock(stock: unknown): boolean {
   return stock !== "out_of_stock";
 }
 
-// ── GET /products ─────────────────────────────────────────────────────────
+
 productsRouter.get("/", async (_req: Request, res: Response) => {
   try {
     const snap = await db.collection("products").orderBy("createdAt", "desc").get();
@@ -47,7 +34,22 @@ productsRouter.get("/", async (_req: Request, res: Response) => {
   }
 });
 
-// ── GET /products/:id ─────────────────────────────────────────────────────
+productsRouter.get("/admin", authenticate, requireAdmin, async (_req: Request, res: Response) => {
+  try {
+    const snap = await db.collection("products").orderBy("createdAt", "desc").get();
+    const products = snap.docs.map((d) => ({
+      id: d.id,
+      ...d.data(),
+      createdAt: (d.data().createdAt as FirebaseFirestore.Timestamp)?.toDate?.()?.toISOString() ?? null,
+    }));
+    logger.info(`[GET /products/admin] count=${products.length}`);
+    res.json({ products });
+  } catch (err) {
+    logger.error("[GET /products/admin] error", err);
+    res.status(500).json({ error: "Failed to fetch products." });
+  }
+});
+
 productsRouter.get("/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
@@ -60,8 +62,7 @@ productsRouter.get("/:id", async (req: Request, res: Response) => {
   }
 });
 
-// ── POST /products  (admin only) ─────────────────────────────────────────
-// Header:  Authorization: Bearer <Firebase ID token with isAdmin claim>
+
 productsRouter.post(
   "/",
   authenticate,
@@ -93,8 +94,7 @@ productsRouter.post(
   }
 );
 
-// ── PUT /products/:id  (admin only) ─────────────────────────────────────
-// Header:  Authorization: Bearer <Firebase ID token with isAdmin claim>
+
 productsRouter.put(
   "/:id",
   authenticate,
@@ -124,7 +124,6 @@ productsRouter.put(
   }
 );
 
-// ── DELETE /products/:id  (admin only) ───────────────────────────────────
 productsRouter.delete("/:id", authenticate, requireAdmin, async (req: Request, res: Response) => {
   const { id } = req.params;
   try {

@@ -1,12 +1,3 @@
-/**
- * routes/payments.ts — Payments feature router.
- *
- * POST  /payments/razorpay-order  — public          — create Razorpay order, returns razorpayOrderId
- * POST  /payments/verify          — optional auth   — verify HMAC signature, confirm order
- * POST  /payments/fail            — optional auth   — mark order CANCELLED / PAYMENT_FAILED
- * POST  /payments/record          — optional auth   — write payment ledger (mock / test mode)
- */
-
 import { Router, type Request, type Response } from "express";
 import { FieldValue } from "firebase-admin/firestore";
 import * as crypto from "crypto";
@@ -26,8 +17,6 @@ import {
 
 export const paymentsRouter = Router();
 
-// ── POST /payments/razorpay-order  (public) ───────────────────────────────
-// Creates a server‑side Razorpay order (required for HMAC signature verification).
 paymentsRouter.post(
   "/razorpay-order",
   validate(validateCreateRazorpayOrder),
@@ -50,10 +39,10 @@ paymentsRouter.post(
           Authorization:  `Basic ${credentials}`,
         },
         body: JSON.stringify({
-          amount:   Math.round(amount * 100), // convert INR → paise
+          amount:   Math.round(amount * 100),
           currency: "INR",
           receipt:  orderId,
-          notes:    { orderId },              // no userId — guest‑friendly
+          notes:    { orderId },
         }),
       });
 
@@ -74,8 +63,6 @@ paymentsRouter.post(
   }
 );
 
-// ── POST /payments/verify  (optional auth — guests rely on HMAC) ──────────
-// Verifies Razorpay HMAC‑SHA256 signature and marks the order PLACED / SUCCESS.
 paymentsRouter.post(
   "/verify",
   optionalAuth,
@@ -84,7 +71,6 @@ paymentsRouter.post(
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId } =
       req.body as VerifyPaymentBody;
 
-    // ── HMAC signature verification ──────────────────────────────────────
     const keySecret = process.env.RAZORPAY_KEY_SECRET ?? "";
     if (razorpay_order_id && keySecret) {
       const expected = crypto
@@ -92,7 +78,6 @@ paymentsRouter.post(
         .update(`${razorpay_order_id}|${razorpay_payment_id}`)
         .digest("hex");
 
-      // timing‑safe comparison to prevent timing attacks
       if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(razorpay_signature))) {
         logger.warn("[POST /payments/verify] Signature mismatch", { orderId, uid: req.user?.uid ?? "guest" });
         res.status(400).json({ error: "Payment verification failed: invalid signature." });
@@ -108,13 +93,11 @@ paymentsRouter.post(
 
       const orderData = orderSnap.data()!;
 
-      // Ownership check — only applies to authenticated users; guests rely on HMAC
       if (req.user && orderData.userId !== req.user.uid && !req.user["isAdmin"]) {
         res.status(403).json({ error: "Access denied." });
         return;
       }
 
-      // Idempotency: already confirmed — return success without re‑writing Firestore
       if (orderData.paymentStatus === "SUCCESS") {
         logger.info(`[POST /payments/verify] Already confirmed for order ${orderId} — skipping`);
         res.json({ success: true, paymentId: orderData.paymentId ?? razorpay_payment_id });
@@ -123,7 +106,6 @@ paymentsRouter.post(
 
       const batch = db.batch();
 
-      // 1. Update order document
       batch.update(db.doc(`orders/${orderId}`), {
         orderStatus:   "PLACED",
         paymentStatus: "SUCCESS",
@@ -134,7 +116,6 @@ paymentsRouter.post(
         }),
       });
 
-      // 2. Write payment ledger record — no card data (PCI‑DSS safe)
       batch.set(db.doc(`payments/${razorpay_payment_id}`), {
         orderId,
         provider:          "razorpay",
@@ -144,7 +125,7 @@ paymentsRouter.post(
         amount:            orderData.totalAmount ?? 0,
         currency:          "INR",
         status:            "SUCCESS",
-        method:            null, // available via Razorpay payment.fetch() if needed
+          method:            null,
         metadata:          {},
         customerName:      orderData.shippingAddress?.name ?? orderData.billingAddress?.name ?? null,
         customerEmail:     orderData.contactEmail ?? orderData.userEmail ?? null,
@@ -167,8 +148,6 @@ paymentsRouter.post(
   }
 );
 
-// ── POST /payments/fail  (optional auth) ─────────────────────────────────
-// Marks an order CANCELLED or PAYMENT_FAILED when the gateway is dismissed or errors.
 paymentsRouter.post(
   "/fail",
   optionalAuth,
@@ -187,13 +166,11 @@ paymentsRouter.post(
         return;
       }
 
-      // Idempotency: already in a terminal failed/cancelled state
       if (orderData.orderStatus === "CANCELLED" || orderData.paymentStatus === "FAILED") {
         res.json({ success: true });
         return;
       }
 
-      // Guard: never overwrite a confirmed (paid) order
       if (orderData.paymentStatus === "SUCCESS") {
         res.status(409).json({ error: "Cannot cancel a confirmed (paid) order via this endpoint." });
         return;
@@ -220,10 +197,6 @@ paymentsRouter.post(
   }
 );
 
-// ── POST /payments/record  (optional auth — mock / test mode) ────────────
-// Writes a payment ledger record without going through Razorpay.
-// In production, /payments/verify writes this automatically.
-// Security: never pass full PAN, CVV, or full card numbers.
 paymentsRouter.post(
   "/record",
   optionalAuth,
@@ -242,7 +215,6 @@ paymentsRouter.post(
         return;
       }
 
-      // Idempotency: payment record already exists — skip silently
       const paymentRef = db.doc(`payments/${body.paymentId}`);
       if ((await paymentRef.get()).exists) {
         res.json({ success: true, paymentId: body.paymentId });

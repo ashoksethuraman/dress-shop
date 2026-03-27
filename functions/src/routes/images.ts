@@ -1,18 +1,3 @@
-/**
- * routes/images.ts — Local‑development image upload router.
- *
- * POST  /images/upload  — emulator only — accepts a base64 image + filename,
- *                         writes to client/public/assets/ for the React dev server.
- *
- * SECURITY: Blocked in production — only available when FUNCTIONS_EMULATOR=true
- * (set automatically by the Firebase Emulator Suite).
- *
- * Path resolution (compiled output lives in functions/lib/routes/):
- *   __dirname → functions/lib/routes/
- *   target    → ../../../client/public/assets/
- *             → dress-shop/client/public/assets/  ✓
- */
-
 import { Router, type Request, type Response } from "express";
 import * as fs   from "fs";
 import * as path from "path";
@@ -22,7 +7,6 @@ export const imagesRouter = Router();
 
 const SAFE_FILENAME_RE = /^[a-zA-Z0-9_-]+\.(jpg|jpeg|png|webp)$/;
 
-// ── POST /images/upload  (emulator only) ─────────────────────────────────
 imagesRouter.post("/upload", async (req: Request, res: Response) => {
   if (process.env.FUNCTIONS_EMULATOR !== "true") {
     res.status(403).json({ error: "This endpoint is only available in the local emulator." });
@@ -36,7 +20,6 @@ imagesRouter.post("/upload", async (req: Request, res: Response) => {
     return;
   }
 
-  // Sanitise filename — prevent path traversal attacks
   const safeName = path.basename(filename);
   if (!SAFE_FILENAME_RE.test(safeName)) {
     res.status(400).json({

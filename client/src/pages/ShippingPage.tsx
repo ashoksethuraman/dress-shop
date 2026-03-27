@@ -4,8 +4,7 @@ import {
   FiSearch, FiShoppingBag, FiPackage, FiTruck, FiCheckCircle,
   FiAlertCircle, FiMapPin, FiInfo, FiClock, FiXCircle,
 } from 'react-icons/fi';
-import { ordersApi, productsApi } from '../services/apiClient';
-import { resolveImageUrl } from '../config/imageConfig';
+import { useLazyTrackOrderQuery } from '../store/apiSlice';
 import { formatPrice } from '../utils/format';
 
 /* ─── Tracking steps definition ─────────────────────────── */
@@ -27,7 +26,9 @@ export default function ShippingPage() {
   const [loading,       setLoading]       = useState(false);
   const [order,         setOrder]         = useState<any>(null);
   const [error,         setError]         = useState('');
-  const [productImages, setProductImages] = useState<Record<string, string>>({});
+
+  // Searching the same order ID within that window returns instantly from cache.
+  const [triggerTrack] = useLazyTrackOrderQuery();
 
   const handleTrack = async () => {
     const id = input.trim();
@@ -36,28 +37,11 @@ export default function ShippingPage() {
     setError('');
     setOrder(null);
     try {
-      const found = await ordersApi.track(id);
+      // .unwrap() throws on error so the catch block handles it uniformly
+      const found = await triggerTrack(id).unwrap();
       setOrder(found);
-
-      // Fetch the first image for each order item in parallel
-      const items: any[] = found?.items ?? [];
-      if (items.length > 0) {
-        const results = await Promise.allSettled(
-          items.map((it: any) => productsApi.getById(it.productId))
-        );
-        const imgMap: Record<string, string> = {};
-        results.forEach((result, idx) => {
-          if (result.status === 'fulfilled') {
-            const product = result.value as any;
-            const raw: string | undefined =
-              product?.images?.[0] ?? product?.image ?? undefined;
-            if (raw) imgMap[items[idx].productId] = resolveImageUrl(raw);
-          }
-        });
-        setProductImages(imgMap);
-      }
     } catch (err: any) {
-      if (err?.message?.includes('404')) {
+      if (err?.error?.includes('404') || err?.message?.includes('404')) {
         setError('No order found with that order number. Please check and try again.');
       } else {
         setError('Something went wrong. Please try again.');
@@ -332,16 +316,8 @@ export default function ShippingPage() {
                     to={`/product/${it.productId}`}
                     className="flex items-center gap-4 px-5 py-4 hover:bg-indigo-50 transition-colors no-underline"
                   >
-                    <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center flex-shrink-0 border border-indigo-100 overflow-hidden">
-                      {productImages[it.productId] ? (
-                        <img
-                          src={productImages[it.productId]}
-                          alt={it.title}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <FiPackage size={18} className="text-indigo-300" />
-                      )}
+                    <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center flex-shrink-0 border border-indigo-100">
+                      <FiPackage size={18} className="text-indigo-300" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-gray-800 truncate">{it.title}</p>

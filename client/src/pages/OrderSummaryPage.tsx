@@ -62,7 +62,7 @@ export default function OrderSummaryPage() {
             {/* Items */}
             {items.map((it) => (
               <div
-                key={it.productId}
+                key={`${it.productId}-${it.size ?? 'none'}`}
                 className="flex items-center gap-4 bg-white rounded-2xl px-4 py-4 shadow-sm"
               >
                 {/* Thumbnail placeholder */}
@@ -73,13 +73,18 @@ export default function OrderSummaryPage() {
                 {/* Title + unit price */}
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm text-gray-800 truncate">{it.title}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">₹{it.price.toFixed(2)} each</p>
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    {it.size && (
+                      <span className="text-xs bg-indigo-50 text-indigo-600 border border-indigo-200 font-semibold px-2 py-0.5 rounded">Size: {it.size}</span>
+                    )}
+                    <span className="text-xs text-gray-400">₹{it.price.toFixed(2)} each</span>
+                  </div>
                 </div>
 
                 {/* Qty stepper */}
                 <div className="flex items-center gap-1.5 border border-gray-200 rounded-xl overflow-hidden">
                   <button
-                    onClick={() => dispatch(setQty({ productId: it.productId, qty: it.qty - 1 }))}
+                    onClick={() => dispatch(setQty({ productId: it.productId, size: it.size, qty: it.qty - 1 }))}
                     disabled={it.qty <= 1}
                     className="px-2.5 py-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-30 transition-colors text-base font-bold"
                   >
@@ -87,7 +92,7 @@ export default function OrderSummaryPage() {
                   </button>
                   <span className="w-7 text-center text-sm font-semibold text-gray-800">{it.qty}</span>
                   <button
-                    onClick={() => dispatch(setQty({ productId: it.productId, qty: it.qty + 1 }))}
+                    onClick={() => dispatch(setQty({ productId: it.productId, size: it.size, qty: it.qty + 1 }))}
                     className="px-2.5 py-1.5 text-gray-500 hover:bg-gray-100 transition-colors text-base font-bold"
                   >
                     +
@@ -101,7 +106,7 @@ export default function OrderSummaryPage() {
 
                 {/* Remove */}
                 <button
-                  onClick={() => dispatch(removeFromCart(it.productId))}
+                  onClick={() => dispatch(removeFromCart({ productId: it.productId, size: it.size }))}
                   className="text-red-400 hover:text-red-600 transition-colors p-1 flex-shrink-0"
                   title="Remove item"
                 >

@@ -2,9 +2,8 @@ import { configureStore, Middleware } from '@reduxjs/toolkit';
 import userReducer from './userSlice';
 import cartReducer from './cartSlice';
 import { saveCart, loadCart } from '../services/guestSession';
+import { dressShopApi } from './apiSlice';
 
-// Auto-persist cart slice to localStorage on every cart action so guests
-// never lose their cart on refresh, tab close, or back-navigation.
 const cartPersistMiddleware: Middleware = (storeAPI) => (next) => (action) => {
   const result = next(action);
   if ((action as any).type?.startsWith('cart/')) {
@@ -17,13 +16,13 @@ export const store = configureStore({
   reducer: {
     user: userReducer,
     cart: cartReducer,
+    [dressShopApi.reducerPath]: dressShopApi.reducer,
   },
-  // Hydrate cart from localStorage on app boot
   preloadedState: {
     cart: { items: loadCart() },
   },
   middleware: (getDefaultMiddleware) =>
-    getDefaultMiddleware().concat(cartPersistMiddleware),
+    getDefaultMiddleware().concat(cartPersistMiddleware, dressShopApi.middleware),
 });
 
 export type RootState = ReturnType<typeof store.getState>;

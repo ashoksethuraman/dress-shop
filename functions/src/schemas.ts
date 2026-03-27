@@ -10,7 +10,6 @@
  * Keep both files in sync whenever you add or rename a field.
  */
 
-// ── Status enums ───────────────────────────────────────────────────────────
 
 export const ORDER_STATUSES = [
   "PENDING", "PLACED", "CONFIRMED", "PROCESSING", "SHIPPED",
@@ -26,7 +25,6 @@ export type PaymentStatus = typeof PAYMENT_STATUSES[number];
 export const FAIL_REASONS = ["payment_dismissed", "payment_failed"] as const;
 export type FailReason = typeof FAIL_REASONS[number];
 
-// ── Sub-schemas ────────────────────────────────────────────────────────────
 
 export interface AddressSchema {
   name:     string;
@@ -48,13 +46,12 @@ export interface OrderItemSchema {
   size?:     string | null;
 }
 
-// ── Request body interfaces ────────────────────────────────────────────────
 
 export interface CreateOrderBody {
   id?:                    string;
   contactEmail:           string;
   billingAddress:         AddressSchema;
-  shippingAddress?:       AddressSchema;  // only present when billingAndShippingSame=false
+  shippingAddress?:       AddressSchema;
   billingAndShippingSame: boolean;
   items:                  OrderItemSchema[];
   subtotal:               number;
@@ -104,7 +101,6 @@ export interface UpdateOrderStatusBody {
   status:  OrderStatus;
 }
 
-// ── Product body interfaces ────────────────────────────────────────────────
 
 export const PRODUCT_CATEGORIES = ["men", "women"] as const;
 export type ProductCategory = typeof PRODUCT_CATEGORIES[number];
@@ -143,7 +139,6 @@ export interface SetAdminClaimBody {
   isAdmin:   boolean;
 }
 
-// ── Response shape interfaces ──────────────────────────────────────────────
 
 export interface ApiErrorResponse {
   error: string;
@@ -164,7 +159,6 @@ export interface RecordPaymentResponse {
   paymentId: string;
 }
 
-// ── Validation primitives ──────────────────────────────────────────────────
 
 export type ValidationResult =
   | { valid: true }
@@ -228,7 +222,6 @@ function validateOrderItem(item: unknown, idx: number): ValidationResult {
   return { valid: true };
 }
 
-// ── Public validators ──────────────────────────────────────────────────────
 
 export function validateCreateOrder(body: unknown): ValidationResult {
   if (!body || typeof body !== "object")
@@ -245,7 +238,6 @@ export function validateCreateOrder(body: unknown): ValidationResult {
   const billCheck = validateAddress(b.billingAddress, "billingAddress");
   if (!billCheck.valid) return billCheck;
 
-  // When addresses differ, shippingAddress is required and must be valid
   if (!b.billingAndShippingSame) {
     const shipCheck = validateAddress(b.shippingAddress, "shippingAddress");
     if (!shipCheck.valid) return shipCheck;
@@ -401,7 +393,6 @@ export function validateSetAdminClaim(body: unknown): ValidationResult {
   return { valid: true };
 }
 
-// ── Product validators ─────────────────────────────────────────────────────
 
 function validateProductFields(b: Record<string, unknown>, requireTitle: boolean): ValidationResult {
   if (requireTitle && !isNonEmptyString(b.title))

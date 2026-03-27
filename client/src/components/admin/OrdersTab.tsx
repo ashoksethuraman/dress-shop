@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { FiRefreshCw, FiShoppingBag, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import { ordersApi } from '../../services/apiClient';
-import { StoredOrder } from '../../utils/apiTypes';
+import { StoredOrder, OrderStatus } from '../../utils/apiTypes';
 import { formatPrice } from '../../utils/format';
 import { PAGE_SIZE, orderStatusBadge, paymentStatusBadge, fmtDate } from './adminHelpers';
 import OrderDetailModal from './OrderDetailModal';
@@ -230,7 +230,24 @@ export default function OrdersTab() {
       )}
 
       {selectedOrder && (
-        <OrderDetailModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />
+        <OrderDetailModal
+          order={selectedOrder}
+          onClose={() => setSelectedOrder(null)}
+          onStatusUpdated={(orderId, newStatus: OrderStatus) => {
+            // Optimistically update the row in every cached page
+            setPagesCache(prev => {
+              const next = { ...prev };
+              for (const page of Object.keys(next)) {
+                next[+page] = next[+page].map(o =>
+                  o.id === orderId ? { ...o, orderStatus: newStatus } : o
+                );
+              }
+              return next;
+            });
+            // Also update the open modal's order reference
+            setSelectedOrder(prev => prev && prev.id === orderId ? { ...prev, orderStatus: newStatus } : prev);
+          }}
+        />
       )}
     </div>
   );

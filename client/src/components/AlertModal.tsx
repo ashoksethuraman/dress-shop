@@ -1,7 +1,7 @@
 import React from 'react';
-import { FiAlertTriangle, FiAlertCircle, FiX, FiShoppingCart } from 'react-icons/fi';
+import { FiAlertTriangle, FiAlertCircle, FiCheckCircle, FiX, FiShoppingCart } from 'react-icons/fi';
 
-export type AlertModalType = 'error' | 'warning';
+export type AlertModalType = 'error' | 'warning' | 'success';
 
 interface AlertModalProps {
   /** Modal heading */
@@ -35,6 +35,12 @@ const THEME: Record<AlertModalType, {
     iconCls:   'text-red-500',
     titleCls:  'text-red-800',
     headerCls: 'bg-red-50 border-b border-red-200',
+  },
+  success: {
+    Icon: FiCheckCircle,
+    iconCls:   'text-green-500',
+    titleCls:  'text-green-800',
+    headerCls: 'bg-green-50 border-b border-green-200',
   },
 };
 
