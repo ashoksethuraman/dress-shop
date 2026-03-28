@@ -27,45 +27,45 @@ export type FailReason = typeof FAIL_REASONS[number];
 
 
 export interface AddressSchema {
-  name:     string;
-  line1:    string;
-  line2?:   string;
-  city:     string;
-  state:    string;
-  pincode:  string;
-  country:  string;
-  phone:    string;
+  name: string;
+  line1: string;
+  line2?: string;
+  city: string;
+  state: string;
+  pincode: string;
+  country: string;
+  phone: string;
 }
 
 export interface OrderItemSchema {
   productId: string;
-  title:     string;
-  qty:       number;
+  title: string;
+  qty: number;
   unitPrice: number;
-  total:     number;
-  size?:     string | null;
+  total: number;
+  size?: string | null;
 }
 
 
 export interface CreateOrderBody {
-  id?:                    string;
-  contactEmail:           string;
-  billingAddress:         AddressSchema;
-  shippingAddress?:       AddressSchema;
+  id?: string;
+  contactEmail: string;
+  billingAddress: AddressSchema;
+  shippingAddress?: AddressSchema;
   billingAndShippingSame: boolean;
-  items:                  OrderItemSchema[];
-  subtotal:               number;
-  taxAmount:              number;
-  shippingFee:            number;
-  discount:               number;
-  totalAmount:            number;
+  items: OrderItemSchema[];
+  subtotal: number;
+  taxAmount: number;
+  shippingFee: number;
+  discount: number;
+  totalAmount: number;
 }
 
 export interface VerifyPaymentBody {
-  orderId:               string;
-  razorpay_payment_id:   string;
-  razorpay_signature:    string;
-  razorpay_order_id?:    string;
+  orderId: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+  razorpay_order_id?: string;
 }
 
 export interface FailPaymentBody {
@@ -74,31 +74,31 @@ export interface FailPaymentBody {
 }
 
 export interface CreateRazorpayOrderBody {
-  amount:   number;
-  orderId:  string;
+  amount: number;
+  orderId: string;
 }
 
 export interface RecordPaymentBody {
-  paymentId:          string;
-  orderId:            string;
-  amount:             number;
-  provider?:          string;
-  razorpayOrderId?:   string | null;
+  paymentId: string;
+  orderId: string;
+  amount: number;
+  provider?: string;
+  razorpayOrderId?: string | null;
   razorpaySignature?: string | null;
-  currency?:          string;
-  method?:            string | null;
-  transactionRef?:    string | null;
-  utr?:               string | null;
-  cardLast4?:         string | null;
-  cardNetwork?:       string | null;
-  customerName?:      string | null;
-  customerEmail?:     string | null;
-  isTest?:            boolean;
+  currency?: string;
+  method?: string | null;
+  transactionRef?: string | null;
+  utr?: string | null;
+  cardLast4?: string | null;
+  cardNetwork?: string | null;
+  customerName?: string | null;
+  customerEmail?: string | null;
+  isTest?: boolean;
 }
 
 export interface UpdateOrderStatusBody {
   orderId: string;
-  status:  OrderStatus;
+  status: OrderStatus;
 }
 
 
@@ -109,34 +109,34 @@ export const STOCK_STATUSES = ["available", "out_of_stock"] as const;
 export type StockStatus = typeof STOCK_STATUSES[number];
 
 export interface CreateProductBody {
-  title:        string;
+  title: string;
   description?: string;
-  price:        number;
-  category?:    ProductCategory;
-  images?:      string[];
-  sizes?:       string[];
-  stock?:       StockStatus;
+  price: number;
+  category?: ProductCategory;
+  images?: string[];
+  sizes?: string[];
+  stock?: StockStatus;
 }
 
 export interface UpdateProductBody {
-  title?:        string;
-  description?:  string;
-  price?:        number;
-  category?:     ProductCategory;
-  images?:       string[];
-  sizes?:        string[];
-  stock?:        StockStatus;
+  title?: string;
+  description?: string;
+  price?: number;
+  category?: ProductCategory;
+  images?: string[];
+  sizes?: string[];
+  stock?: StockStatus;
 }
 
 export interface UpdateProfileBody {
   displayName?: string;
-  phone?:       string;
-  photoURL?:    string;
+  phone?: string;
+  photoURL?: string;
 }
 
 export interface SetAdminClaimBody {
   targetUid: string;
-  isAdmin:   boolean;
+  isAdmin: boolean;
 }
 
 
@@ -150,12 +150,12 @@ export interface CreateOrderResponse {
 }
 
 export interface VerifyPaymentResponse {
-  success:   boolean;
+  success: boolean;
   paymentId: string;
 }
 
 export interface RecordPaymentResponse {
-  success:   boolean;
+  success: boolean;
   paymentId: string;
 }
 
@@ -186,7 +186,7 @@ function isEmail(v: unknown): v is string {
 
 function validateAddress(addr: unknown, label: string): ValidationResult {
   if (!addr || typeof addr !== "object") {
-    return { valid: false, error: `${label} is required.`, field: label };
+    return {valid: false, error: `${label} is required.`, field: label};
   }
   const a = addr as Record<string, unknown>;
   const required = ["name", "line1", "city", "state", "pincode", "country", "phone"] as const;
@@ -199,41 +199,49 @@ function validateAddress(addr: unknown, label: string): ValidationResult {
       };
     }
   }
-  return { valid: true };
+  return {valid: true};
 }
 
 function validateOrderItem(item: unknown, idx: number): ValidationResult {
   if (!item || typeof item !== "object") {
-    return { valid: false, error: `items[${idx}] must be an object.`, field: `items[${idx}]` };
+    return {valid: false, error: `items[${idx}] must be an object.`, field: `items[${idx}]`};
   }
   const it = item as Record<string, unknown>;
 
-  if (!isNonEmptyString(it.productId))
-    return { valid: false, error: `items[${idx}].productId is required.`, field: `items[${idx}].productId` };
-  if (!isNonEmptyString(it.title))
-    return { valid: false, error: `items[${idx}].title is required.`, field: `items[${idx}].title` };
-  if (!isFiniteNumber(it.qty) || (it.qty as number) < 1 || !Number.isInteger(it.qty))
-    return { valid: false, error: `items[${idx}].qty must be a positive integer.`, field: `items[${idx}].qty` };
-  if (!isNonNegativeNumber(it.unitPrice))
-    return { valid: false, error: `items[${idx}].unitPrice must be a non-negative number.`, field: `items[${idx}].unitPrice` };
-  if (!isNonNegativeNumber(it.total))
-    return { valid: false, error: `items[${idx}].total must be a non-negative number.`, field: `items[${idx}].total` };
+  if (!isNonEmptyString(it.productId)) {
+    return {valid: false, error: `items[${idx}].productId is required.`, field: `items[${idx}].productId`};
+  }
+  if (!isNonEmptyString(it.title)) {
+    return {valid: false, error: `items[${idx}].title is required.`, field: `items[${idx}].title`};
+  }
+  if (!isFiniteNumber(it.qty) || (it.qty as number) < 1 || !Number.isInteger(it.qty)) {
+    return {valid: false, error: `items[${idx}].qty must be a positive integer.`, field: `items[${idx}].qty`};
+  }
+  if (!isNonNegativeNumber(it.unitPrice)) {
+    return {valid: false, error: `items[${idx}].unitPrice must be a non-negative number.`, field: `items[${idx}].unitPrice`};
+  }
+  if (!isNonNegativeNumber(it.total)) {
+    return {valid: false, error: `items[${idx}].total must be a non-negative number.`, field: `items[${idx}].total`};
+  }
 
-  return { valid: true };
+  return {valid: true};
 }
 
 
 export function validateCreateOrder(body: unknown): ValidationResult {
-  if (!body || typeof body !== "object")
-    return { valid: false, error: "Request body is required." };
+  if (!body || typeof body !== "object") {
+    return {valid: false, error: "Request body is required."};
+  }
 
   const b = body as Record<string, unknown>;
 
-  if (!isEmail(b.contactEmail))
-    return { valid: false, error: "A valid contactEmail is required.", field: "contactEmail" };
+  if (!isEmail(b.contactEmail)) {
+    return {valid: false, error: "A valid contactEmail is required.", field: "contactEmail"};
+  }
 
-  if (typeof b.billingAndShippingSame !== "boolean")
-    return { valid: false, error: "billingAndShippingSame must be a boolean.", field: "billingAndShippingSame" };
+  if (typeof b.billingAndShippingSame !== "boolean") {
+    return {valid: false, error: "billingAndShippingSame must be a boolean.", field: "billingAndShippingSame"};
+  }
 
   const billCheck = validateAddress(b.billingAddress, "billingAddress");
   if (!billCheck.valid) return billCheck;
@@ -246,8 +254,9 @@ export function validateCreateOrder(body: unknown): ValidationResult {
     if (!shipCheck.valid) return shipCheck;
   }
 
-  if (!Array.isArray(b.items) || b.items.length === 0)
-    return { valid: false, error: "items must be a non-empty array.", field: "items" };
+  if (!Array.isArray(b.items) || b.items.length === 0) {
+    return {valid: false, error: "items must be a non-empty array.", field: "items"};
+  }
 
   for (let i = 0; i < b.items.length; i++) {
     const itemCheck = validateOrderItem(b.items[i], i);
@@ -256,207 +265,246 @@ export function validateCreateOrder(body: unknown): ValidationResult {
 
   const numericFields = ["subtotal", "taxAmount", "shippingFee", "discount", "totalAmount"] as const;
   for (const field of numericFields) {
-    if (!isNonNegativeNumber(b[field]))
-      return { valid: false, error: `${field} must be a non-negative number.`, field };
+    if (!isNonNegativeNumber(b[field])) {
+      return {valid: false, error: `${field} must be a non-negative number.`, field};
+    }
   }
 
-  if (!isPositiveNumber(b.totalAmount))
-    return { valid: false, error: "totalAmount must be greater than zero.", field: "totalAmount" };
+  if (!isPositiveNumber(b.totalAmount)) {
+    return {valid: false, error: "totalAmount must be greater than zero.", field: "totalAmount"};
+  }
 
-  return { valid: true };
+  return {valid: true};
 }
 
 export function validateVerifyPayment(body: unknown): ValidationResult {
-  if (!body || typeof body !== "object")
-    return { valid: false, error: "Request body is required." };
+  if (!body || typeof body !== "object") {
+    return {valid: false, error: "Request body is required."};
+  }
 
   const b = body as Record<string, unknown>;
-  if (!isNonEmptyString(b.orderId))
-    return { valid: false, error: "orderId is required.", field: "orderId" };
-  if (!isNonEmptyString(b.razorpay_payment_id))
-    return { valid: false, error: "razorpay_payment_id is required.", field: "razorpay_payment_id" };
-  if (!isNonEmptyString(b.razorpay_signature))
-    return { valid: false, error: "razorpay_signature is required.", field: "razorpay_signature" };
+  if (!isNonEmptyString(b.orderId)) {
+    return {valid: false, error: "orderId is required.", field: "orderId"};
+  }
+  if (!isNonEmptyString(b.razorpay_payment_id)) {
+    return {valid: false, error: "razorpay_payment_id is required.", field: "razorpay_payment_id"};
+  }
+  if (!isNonEmptyString(b.razorpay_signature)) {
+    return {valid: false, error: "razorpay_signature is required.", field: "razorpay_signature"};
+  }
 
-  return { valid: true };
+  return {valid: true};
 }
 
 export function validateFailPayment(body: unknown): ValidationResult {
-  if (!body || typeof body !== "object")
-    return { valid: false, error: "Request body is required." };
+  if (!body || typeof body !== "object") {
+    return {valid: false, error: "Request body is required."};
+  }
 
   const b = body as Record<string, unknown>;
-  if (!isNonEmptyString(b.orderId))
-    return { valid: false, error: "orderId is required.", field: "orderId" };
-  if (b.reason !== undefined && !(FAIL_REASONS as readonly string[]).includes(b.reason as string))
+  if (!isNonEmptyString(b.orderId)) {
+    return {valid: false, error: "orderId is required.", field: "orderId"};
+  }
+  if (b.reason !== undefined && !(FAIL_REASONS as readonly string[]).includes(b.reason as string)) {
     return {
       valid: false,
       error: `reason must be one of: ${FAIL_REASONS.join(", ")}.`,
       field: "reason",
     };
+  }
 
-  return { valid: true };
+  return {valid: true};
 }
 
 export function validateCreateRazorpayOrder(body: unknown): ValidationResult {
-  if (!body || typeof body !== "object")
-    return { valid: false, error: "Request body is required." };
+  if (!body || typeof body !== "object") {
+    return {valid: false, error: "Request body is required."};
+  }
 
   const b = body as Record<string, unknown>;
-  if (!isPositiveNumber(b.amount))
-    return { valid: false, error: "amount must be a positive number.", field: "amount" };
-  if (!isNonEmptyString(b.orderId))
-    return { valid: false, error: "orderId is required.", field: "orderId" };
+  if (!isPositiveNumber(b.amount)) {
+    return {valid: false, error: "amount must be a positive number.", field: "amount"};
+  }
+  if (!isNonEmptyString(b.orderId)) {
+    return {valid: false, error: "orderId is required.", field: "orderId"};
+  }
 
-  return { valid: true };
+  return {valid: true};
 }
 
 export function validateRecordPayment(body: unknown): ValidationResult {
-  if (!body || typeof body !== "object")
-    return { valid: false, error: "Request body is required." };
+  if (!body || typeof body !== "object") {
+    return {valid: false, error: "Request body is required."};
+  }
 
   const b = body as Record<string, unknown>;
-  if (!isNonEmptyString(b.paymentId))
-    return { valid: false, error: "paymentId is required.", field: "paymentId" };
-  if (!isNonEmptyString(b.orderId))
-    return { valid: false, error: "orderId is required.", field: "orderId" };
-  if (!isPositiveNumber(b.amount))
-    return { valid: false, error: "amount must be a positive number.", field: "amount" };
+  if (!isNonEmptyString(b.paymentId)) {
+    return {valid: false, error: "paymentId is required.", field: "paymentId"};
+  }
+  if (!isNonEmptyString(b.orderId)) {
+    return {valid: false, error: "orderId is required.", field: "orderId"};
+  }
+  if (!isPositiveNumber(b.amount)) {
+    return {valid: false, error: "amount must be a positive number.", field: "amount"};
+  }
 
-  return { valid: true };
+  return {valid: true};
 }
 
 export function validateUpdateOrderStatus(body: unknown): ValidationResult {
-  if (!body || typeof body !== "object")
-    return { valid: false, error: "Request body is required." };
+  if (!body || typeof body !== "object") {
+    return {valid: false, error: "Request body is required."};
+  }
 
   const b = body as Record<string, unknown>;
-  if (!isNonEmptyString(b.orderId))
-    return { valid: false, error: "orderId is required.", field: "orderId" };
-  if (!isNonEmptyString(b.status) || !(ORDER_STATUSES as readonly string[]).includes(b.status as string))
+  if (!isNonEmptyString(b.orderId)) {
+    return {valid: false, error: "orderId is required.", field: "orderId"};
+  }
+  if (!isNonEmptyString(b.status) || !(ORDER_STATUSES as readonly string[]).includes(b.status as string)) {
     return {
       valid: false,
       error: `status must be one of: ${ORDER_STATUSES.join(", ")}.`,
       field: "status",
     };
+  }
 
-  return { valid: true };
+  return {valid: true};
 }
 
 export function validateUpdateProfile(body: unknown): ValidationResult {
-  if (!body || typeof body !== "object")
-    return { valid: false, error: "Request body is required." };
+  if (!body || typeof body !== "object") {
+    return {valid: false, error: "Request body is required."};
+  }
 
   const b = body as Record<string, unknown>;
 
   if (
     b.displayName !== undefined &&
     (typeof b.displayName !== "string" || (b.displayName as string).trim().length === 0)
-  )
-    return { valid: false, error: "displayName must be a non-empty string.", field: "displayName" };
+  ) {
+    return {valid: false, error: "displayName must be a non-empty string.", field: "displayName"};
+  }
 
   if (b.phone !== undefined) {
-    if (typeof b.phone !== "string" || !/^\+[1-9]\d{6,14}$/.test(b.phone as string))
+    if (typeof b.phone !== "string" || !/^\+[1-9]\d{6,14}$/.test(b.phone as string)) {
       return {
         valid: false,
         error: "phone must be in E.164 format (e.g. +919876543210).",
         field: "phone",
       };
+    }
   }
 
   if (
     b.photoURL !== undefined &&
     (typeof b.photoURL !== "string" || (b.photoURL as string).trim().length === 0)
-  )
-    return { valid: false, error: "photoURL must be a non-empty string.", field: "photoURL" };
+  ) {
+    return {valid: false, error: "photoURL must be a non-empty string.", field: "photoURL"};
+  }
 
   if (
     b.displayName === undefined &&
     b.phone === undefined &&
     b.photoURL === undefined
-  )
-    return { valid: false, error: "At least one of displayName, phone, or photoURL is required." };
+  ) {
+    return {valid: false, error: "At least one of displayName, phone, or photoURL is required."};
+  }
 
-  return { valid: true };
+  return {valid: true};
 }
 
 export function validateSetAdminClaim(body: unknown): ValidationResult {
-  if (!body || typeof body !== "object")
-    return { valid: false, error: "Request body is required." };
+  if (!body || typeof body !== "object") {
+    return {valid: false, error: "Request body is required."};
+  }
 
   const b = body as Record<string, unknown>;
-  if (!isNonEmptyString(b.targetUid))
-    return { valid: false, error: "targetUid is required.", field: "targetUid" };
-  if (typeof b.isAdmin !== "boolean")
-    return { valid: false, error: "isAdmin must be a boolean.", field: "isAdmin" };
+  if (!isNonEmptyString(b.targetUid)) {
+    return {valid: false, error: "targetUid is required.", field: "targetUid"};
+  }
+  if (typeof b.isAdmin !== "boolean") {
+    return {valid: false, error: "isAdmin must be a boolean.", field: "isAdmin"};
+  }
 
-  return { valid: true };
+  return {valid: true};
 }
 
 
 function validateProductFields(b: Record<string, unknown>, requireTitle: boolean): ValidationResult {
-  if (requireTitle && !isNonEmptyString(b.title))
-    return { valid: false, error: "title is required and must be a non-empty string.", field: "title" };
-
-  if (b.title !== undefined && !isNonEmptyString(b.title))
-    return { valid: false, error: "title must be a non-empty string.", field: "title" };
-
-  if (b.description !== undefined && typeof b.description !== "string")
-    return { valid: false, error: "description must be a string.", field: "description" };
-
-  if (requireTitle && b.price === undefined)
-    return { valid: false, error: "price is required.", field: "price" };
-
-  if (b.price !== undefined) {
-    if (typeof b.price !== "number" || !Number.isFinite(b.price) || b.price < 0)
-      return { valid: false, error: "price must be a non-negative finite number.", field: "price" };
+  if (requireTitle && !isNonEmptyString(b.title)) {
+    return {valid: false, error: "title is required and must be a non-empty string.", field: "title"};
   }
 
-  if (b.category !== undefined && !(PRODUCT_CATEGORIES as readonly string[]).includes(b.category as string))
+  if (b.title !== undefined && !isNonEmptyString(b.title)) {
+    return {valid: false, error: "title must be a non-empty string.", field: "title"};
+  }
+
+  if (b.description !== undefined && typeof b.description !== "string") {
+    return {valid: false, error: "description must be a string.", field: "description"};
+  }
+
+  if (requireTitle && b.price === undefined) {
+    return {valid: false, error: "price is required.", field: "price"};
+  }
+
+  if (b.price !== undefined) {
+    if (typeof b.price !== "number" || !Number.isFinite(b.price) || b.price < 0) {
+      return {valid: false, error: "price must be a non-negative finite number.", field: "price"};
+    }
+  }
+
+  if (b.category !== undefined && !(PRODUCT_CATEGORIES as readonly string[]).includes(b.category as string)) {
     return {
       valid: false,
       error: `category must be one of: ${PRODUCT_CATEGORIES.join(", ")}.`,
       field: "category",
     };
+  }
 
-  if (b.stock !== undefined && !(STOCK_STATUSES as readonly string[]).includes(b.stock as string))
+  if (b.stock !== undefined && !(STOCK_STATUSES as readonly string[]).includes(b.stock as string)) {
     return {
       valid: false,
       error: `stock must be one of: ${STOCK_STATUSES.join(", ")}.`,
       field: "stock",
     };
+  }
 
   if (b.images !== undefined) {
-    if (!Array.isArray(b.images) || (b.images as unknown[]).some((i) => typeof i !== "string"))
-      return { valid: false, error: "images must be an array of strings.", field: "images" };
+    if (!Array.isArray(b.images) || (b.images as unknown[]).some((i) => typeof i !== "string")) {
+      return {valid: false, error: "images must be an array of strings.", field: "images"};
+    }
   }
 
   if (b.sizes !== undefined) {
-    if (!Array.isArray(b.sizes) || (b.sizes as unknown[]).some((s) => typeof s !== "string"))
-      return { valid: false, error: "sizes must be an array of strings.", field: "sizes" };
+    if (!Array.isArray(b.sizes) || (b.sizes as unknown[]).some((s) => typeof s !== "string")) {
+      return {valid: false, error: "sizes must be an array of strings.", field: "sizes"};
+    }
   }
 
-  return { valid: true };
+  return {valid: true};
 }
 
 export function validateCreateProduct(body: unknown): ValidationResult {
-  if (!body || typeof body !== "object")
-    return { valid: false, error: "Request body is required." };
+  if (!body || typeof body !== "object") {
+    return {valid: false, error: "Request body is required."};
+  }
 
   return validateProductFields(body as Record<string, unknown>, true);
 }
 
 export function validateUpdateProduct(body: unknown): ValidationResult {
-  if (!body || typeof body !== "object")
-    return { valid: false, error: "Request body is required." };
+  if (!body || typeof body !== "object") {
+    return {valid: false, error: "Request body is required."};
+  }
 
   const b = body as Record<string, unknown>;
   const allowed: Array<keyof UpdateProductBody> = [
     "title", "description", "price", "category", "images", "sizes", "stock",
   ];
   const hasUpdateField = allowed.some((k) => b[k] !== undefined);
-  if (!hasUpdateField)
-    return { valid: false, error: "At least one field to update is required." };
+  if (!hasUpdateField) {
+    return {valid: false, error: "At least one field to update is required."};
+  }
 
   return validateProductFields(b, false);
 }

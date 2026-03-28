@@ -84,7 +84,7 @@ export default function OrderDetailModal({ order, onClose, onStatusUpdated }: Pr
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl z-10">
           <div>
-            <p className="text-xs text-muted font-mono">#{order.id.slice(0, 16).toUpperCase()}</p>
+            <p className="text-xs text-muted font-mono">#{order.id.toUpperCase()}</p>
             <h2 className="text-base font-extrabold text-primary">Order Details</h2>
           </div>
           <button

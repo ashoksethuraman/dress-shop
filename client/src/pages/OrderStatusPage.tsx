@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect, useMemo } from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
 import {
@@ -222,8 +222,8 @@ export default function OrderStatusPage() {
   const paymentMethod = state?.paymentMethod;
   const verifyFailed  = state?.verifyFailed === true;
 
-  const shipAddr = order?.shippingAddress ?? order?.billingAddress ?? {};
-  const billAddr = order?.billingAddress ?? {};
+  const shipAddr = useMemo(() => order?.shippingAddress ?? order?.billingAddress ?? {}, [order]);
+  const billAddr = useMemo(() => order?.billingAddress ?? {}, [order]);
   const addrSame = order?.billingAndShippingSame !== false;
   const subtotal = order?.subtotal
     ?? order?.items?.reduce((s: number, i: any) => s + Number(i.unitPrice) * Number(i.qty), 0)

@@ -14,8 +14,6 @@ const STEPS = [
   { key: 'DELIVERED', label: 'Delivered',    Icon: FiCheckCircle },
 ] as const;
 
-type StepKey = typeof STEPS[number]['key'];
-
 function stepIndex(status: string): number {
   const idx = STEPS.findIndex((s) => s.key === status);
   return idx === -1 ? 0 : idx;

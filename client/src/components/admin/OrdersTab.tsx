@@ -178,8 +178,11 @@ export default function OrdersTab() {
                   <td className="px-4 py-3 font-mono text-xs text-gray-500">
                     #{order.id.slice(0, 10).toUpperCase()}
                   </td>
-                  <td className="px-4 py-3 text-primary font-medium max-w-[160px] truncate">
-                    {order.contactEmail || '—'}
+                  <td className="px-4 py-3 max-w-[180px]">
+                    {order.billingAddress?.name && (
+                      <p className="text-primary font-semibold text-xs truncate">{order.billingAddress.name}</p>
+                    )}
+                    <p className="text-muted text-xs truncate">{order.contactEmail || '—'}</p>
                   </td>
                   <td className="px-4 py-3 text-muted whitespace-nowrap">{fmtDate(order.createdAt)}</td>
                   <td className="px-4 py-3 text-center text-muted">{order.items.length}</td>

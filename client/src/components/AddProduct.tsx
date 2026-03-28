@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { FiUpload, FiX, FiPlus } from 'react-icons/fi';
 import { productsApi } from '../services/apiClient';
 import { uploadImages, checkImageSize } from '../services/imageService';
-import { Product, StockStatus } from '../utils/types';
+import { StockStatus } from '../utils/types';
 import { useAppDispatch } from '../store/hooks';
 import { dressShopApi } from '../store/apiSlice';
 import AlertModal from './AlertModal';
@@ -143,17 +143,6 @@ export default function AddProductForm({ onAdded }: Props) {
       const uploadedImages = await uploadImages(imageFiles, category, title);
       const stockValue: StockStatus = stockMode;
       const savedTitle = title.trim();
-      const product: Product = {
-        id: 'p' + Date.now(),
-        title: savedTitle,
-        description: description.trim(),
-        price: Number(price),
-        category,
-        sizes,
-        images: uploadedImages,
-        image: uploadedImages[0] || '',
-        stock: stockValue,
-      };
       const res = await productsApi.add({
         title: savedTitle, description: description.trim(),
         price: Number(price), category, sizes, images: uploadedImages,
