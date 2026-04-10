@@ -24,7 +24,7 @@ export default function OrderSummaryPage() {
         <p className="text-sm text-gray-500 mb-6">Looks like you haven't added anything yet.</p>
         <Link
           to="/"
-          className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 transition-colors no-underline"
+          className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-brand-dark text-white font-semibold text-sm hover:bg-brand-hover transition-colors no-underline"
         >
           Continue Shopping
         </Link>
@@ -39,7 +39,7 @@ export default function OrderSummaryPage() {
         {/* Back link */}
         <button
           onClick={() => navigate('/')}
-          className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-800 font-medium mb-6 transition-colors"
+          className="flex items-center gap-1.5 text-sm text-brand-dark hover:text-brand-hover font-medium mb-6 transition-colors"
         >
           <FiArrowLeft size={15} /> Back to home
         </button>
@@ -57,14 +57,14 @@ export default function OrderSummaryPage() {
               >
                 {/* Row 1: thumbnail + info + remove */}
                 <div className="flex items-start gap-3">
-                  <div className="w-14 h-14 rounded-xl bg-indigo-50 flex items-center justify-center flex-shrink-0 border border-indigo-100">
-                    <FiShoppingBag size={20} className="text-indigo-300" />
+                  <div className="w-14 h-14 rounded-xl bg-brand flex items-center justify-center flex-shrink-0 border border-brand-border">
+                    <FiShoppingBag size={20} className="text-brand-dark" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-sm text-gray-800 line-clamp-2 leading-snug">{it.title}</p>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       {it.size && (
-                        <span className="text-xs bg-indigo-50 text-indigo-600 border border-indigo-200 font-semibold px-2 py-0.5 rounded">
+                        <span className="text-xs bg-brand text-brand-dark border border-brand-border font-semibold px-2 py-0.5 rounded">
                           Size: {it.size}
                         </span>
                       )}
@@ -114,7 +114,7 @@ export default function OrderSummaryPage() {
                 { icon: <FiShield size={16} />, label: 'Secure Payment', sub: 'Razorpay encrypted' },
               ].map(({ icon, label, sub }) => (
                 <div key={label} className="flex flex-col items-center text-center bg-white rounded-xl px-3 py-3 shadow-sm gap-1">
-                  <span className="text-indigo-500">{icon}</span>
+                  <span className="text-brand-dark">{icon}</span>
                   <p className="text-xs font-semibold text-gray-700">{label}</p>
                   <p className="text-[11px] text-gray-400">{sub}</p>
                 </div>
@@ -139,14 +139,14 @@ export default function OrderSummaryPage() {
               </div>
               <div className="flex justify-between font-extrabold text-base text-gray-900 pt-2 border-t border-gray-100">
                 <span>Total</span>
-                <span className="text-indigo-600">₹{total.toFixed(2)}</span>
+                <span className="text-brand-dark">₹{total.toFixed(2)}</span>
               </div>
             </div>
 
             {/* CTA */}
             <button
               onClick={() => navigate('/checkout')}
-              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm transition-all shadow-md hover:shadow-lg"
+              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-brand-dark hover:bg-brand-hover text-white font-bold text-sm transition-all shadow-md hover:shadow-lg"
             >
               Proceed to Checkout
               <FiChevronRight size={16} />
@@ -154,7 +154,7 @@ export default function OrderSummaryPage() {
 
             <Link
               to="/"
-              className="text-center text-xs text-gray-400 hover:text-indigo-500 transition-colors no-underline"
+              className="text-center text-xs text-gray-400 hover:text-brand-dark transition-colors no-underline"
             >
               Continue Shopping
             </Link>

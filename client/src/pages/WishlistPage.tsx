@@ -12,21 +12,21 @@ export default function WishlistPage() {
   const wishlistProducts = products.filter((p) => wishlistIds.includes(p.id));
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 py-8">
+    <div className="h-full flex flex-col bg-gray-50">
+      <div className="max-w-7xl mx-auto w-full px-4 pt-4 pb-2">
 
         {/* Header */}
-        <div className="flex items-center gap-3 mb-8">
+        <div className="flex items-center gap-3 mb-3">
           <Link
             to="/"
-            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-500 transition-colors no-underline"
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-brand-dark transition-colors no-underline"
           >
             <FiArrowLeft size={16} />
             Back to shop
           </Link>
         </div>
 
-        <div className="flex items-center gap-3 mb-6">
+        <div className="flex items-center gap-3 mb-4">
           <FiHeart size={22} className="text-rose-500 fill-rose-500" />
           <h1 className="text-2xl font-bold text-gray-900">My Wishlist</h1>
           {wishlistProducts.length > 0 && (
@@ -35,19 +35,22 @@ export default function WishlistPage() {
             </span>
           )}
         </div>
+      </div>
 
-        {/* Loading state */}
-        {loading && (
+      {/* Loading state */}
+      {loading && (
+        <div className="max-w-7xl mx-auto w-full px-4">
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="bg-white rounded-2xl h-80 animate-pulse" />
             ))}
           </div>
-        )}
+        </div>
+      )}
 
         {/* Empty state */}
         {!loading && wishlistProducts.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-24 text-center">
+          <div className="flex flex-col items-center pt-8 text-center px-4">
             <div className="w-20 h-20 rounded-full bg-rose-50 flex items-center justify-center mb-4">
               <FiHeart size={36} className="text-rose-300" />
             </div>
@@ -57,7 +60,7 @@ export default function WishlistPage() {
             </p>
             <Link
               to="/"
-              className="px-6 py-2.5 bg-indigo-500 text-white text-sm font-semibold rounded-xl hover:bg-indigo-600 transition-colors no-underline"
+              className="px-6 py-2.5 bg-brand-dark text-white text-sm font-semibold rounded-xl hover:bg-brand-hover transition-colors no-underline"
             >
               Browse Products
             </Link>
@@ -66,13 +69,14 @@ export default function WishlistPage() {
 
         {/* Product grid */}
         {!loading && wishlistProducts.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            {wishlistProducts.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
+          <div className="max-w-7xl mx-auto w-full px-4 pb-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {wishlistProducts.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
           </div>
         )}
-      </div>
     </div>
   );
 }

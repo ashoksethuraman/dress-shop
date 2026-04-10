@@ -2,7 +2,7 @@ import {Router, type Request, type Response} from "express";
 import {FieldValue} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {db} from "../firebase";
-import {authenticate, requireAdmin, validate} from "../middleware";
+import {authenticate, requireAdmin, validate, sanitizeParam} from "../middleware";
 import {
   type CreateProductBody,
   type UpdateProductBody,
@@ -17,7 +17,7 @@ function isInStock(stock: unknown): boolean {
 }
 
 
-productsRouter.get("/", async (_req: Request, res: Response) => {
+productsRouter.get("/", async (req: Request, res: Response) => {
   try {
     const snap = await db.collection("products").orderBy("createdAt", "desc").get();
     const all = snap.docs.map((d) => ({
@@ -25,8 +25,16 @@ productsRouter.get("/", async (_req: Request, res: Response) => {
       ...d.data(),
       createdAt: (d.data().createdAt as FirebaseFirestore.Timestamp)?.toDate?.()?.toISOString() ?? null,
     }));
-    const products = all.filter((p) => isInStock((p as Record<string, unknown>).stock));
-    logger.info(`[GET /products] total=${all.length} visible=${products.length}`);
+    let products = all.filter((p) => isInStock((p as Record<string, unknown>).stock));
+    const q = typeof req.query.q === "string" ? req.query.q.trim().toLowerCase() : "";
+    if (q) {
+      products = products.filter((p: any) =>
+        (p.title ?? "").toLowerCase().includes(q) ||
+        (p.description ?? "").toLowerCase().includes(q) ||
+        (p.category ?? "").toLowerCase().includes(q),
+      );
+    }
+    logger.info(`[GET /products] q="${q}" total=${all.length} visible=${products.length}`);
     res.json({products});
   } catch (err) {
     logger.error("[GET /products] error", err);
@@ -50,7 +58,7 @@ productsRouter.get("/admin", authenticate, requireAdmin, async (_req: Request, r
   }
 });
 
-productsRouter.get("/:id", async (req: Request, res: Response) => {
+productsRouter.get("/:id", sanitizeParam("id"), async (req: Request, res: Response) => {
   const {id} = req.params;
   try {
     const snap = await db.doc(`products/${id}`).get();
@@ -85,6 +93,7 @@ productsRouter.post(
         sizeInventory: body.sizeInventory ?? {},
         image: body.images?.[0] ?? "",
         stock: body.stock ?? "available",
+        sizeChart: body.sizeChart ?? null,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       });
@@ -102,6 +111,7 @@ productsRouter.put(
   "/:id",
   authenticate,
   requireAdmin,
+  sanitizeParam("id"),
   validate(validateUpdateProduct),
   async (req: Request, res: Response) => {
     const {id} = req.params;
@@ -118,6 +128,7 @@ productsRouter.put(
     if (body.sizes !== undefined) updates.sizes = body.sizes;
     if (body.sizeInventory !== undefined) updates.sizeInventory = body.sizeInventory;
     if (body.stock !== undefined) updates.stock = body.stock;
+    if (body.sizeChart !== undefined) updates.sizeChart = body.sizeChart;
 
     try {
       await db.doc(`products/${id}`).update(updates);
@@ -130,7 +141,7 @@ productsRouter.put(
   }
 );
 
-productsRouter.delete("/:id", authenticate, requireAdmin, async (req: Request, res: Response) => {
+productsRouter.delete("/:id", authenticate, requireAdmin, sanitizeParam("id"), async (req: Request, res: Response) => {
   const {id} = req.params;
   try {
     await db.doc(`products/${id}`).delete();

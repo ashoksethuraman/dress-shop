@@ -5,7 +5,7 @@ export const PAGE_SIZE = 10;
 export function orderStatusBadge(s: OrderStatus): string {
   const map: Record<OrderStatus, string> = {
     PENDING:        'bg-amber-50 text-amber-700 border border-amber-200',
-    PLACED:         'bg-indigo-50 text-indigo-700 border border-indigo-200',
+    PLACED:         'bg-brand text-brand-dark border border-brand-border',
     CONFIRMED:      'bg-blue-50 text-blue-700 border border-blue-200',
     PROCESSING:     'bg-violet-50 text-violet-700 border border-violet-200',
     SHIPPED:        'bg-cyan-50 text-cyan-700 border border-cyan-200',

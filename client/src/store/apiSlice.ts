@@ -59,6 +59,23 @@ export const dressShopApi = createApi({
       providesTags: (_result, _err, id) => [{ type: 'Product', id }],
     }),
 
+    searchProducts: builder.query<Product[], string>({
+      keepUnusedDataFor: 60,
+      queryFn: async (q) => {
+        try {
+          const { products } = await productsApi.search(q);
+          return { data: products as Product[] };
+        } catch (err: any) {
+          return {
+            error: {
+              status: 'CUSTOM_ERROR',
+              error: err?.message ?? 'Search failed',
+            },
+          };
+        }
+      },
+      providesTags: () => [{ type: 'Product', id: 'LIST' }],
+    }),
 
     trackOrder: builder.query<TrackOrderResponse, string>({
       keepUnusedDataFor: 60,
@@ -123,6 +140,7 @@ export const dressShopApi = createApi({
 export const {
   useGetProductsQuery,
   useGetProductByIdQuery,
+  useSearchProductsQuery,
   useLazyTrackOrderQuery,
   useGetMyOrdersQuery,
   useDeleteProductMutation,

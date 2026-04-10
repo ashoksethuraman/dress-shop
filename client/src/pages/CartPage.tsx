@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { removeFromCart, setQty } from '../store/cartSlice';
 import { Link, useNavigate } from 'react-router-dom';
-import { FiTrash2, FiShoppingBag, FiArrowRight } from 'react-icons/fi';
+import { FiTrash2, FiShoppingBag, FiArrowRight, FiArrowLeft } from 'react-icons/fi';
 
 export default function CartPage() {
   const items = useAppSelector((s) => s.cart.items);
@@ -24,12 +24,36 @@ export default function CartPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6">
+    <div>
+      {/* Header — full-width, left-aligned */}
+      <div className="px-4 pt-4 pb-2">
+        <div className="flex items-center gap-3 mb-3">
+          <Link
+            to="/"
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-brand-dark transition-colors no-underline"
+          >
+            <FiArrowLeft size={16} />
+            Back to shop
+          </Link>
+        </div>
+        <div className="flex items-center gap-3 mb-4">
+          <FiShoppingBag size={22} className="text-brand-dark" />
+          <h1 className="text-2xl font-bold text-gray-900">My Cart</h1>
+          {items.length > 0 && (
+            <span className="ml-1 text-sm font-semibold text-gray-400">
+              ({items.length} {items.length === 1 ? 'item' : 'items'})
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="max-w-2xl mx-auto px-4 pb-6">
+
       {items.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 px-6">
+        <div className="flex flex-col items-center pt-4 px-6">
           {/* Icon */}
-          <div className="w-16 h-16 rounded-full bg-indigo-50 flex items-center justify-center mb-4 shadow-inner">
-            <FiShoppingBag size={28} className="text-indigo-300" />
+          <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4 shadow-inner bg-border">
+            <FiShoppingBag size={28} className="text-brand-dark" />
           </div>
 
           {/* Text */}
@@ -41,14 +65,13 @@ export default function CartPage() {
           {/* CTA Button */}
           <Link
             to="/"
-            className="inline-flex items-center gap-2 px-7 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-sm shadow-md shadow-indigo-200 transition-all no-underline"
+            className="inline-flex items-center gap-2 px-7 py-3 rounded-2xl bg-brand-dark hover:bg-brand-hover text-white font-bold text-sm transition-all no-underline"
           >
             Browse Products <FiArrowRight size={15} />
           </Link>
         </div>
       ) : (
         <>
-          <h2 className="text-2xl font-bold text-primary mb-6">Your Cart</h2>
           <ul className="flex flex-col gap-3 mb-6">
             {items.map((it) => (
               <li key={`${it.productId}-${it.size ?? 'none'}`} className="flex items-center gap-4 bg-white rounded-2xl px-4 py-3 shadow-sm">
@@ -56,7 +79,7 @@ export default function CartPage() {
                   <p className="font-semibold text-sm text-primary">{it.title}</p>
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                     {it.size && (
-                      <span className="text-xs bg-indigo-50 text-indigo-600 border border-indigo-200 font-semibold px-2 py-0.5 rounded">Size: {it.size}</span>
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded border bg-bg text-brand-dark border-border">Size: {it.size}</span>
                     )}
                     <span className="text-xs text-muted">₹{it.price.toFixed(2)} each</span>
                     {it.maxQty !== undefined && (
@@ -90,7 +113,7 @@ export default function CartPage() {
                       dispatch(setQty({ productId: it.productId, size: it.size, qty: newQty }));
                     }
                   }}
-                  className="w-14 text-center border border-gray-200 rounded-lg py-1 text-sm outline-none focus:border-indigo-400"
+                  className="w-14 text-center border border-gray-200 rounded-lg py-1 text-sm outline-none focus:border-brand-dark"
                 />
                 <span className="font-semibold text-sm text-primary w-16 text-right">
                   ₹{(it.price * it.qty).toFixed(2)}
@@ -116,13 +139,13 @@ export default function CartPage() {
           <div className="flex gap-3">
             <Link
               to="/"
-              className="flex-1 text-center py-2.5 rounded-xl border border-indigo-300 text-indigo-600 font-semibold hover:bg-indigo-50 transition-colors no-underline text-sm"
+              className="flex-1 text-center py-2.5 rounded-xl bg-brand-dark hover:bg-brand-hover text-white font-semibold transition-colors no-underline text-sm"
             >
               Continue Shopping
             </Link>
             <button
               onClick={handleCheckout}
-              className="flex-1 py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white font-bold text-sm transition-colors"
+              className="flex-1 py-2.5 rounded-xl bg-brand-dark hover:bg-brand-hover text-white font-bold text-sm transition-colors"
             >
               Checkout
             </button>
@@ -134,6 +157,7 @@ export default function CartPage() {
           )}
         </>
       )}
+      </div>
     </div>
   );
 }

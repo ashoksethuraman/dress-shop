@@ -61,6 +61,7 @@ export const apiClient = {
   get:    <T>(path: string)                  => request<T>(path, { method: 'GET' }),
   post:   <T>(path: string, body: unknown)   => request<T>(path, { method: 'POST',   body: JSON.stringify(body) }),
   put:    <T>(path: string, body: unknown)   => request<T>(path, { method: 'PUT',    body: JSON.stringify(body) }),
+  patch:  <T>(path: string, body: unknown)   => request<T>(path, { method: 'PATCH',  body: JSON.stringify(body) }),
   delete: <T>(path: string)                  => request<T>(path, { method: 'DELETE' }),
 };
 
@@ -69,10 +70,14 @@ type ProductFields = {
   category?: 'men' | 'women'; images?: string[]; sizes?: string[];
   stock?: 'available' | 'out_of_stock';
   sizeInventory?: Record<string, number>;
+  sizeChart?: string;
 };
 
 export const productsApi = {
   list: () => apiClient.get<{ products: unknown[] }>('products'),
+
+  search: (q: string) =>
+    apiClient.get<{ products: unknown[] }>(`products?q=${encodeURIComponent(q)}`),
 
   listAll: () => apiClient.get<{ products: unknown[] }>('products/admin'),
 
@@ -186,4 +191,19 @@ export const userApi = {
   getWishlist: () => apiClient.get<{ wishlist: string[] }>('users/wishlist'),
   putWishlist: (wishlist: string[]) =>
     apiClient.put<{ success: boolean; wishlist: string[] }>('users/wishlist', { wishlist }),
+};
+
+export interface ManagedUser {
+  id: string;
+  username: string | null;
+  email: string | null;
+  role: string;
+  isActive: boolean;
+  createdAt: string | null;
+}
+
+export const adminUsersApi = {
+  getAll: () => apiClient.get<{ users: ManagedUser[] }>('users/all'),
+  updateStatus: (uids: string[], isActive: boolean) =>
+    apiClient.patch<{ success: boolean; updated: number }>('users/status', { uids, isActive }),
 };

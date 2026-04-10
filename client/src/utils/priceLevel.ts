@@ -1,7 +1,7 @@
 export const BADGE_COLORS: Record<string, string> = {
   budget:  'bg-green-100 text-green-700',
   mid:     'bg-yellow-100 text-yellow-700',
-  premium: 'bg-indigo-100 text-indigo-700',
+  premium: 'bg-brand text-brand-dark',
 };
 
 export function getPriceLevel(price: number) {

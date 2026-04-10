@@ -1,8 +1,8 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { useDeleteProductMutation } from '../store/apiSlice';
+import { useDeleteProductMutation, useSearchProductsQuery } from '../store/apiSlice';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAppSelector } from '../store/hooks';
-import { FiShoppingCart, FiTrendingUp, FiGrid } from 'react-icons/fi';
+import { FiShoppingCart, FiTrendingUp, FiGrid, FiSearch } from 'react-icons/fi';
 import ProductCard from '../components/ProductCard';
 import { useProducts } from '../hooks/useProducts';
 
@@ -27,30 +27,44 @@ function SkeletonCard() {
 }
 
 export default function HomePage() {
-  const { products, loading, error, refresh } = useProducts();
+  const { products, loading: productsLoading, error: productsError, refresh } = useProducts();
   // const cartCount = useAppSelector(state => state.cart.items.reduce((acc, i) => acc + i.qty, 0));
   const isAdmin   = useAppSelector((s) => s.user.user?.isAdmin ?? false);
   const [searchParams] = useSearchParams();
   const filter = searchParams.get('filter'); // 'bestsellers' | null
+  const searchQuery = searchParams.get('q') ?? '';
 
-  const isBestSellers = filter === 'bestsellers';
+  const isSearching = searchQuery.length > 0;
+  const isBestSellers = filter === 'bestsellers' && !isSearching;
 
-  // Derived list — best sellers sorted descending by salesCount
-  const displayProducts = isBestSellers
-    ? [...products]
-        .filter((p) => (p.salesCount ?? 0) > 0)
-        .sort((a, b) => (b.salesCount ?? 0) - (a.salesCount ?? 0))
-    : products;
+  // Search: only fire when there's a query term
+  const {
+    data: searchResults,
+    isLoading: searchLoading,
+    isError: searchError,
+  } = useSearchProductsQuery(searchQuery, { skip: !isSearching });
+
+  const loading = isSearching ? searchLoading : productsLoading;
+  const error = isSearching ? searchError : productsError;
+
+  // Derived list
+  const displayProducts = isSearching
+    ? (searchResults ?? [])
+    : isBestSellers
+        ? [...products]
+            .filter((p) => (p.salesCount ?? 0) > 0)
+            .sort((a, b) => (b.salesCount ?? 0) - (a.salesCount ?? 0))
+        : products;
 
   // Restore scroll-depth from last visit so cached products appear instantly
   const [visibleCount, setVisibleCount] = useState(persistedVisibleCount);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  // Reset pagination when filter changes
+  // Reset pagination when filter or search changes
   useEffect(() => {
     persistedVisibleCount = INITIAL_COUNT;
     setVisibleCount(INITIAL_COUNT);
-  }, [filter]);
+  }, [filter, searchQuery]);
 
   const [deleteProduct] = useDeleteProductMutation();
 
@@ -93,38 +107,19 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen">
-      {/* Hero — compact height */}
-      <section className="relative bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-400 text-white px-6 py-5 text-center overflow-hidden">
-        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-white to-transparent" />
-        <h1 className="relative text-xl sm:text-2xl font-extrabold tracking-tight mb-1">Welcome to Dress Shop</h1>
-        <p className="relative text-xs sm:text-sm font-light opacity-90">Discover premium dresses for every occasion</p>
-        <Link
-          to="/cart"
-          className="relative inline-block mt-3 px-5 py-1.5 bg-white text-indigo-600 font-bold rounded-full shadow-lg hover:scale-105 transition-transform no-underline text-xs"
-        >
-          Shop Now
-        </Link>
-      </section>
-
+    <div>
       {/* Products */}
       <section className="max-w-7xl mx-auto px-4 py-8">
         {/* Section heading with filter tabs */}
-        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-          <h2 className="text-2xl font-bold text-primary flex items-center gap-2">
-            {isBestSellers ? (
-              <><FiTrendingUp className="text-orange-500" size={22} /> Best Sellers</>
-            ) : (
-              <><FiGrid className="text-indigo-500" size={20} /> All Products</>
-            )}
-          </h2>
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-2">
+          {/* Filter tabs — top-right on mobile, right side on desktop */}
+          <div className="flex items-center gap-2 justify-end order-1 md:order-2">
             <Link
               to="/"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors no-underline ${
-                !isBestSellers
-                  ? 'bg-indigo-500 border-indigo-500 text-white'
-                  : 'border-gray-200 text-gray-500 hover:border-indigo-300 hover:text-indigo-500'
+                !isBestSellers && !isSearching
+                  ? 'bg-brand-dark border-brand-dark text-white'
+                  : 'border-border text-muted'
               }`}
             >
               <FiGrid size={13} /> All Products
@@ -133,13 +128,23 @@ export default function HomePage() {
               to="/?filter=bestsellers"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors no-underline ${
                 isBestSellers
-                  ? 'bg-orange-500 border-orange-500 text-white'
-                  : 'border-gray-200 text-gray-500 hover:border-orange-300 hover:text-orange-500'
+                  ? 'bg-brand-dark border-brand-dark text-white'
+                  : 'border-border text-muted'
               }`}
             >
               <FiTrendingUp size={13} /> Best Sellers
             </Link>
           </div>
+          {/* Active label — below filters on mobile, left side on desktop */}
+          <h2 className="text-2xl font-bold flex items-center gap-2 text-primary font-display order-2 md:order-1">
+            {isSearching ? (
+              <><FiSearch className="text-brand-dark" size={20} /> Results for &ldquo;{searchQuery}&rdquo;</>
+            ) : isBestSellers ? (
+              <><FiTrendingUp className="text-brand-dark" size={22} /> Best Sellers</>
+            ) : (
+              <><FiGrid className="text-brand-dark" size={20} /> All Products</>
+            )}
+          </h2>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -151,22 +156,30 @@ export default function HomePage() {
                   <p className="mb-3">Could not load products. Please check your connection and try again.</p>
                   <button
                     onClick={() => refresh()}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
+                    className="px-4 py-2 bg-brand-dark hover:bg-brand-hover text-white rounded-lg text-sm font-medium transition-colors"
                   >
                     Retry
                   </button>
                 </div>
               )
-              : products.length === 0
-                ? <p className="col-span-full text-center py-12 text-gray-400">No products available yet.</p>
-                : displayProducts.length === 0
-                ? (
-                  <div className="col-span-full text-center py-12">
-                    <FiTrendingUp size={36} className="mx-auto text-gray-300 mb-3" />
-                    <p className="text-gray-400 text-sm">No best sellers yet — check back after orders come in!</p>
-                    <Link to="/" className="inline-block mt-4 text-indigo-500 text-sm font-semibold no-underline hover:underline">Browse all products →</Link>
-                  </div>
-                )
+              : displayProducts.length === 0
+                ? isSearching
+                  ? (
+                    <div className="col-span-full text-center py-12">
+                      <FiSearch size={36} className="mx-auto mb-3 text-border" />
+                      <p className="text-gray-400 text-sm">No products found for &ldquo;{searchQuery}&rdquo;</p>
+                      <Link to="/" className="inline-block mt-4 text-sm font-semibold no-underline hover:underline text-brand-dark">Browse all products →</Link>
+                    </div>
+                  )
+                  : isBestSellers
+                  ? (
+                    <div className="col-span-full text-center py-12">
+                      <FiTrendingUp size={36} className="mx-auto text-gray-300 mb-3" />
+                      <p className="text-gray-400 text-sm">No best sellers yet — check back after orders come in!</p>
+                      <Link to="/" className="inline-block mt-4 text-sm font-semibold no-underline hover:underline text-brand-dark">Browse all products →</Link>
+                    </div>
+                  )
+                  : <p className="col-span-full text-center py-12 text-gray-400">No products available yet.</p>
                 : visibleProducts.map((p) => (
                     <ProductCard
                       key={p.id}
@@ -195,7 +208,11 @@ export default function HomePage() {
         {/* End of list label */}
         {!loading && !error && !hasMore && displayProducts.length > 0 && (
           <p className="text-center text-xs text-gray-400 mt-8">
-            {isBestSellers ? `${displayProducts.length} best seller${displayProducts.length !== 1 ? 's' : ''} shown` : 'All products loaded'}
+            {isSearching
+              ? `${displayProducts.length} result${displayProducts.length !== 1 ? 's' : ''} for "${searchQuery}"`
+              : isBestSellers
+                ? `${displayProducts.length} best seller${displayProducts.length !== 1 ? 's' : ''} shown`
+                : 'All products loaded'}
           </p>
         )}
       </section>
@@ -205,7 +222,7 @@ export default function HomePage() {
         <Link
           to="/cart"
           title="Go to cart"
-          className="fixed bottom-6 right-6 w-14 h-14 bg-indigo-500 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-indigo-600 hover:scale-110 transition-all z-50 no-underline text-lg font-bold"
+          className="fixed bottom-6 right-6 w-14 h-14 bg-brand-dark text-white rounded-full flex items-center justify-center shadow-lg hover:bg-brand-hover hover:scale-110 transition-all z-50 no-underline text-lg font-bold"
         >
           <FiShoppingCart size={20} />
           <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full">

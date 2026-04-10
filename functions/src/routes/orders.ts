@@ -2,12 +2,13 @@ import {Router, type Request, type Response} from "express";
 import {FieldValue} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {db} from "../firebase";
-import {authenticate, requireAdmin, optionalAuth, validate} from "../middleware";
+import {authenticate, requireAdmin, optionalAuth, validate, sanitizeParam} from "../middleware";
 import {
   ORDER_STATUSES,
   type OrderStatus,
   type CreateOrderBody,
   validateCreateOrder,
+  validateUpdateOrderStatus,
 } from "../schemas";
 
 export const ordersRouter = Router();
@@ -304,7 +305,7 @@ ordersRouter.get("/track/:id", async (req: Request, res: Response) => {
   }
 });
 
-ordersRouter.get("/:id", authenticate, async (req: Request, res: Response) => {
+ordersRouter.get("/:id", authenticate, sanitizeParam("id"), async (req: Request, res: Response) => {
   const {id} = req.params;
   try {
     const snap = await db.doc(`orders/${id}`).get();
@@ -329,17 +330,11 @@ ordersRouter.post(
   "/:id/status",
   authenticate,
   requireAdmin,
+  sanitizeParam("id"),
+  validate(validateUpdateOrderStatus),
   async (req: Request, res: Response) => {
     const {id} = req.params;
-    const {status} = req.body as { status?: string };
-
-    if (!status || !(ORDER_STATUSES as readonly string[]).includes(status)) {
-      res.status(400).json({
-        error: `status must be one of: ${ORDER_STATUSES.join(", ")}.`,
-        field: "status",
-      });
-      return;
-    }
+    const {status} = req.body as { status: OrderStatus };
 
     try {
       await db.doc(`orders/${id}`).update({

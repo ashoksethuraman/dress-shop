@@ -2,20 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── CSS custom-properties ────────────────────────────────────────────────────
+   KEEP IN SYNC with tailwind.config.js  (these exist only for the handful of
+   places that need them at runtime, e.g. body background, navbar border, etc.)
+   For everything else use Tailwind utility classes (bg-brand, text-brand-dark…)
+   ──────────────────────────────────────────────────────────────────────────── */
 :root {
-  --primary:      #0f172a;
-  --accent:       #6366f1;
-  --accent-light: #818cf8;
-  --muted:        #64748b;
-  --border:       #e2e8f0;
-  --bg:           #f8fafc;
+  --brand:        #EEF2ED;   /* bg-brand: light sage surfaces   */
+  --brand-dark:   #1a1a1a;   /* bg/text-brand-dark: jet black   */
+  --brand-hover:  #333333;   /* bg-brand-hover: dark grey       */
+  --brand-border: #738A6E;   /* border-brand-border: moss green */
+  --brand-bg:     #FFFFFF;   /* bg-brand-bg: white              */
+  --primary:      #1a1a1a;   /* text-primary                    */
+  --muted:        #6b7280;   /* text-muted                      */
+  --border:       #738A6E;   /* border-border: moss green       */
+  --bg:           #FFFFFF;   /* bg-bg: white                    */
 }
 
-* { box-sizing: border-box; font-family: 'Sora', sans-serif; }
-html, body { margin: 0; padding: 0; background: #f8fafc; }
-
-/* Smooth side-panel transition */
-.sideMenu { transition: width 260ms ease, transform 260ms ease; }
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: var(--bg); font-family: 'Poppins', sans-serif; color: var(--primary); }
+h1, h2, h3, h4, h5 { font-family: 'Poppins', sans-serif; }
 
 /* Cart counter pop animation */
 @keyframes pop  { 0%,100%{transform:scale(1)} 50%{transform:scale(1.3)} }

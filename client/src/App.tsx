@@ -30,19 +30,19 @@ const ShippingPage      = lazy(() => import('./pages/ShippingPage'));
 const AdminPage         = lazy(() => import('./pages/AdminPage'));
 const ProfilePage       = lazy(() => import('./pages/ProfilePage'));
 const WishlistPage      = lazy(() => import('./pages/WishlistPage'));
+const ManageUsersPage   = lazy(() => import('./pages/ManageUsersPage'));
 
 const PageFallback = () => <Loader fullPage label="Loading…" />;
 
 function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [sideCollapsed, setSideCollapsed] = useState(false);
   const cartCount = useAppSelector((s) => s.cart.items.reduce((acc, i) => acc + i.qty, 0));
   const user = useAppSelector((s) => s.user.user);
   const [bump, setBump] = useState(false);
   const prevCount = useRef(cartCount);
   const location = useLocation();
-
   const isAuthPage = location.pathname === '/auth' || location.pathname === '/signup';
+  const apiLoadingCount = useApiLoadingCount();
 
   useEffect(() => {
     if (cartCount > prevCount.current) {
@@ -53,48 +53,24 @@ function AppLayout() {
     prevCount.current = cartCount;
   }, [cartCount]);
 
-  useEffect(() => {
-    try {
-      const v = localStorage.getItem('sideCollapsed');
-      setSideCollapsed(v === '1');
-    } catch (e) {
-      // ignore
-    }
-  }, []);
-
-  const toggleSide = () => {
-    setSideCollapsed((s) => {
-      const next = !s;
-      try { localStorage.setItem('sideCollapsed', next ? '1' : '0'); } catch (e) {}
-      return next;
-    });
-  };
-
-  const sideWidth = isAuthPage ? '' : sideCollapsed ? 'min-[992px]:pl-16' : 'min-[992px]:pl-60';
-
-  const apiLoadingCount = useApiLoadingCount();
-
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
-        {apiLoadingCount > 0 && <Loader fullPage />}
-        <Navbar
-          mobileOpen={mobileOpen}
-          setMobileOpen={setMobileOpen}
-          cartCount={cartCount}
-          user={user}
-          bump={bump}
-          sideCollapsed={sideCollapsed}
-          toggleSide={toggleSide}
-          isAuthPage={isAuthPage}
-        />
+    <div className="h-screen overflow-hidden flex flex-col bg-bg">
+      {apiLoadingCount > 0 && <Loader fullPage />}
+      <Navbar
+        cartCount={cartCount}
+        user={user}
+        bump={bump}
+        isAuthPage={isAuthPage}
+        menuOpen={mobileOpen}
+        setMenuOpen={setMobileOpen}
+      />
 
-        <main className={`flex-1 mt-16 transition-all duration-300 ${sideWidth}`}>
-          {!isAuthPage && (
-            <SideMenu mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} sideCollapsed={sideCollapsed} />
-          )}
-
-          <Suspense fallback={<PageFallback />}>
-            <Routes>
+      <main className={`flex-1 ${isAuthPage ? 'mt-[90px]' : 'mt-[132px] sm:mt-[90px]'} overflow-y-auto`}>
+        {!isAuthPage && (
+          <SideMenu isOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
+        )}
+        <Suspense fallback={<PageFallback />}>
+          <Routes>
             <Route path="/auth" element={<Login />} />
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/" element={<HomePage />} />
@@ -117,10 +93,18 @@ function AppLayout() {
                 </AdminRoute>
               }
             />
+            <Route
+              path="/admin/users"
+              element={
+                <AdminRoute>
+                  <ManageUsersPage />
+                </AdminRoute>
+              }
+            />
           </Routes>
-          </Suspense>
-        </main>
-      </div>
+        </Suspense>
+      </main>
+    </div>
   );
 }
 

@@ -1,0 +1,55 @@
+<svg width="260" height="260" viewBox="0 0 260 260" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="a" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#89e194"/>
+      <stop offset="100%" stop-color="#57b466"/>
+    </linearGradient>
+    <linearGradient id="c" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#5ab3ff"/>
+      <stop offset="100%" stop-color="#1976d2"/>
+    </linearGradient>
+    <linearGradient id="d" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#c17cff"/>
+      <stop offset="100%" stop-color="#7a32c8"/>
+    </linearGradient>
+    <linearGradient id="e" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ff7aae"/>
+      <stop offset="100%" stop-color="#c2185b"/>
+    </linearGradient>
+    <linearGradient id="f" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffe066"/>
+      <stop offset="100%" stop-color="#c9a100"/>
+    </linearGradient>
+    <filter id="b">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <circle cx="130" cy="130" r="100" stroke="url(#a)" stroke-width="8" stroke-dasharray="90 540" fill="none" stroke-linecap="round" filter="url(#b)">
+    <animateTransform attributeName="transform" type="rotate" from="0 130 130" to="360 130 130" dur="2.2s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="130" cy="130" r="92" stroke="url(#c)" stroke-width="7" stroke-dasharray="75 540" fill="none" stroke-linecap="round" filter="url(#b)">
+    <animateTransform attributeName="transform" type="rotate" from="360 130 130" to="0 130 130" dur="2.6s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="130" cy="130" r="84" stroke="url(#d)" stroke-width="6" stroke-dasharray="65 540" fill="none" stroke-linecap="round" filter="url(#b)">
+    <animateTransform attributeName="transform" type="rotate" from="0 130 130" to="-360 130 130" dur="3s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="130" cy="130" r="76" stroke="url(#e)" stroke-width="5" stroke-dasharray="55 540" fill="none" stroke-linecap="round" filter="url(#b)">
+    <animateTransform attributeName="transform" type="rotate" from="360 130 130" to="0 130 130" dur="3.2s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="130" cy="130" r="68" stroke="url(#f)" stroke-width="4" stroke-dasharray="45 540" fill="none" stroke-linecap="round" filter="url(#b)">
+    <animateTransform attributeName="transform" type="rotate" from="0 130 130" to="360 130 130" dur="3.4s" repeatCount="indefinite"/>
+  </circle>
+  <g transform="translate(130 45)" filter="url(#b)">
+    <path d="M0-16 5-5l11 5L5 5 0 16-5 5l-11-5 11-5z">
+      <animate attributeName="fill" values="rgb(137,225,148); #5AB3FF; #C17CFF; #FF7AAE; #FFE066; rgb(137,225,148)" dur="3s" repeatCount="indefinite"/>
+      <animateTransform attributeName="transform" type="rotate" from="0 0 0" to="360 0 0" dur="2s" repeatCount="indefinite"/>
+    </path>
+  </g>
+  <text x="130" y="155" text-anchor="middle" font-size="18" font-family="Arial" letter-spacing="2.5" fill="#885d3a">
+    HALLEY COMET
+  </text>
+</svg>

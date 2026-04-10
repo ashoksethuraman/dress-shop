@@ -75,11 +75,11 @@ export default function ProfilePage() {
     '';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-start justify-center px-4 py-10">
+    <div className="min-h-screen bg-gradient-to-br from-brand via-white to-brand-bg flex items-start justify-center px-4 py-10">
       <div className="w-full max-w-lg">
-        <div className="flex justify-center mb-2">
+        {/* <div className="flex justify-center mb-2">
           {isAdmin ? (
-            <span className="flex items-center gap-1 text-xs font-semibold text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-full px-3 py-1">
+            <span className="flex items-center gap-1 text-xs font-semibold text-brand-dark bg-brand border border-brand-border rounded-full px-3 py-1">
               <FiShield size={12} /> Admin
             </span>
           ) : (
@@ -87,7 +87,7 @@ export default function ProfilePage() {
               <FiUser size={12} /> User
             </span>
           )}
-        </div>
+        </div> */}
 
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 flex flex-col gap-5">
           <FieldRow

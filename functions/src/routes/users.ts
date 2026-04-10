@@ -15,6 +15,7 @@ import {
   validateSetAdminClaim,
   validateSignup,
   validateLogin,
+  validateBulkStatusUpdate,
 } from "../schemas";
 
 export const usersRouter = Router();
@@ -59,6 +60,7 @@ usersRouter.post(
       mobileNumber: mobileNumber.trim(),
       address: address?.trim() ?? null,
       role: "user",
+      isActive: true,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -115,6 +117,12 @@ usersRouter.post(
     if (!match) {
       logger.warn("[POST /users/login] Failed login attempt", {email: normalizedEmail});
       res.status(401).json({error: "Invalid email or password."});
+      return;
+    }
+
+    if (userData!.isActive === false) {
+      logger.warn("[POST /users/login] Blocked inactive account", {email: normalizedEmail});
+      res.status(403).json({error: "Your account has been deactivated. Please contact support."});
       return;
     }
 
@@ -289,3 +297,70 @@ usersRouter.put("/cart", authenticate, async (req: Request, res: Response) => {
     res.status(500).json({error: "Failed to save cart."});
   }
 });
+
+
+// ── Admin: list all registered users ─────────────────────────────────────────
+usersRouter.get(
+  "/all",
+  authenticate,
+  requireAdmin,
+  async (_req: Request, res: Response) => {
+    try {
+      const snap = await db.collection("users").orderBy("createdAt", "desc").limit(500).get();
+      const users = snap.docs.map((doc) => {
+        const d = doc.data();
+        return {
+          id: d.id as string,
+          username: (d.username as string) ?? null,
+          email: (d.email as string) ?? null,
+          role: (d.role as string) ?? "user",
+          isActive: d.isActive !== false, // default true for legacy docs
+          createdAt: d.createdAt ? (d.createdAt as {toDate: () => Date}).toDate().toISOString() : null,
+        };
+      });
+      res.json({users});
+    } catch (err) {
+      logger.error("[GET /users/all] error", {error: err});
+      res.status(500).json({error: "Failed to fetch users."});
+    }
+  }
+);
+
+
+// ── Admin: bulk update isActive status ───────────────────────────────────────
+usersRouter.patch(
+  "/status",
+  authenticate,
+  requireAdmin,
+  validate(validateBulkStatusUpdate),
+  async (req: Request, res: Response) => {
+    const {uids, isActive} = req.body as {uids: string[]; isActive: boolean};
+
+    // Prevent admin from deactivating themselves
+    const requestingUid = req.user!.uid;
+    if (!isActive && uids.includes(requestingUid)) {
+      res.status(400).json({error: "You cannot deactivate your own account."});
+      return;
+    }
+
+    try {
+      const batch = db.batch();
+      for (const uid of uids) {
+        batch.update(db.doc(`users/${uid}`), {
+          isActive,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+      await batch.commit();
+      logger.info("[PATCH /users/status] Bulk status update", {
+        count: uids.length,
+        isActive,
+        by: requestingUid,
+      });
+      res.json({success: true, updated: uids.length});
+    } catch (err) {
+      logger.error("[PATCH /users/status] error", {error: err});
+      res.status(500).json({error: "Failed to update user status."});
+    }
+  }
+);

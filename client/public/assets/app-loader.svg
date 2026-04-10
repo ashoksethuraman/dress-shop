@@ -1,0 +1,79 @@
+<svg width="240" height="240" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">
+
+  <!-- Gradient Definitions -->
+  <defs>
+    <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F6A019"/>
+      <stop offset="100%" stop-color="#F36F21"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F6C53D"/>
+      <stop offset="100%" stop-color="#B57C1B"/>
+    </linearGradient>
+    <linearGradient id="g3" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#DFA047"/>
+      <stop offset="100%" stop-color="#8F552C"/>
+    </linearGradient>
+    <linearGradient id="g4" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#80C0B5"/>
+      <stop offset="100%" stop-color="#377C73"/>
+    </linearGradient>
+    <linearGradient id="g5" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#A1D5D1"/>
+      <stop offset="100%" stop-color="#4B9A9A"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 5 colored circular arcs (tail-lines as circle shape) -->
+  <circle cx="120" cy="120" r="80" stroke="url(#g1)" stroke-width="6"
+          stroke-dasharray="60 420" stroke-linecap="round" fill="none">
+    <animateTransform attributeName="transform" type="rotate"
+                      from="0 120 120" to="360 120 120"
+                      dur="2s" repeatCount="indefinite"/>
+  </circle>
+
+  <circle cx="120" cy="120" r="80" stroke="url(#g2)" stroke-width="5"
+          stroke-dasharray="40 440" stroke-linecap="round" fill="none">
+    <animateTransform attributeName="transform" type="rotate"
+                      from="360 120 120" to="0 120 120"
+                      dur="2.4s" repeatCount="indefinite"/>
+  </circle>
+
+  <circle cx="120" cy="120" r="80" stroke="url(#g3)" stroke-width="4"
+          stroke-dasharray="55 425" stroke-linecap="round" fill="none">
+    <animateTransform attributeName="transform" type="rotate"
+                      from="0 120 120" to="-360 120 120"
+                      dur="2.8s" repeatCount="indefinite"/>
+  </circle>
+
+  <circle cx="120" cy="120" r="80" stroke="url(#g4)" stroke-width="4"
+          stroke-dasharray="45 435" stroke-linecap="round" fill="none">
+    <animateTransform attributeName="transform" type="rotate"
+                      from="-360 120 120" to="0 120 120"
+                      dur="3.2s" repeatCount="indefinite"/>
+  </circle>
+
+  <circle cx="120" cy="120" r="80" stroke="url(#g5)" stroke-width="3"
+          stroke-dasharray="30 450" stroke-linecap="round" fill="none">
+    <animateTransform attributeName="transform" type="rotate"
+                      from="0 120 120" to="360 120 120"
+                      dur="3.6s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- Rotating Star at Top -->
+  <g transform="translate(120 40)">
+    <polygon points="0,-15 4,-4 15,0 4,4 0,15 -4,4 -15,0 -4,-4"
+             fill="#F6A019">
+      <animateTransform attributeName="transform" type="rotate"
+                        from="0 0 0" to="360 0 0"
+                        dur="2.5s" repeatCount="indefinite"/>
+    </polygon>
+  </g>
+
+  <!-- Center Text -->
+  <text x="120" y="130" font-size="18" text-anchor="middle"
+        font-family="Arial" fill="#7A5230" letter-spacing="3">
+    HALLEY COMET
+  </text>
+
+</svg>

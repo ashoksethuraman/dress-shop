@@ -256,7 +256,7 @@ export default function CheckoutPage() {
         <div key={it.productId} className="flex items-center gap-3">
           <div className="relative w-14 h-14 rounded-xl bg-gray-100 flex items-center justify-center border border-gray-200 flex-shrink-0">
             <FiShoppingBag size={20} className="text-gray-400" />
-            <span className="absolute -top-1.5 -right-1.5 bg-indigo-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+            <span className="absolute -top-1.5 -right-1.5 bg-brand-dark text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
               {it.qty}
             </span>
           </div>
@@ -277,7 +277,7 @@ export default function CheckoutPage() {
         </div>
         <div className="flex justify-between text-base font-bold text-gray-900 pt-1 border-t border-gray-200">
           <span>Total</span>
-          <span className="text-indigo-600">₹{total.toFixed(2)}</span>
+          <span className="text-brand-dark">₹{total.toFixed(2)}</span>
         </div>
       </div>
     </div>
@@ -385,7 +385,7 @@ export default function CheckoutPage() {
       <div className="lg:hidden bg-white border-b border-gray-200 sticky top-0 z-30">
         <button
           onClick={() => setSummaryOpen((o) => !o)}
-          className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-indigo-600"
+          className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-brand-dark"
         >
           <span className="flex items-center gap-2">
             <FiShoppingBag size={16} />
@@ -406,25 +406,21 @@ export default function CheckoutPage() {
         {/* ══ LEFT: Form ══ */}
         <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-8">
 
-          {/* Payment error banner */}
+          {/* Payment error modal */}
           {payError && (
-            <div role="alert" className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-              <span className="mt-0.5 shrink-0 text-red-500">&#9888;</span>
-              <span>{payError}</span>
-              <button
-                type="button"
-                onClick={() => setPayError(null)}
-                className="ml-auto shrink-0 text-red-400 hover:text-red-600"
-                aria-label="Dismiss error"
-              >&#10005;</button>
-            </div>
+            <AlertModal
+              type="error"
+              title="Payment Error"
+              messages={[payError]}
+              onClose={() => setPayError(null)}
+            />
           )}
 
           {/* Back button */}
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-800 font-medium transition-colors self-start"
+            className="flex items-center gap-1.5 text-sm text-brand-dark hover:text-brand-hover font-medium transition-colors self-start"
           >
             <FiArrowLeft size={15} /> Back to order summary
           </button>
@@ -433,7 +429,7 @@ export default function CheckoutPage() {
           <section>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-bold text-gray-900">Contact</h2>
-              {!user && <a href="/auth" className="text-sm text-indigo-600 hover:underline font-medium">Sign in</a>}
+              {!user && <a href="/auth" className="text-sm text-brand-dark hover:underline font-medium">Sign in</a>}
             </div>
             <div className="flex flex-col gap-3">
               <FormField
@@ -445,7 +441,7 @@ export default function CheckoutPage() {
                 })}
               />
               <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
-                <input type="checkbox" {...register('emailOffers')} className="w-4 h-4 rounded border-gray-300 accent-indigo-500" />
+                <input type="checkbox" {...register('emailOffers')} className="w-4 h-4 rounded border-gray-300 accent-brand-dark" />
                 Email me with news and offers
               </label>
             </div>
@@ -459,11 +455,11 @@ export default function CheckoutPage() {
 
               <div className="flex flex-col gap-2 pt-1">
                 <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
-                  <input type="checkbox" {...register('saveInfo')} className="w-4 h-4 rounded border-gray-300 accent-indigo-500" />
+                  <input type="checkbox" {...register('saveInfo')} className="w-4 h-4 rounded border-gray-300 accent-brand-dark" />
                   Save this information for next time
                 </label>
                 <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
-                  <input type="checkbox" {...register('textOffers')} className="w-4 h-4 rounded border-gray-300 accent-indigo-500" />
+                  <input type="checkbox" {...register('textOffers')} className="w-4 h-4 rounded border-gray-300 accent-brand-dark" />
                   Text me with news and offers
                 </label>
               </div>
@@ -487,10 +483,10 @@ export default function CheckoutPage() {
           <section>
             <h2 className="text-lg font-bold text-gray-900 mb-1">Payment</h2>
             <p className="text-xs text-gray-500 mb-3 flex items-center gap-1"><FiLock size={11} /> All transactions are secure and encrypted.</p>
-            <div className="border-2 border-indigo-400 rounded-xl overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 bg-indigo-50">
+            <div className="border-2 border-brand-dark rounded-xl overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 bg-brand">
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded-full border-2 border-indigo-500 bg-indigo-500 flex items-center justify-center">
+                  <div className="w-4 h-4 rounded-full border-2 border-brand-dark bg-brand-dark flex items-center justify-center">
                     <div className="w-1.5 h-1.5 rounded-full bg-white" />
                   </div>
                   <span className="text-sm font-semibold text-gray-800">Razorpay Secure</span>
@@ -516,13 +512,13 @@ export default function CheckoutPage() {
                 <label
                   key={opt}
                   className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${
-                    billingOption === opt ? 'bg-indigo-50' : 'bg-white hover:bg-gray-50'
+                    billingOption === opt ? 'bg-brand' : 'bg-white hover:bg-gray-50'
                   }`}
                 >
                   <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                    billingOption === opt ? 'border-indigo-500' : 'border-gray-400'
+                    billingOption === opt ? 'border-brand-dark' : 'border-gray-400'
                   }`}>
-                    {billingOption === opt && <div className="w-2 h-2 rounded-full bg-indigo-500" />}
+                    {billingOption === opt && <div className="w-2 h-2 rounded-full bg-brand-dark" />}
                   </div>
                   <input type="radio" value={opt} {...register('billingOption')} className="sr-only" />
                   <span className="text-sm text-gray-700">
@@ -545,7 +541,7 @@ export default function CheckoutPage() {
           <button
             type="submit"
             disabled={loading || items.length === 0}
-            className="w-full py-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-base transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
+            className="w-full py-4 rounded-xl bg-brand-dark hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-base transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
           >
             <FiLock size={16} />
             {loading ? 'Processing…' : 'Pay now'}
@@ -554,7 +550,7 @@ export default function CheckoutPage() {
           {/* Footer links */}
           <div className="flex flex-wrap gap-4 text-xs text-gray-400 pb-8">
             {['Refund policy', 'Shipping policy', 'Privacy policy', 'Terms of service'].map((l) => (
-              <button type="button" key={l} className="hover:text-indigo-500 transition-colors">{l}</button>
+              <button type="button" key={l} className="hover:text-brand-dark transition-colors">{l}</button>
             ))}
           </div>
         </form>

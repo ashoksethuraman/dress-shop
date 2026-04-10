@@ -70,6 +70,7 @@ export default function AlertModal({
             {title}
           </h2>
           <button
+            type="button"
             onClick={onClose}
             aria-label="Close"
             className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -91,6 +92,7 @@ export default function AlertModal({
         {/* footer */}
         <div className="px-5 pb-5 flex items-center justify-end gap-3">
           <button
+            type="button"
             onClick={onClose}
             className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
           >
@@ -98,8 +100,9 @@ export default function AlertModal({
           </button>
           {actionLabel && onAction && (
             <button
+              type="button"
               onClick={onAction}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold transition-colors shadow-sm"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-dark hover:bg-brand-hover text-white text-sm font-bold transition-colors shadow-sm"
             >
               <FiShoppingCart size={14} />
               {actionLabel}

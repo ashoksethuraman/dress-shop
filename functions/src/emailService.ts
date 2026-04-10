@@ -42,7 +42,7 @@ const smtpPort = Number(process.env.MAIL_SMTP_PORT ?? "587");
 const smtpSecure = (process.env.MAIL_SMTP_SECURE ?? "false").toLowerCase() === "true";
 const smtpUser = process.env.MAIL_SMTP_USER ?? "";
 const smtpPass = process.env.MAIL_SMTP_PASS ?? "";
-const mailFromName = process.env.MAIL_FROM_NAME ?? "Dress Shop";
+const mailFromName = process.env.MAIL_FROM_NAME ?? "Halley Comet";
 const mailFromEmail = process.env.MAIL_FROM_EMAIL ?? "";
 const appBaseUrl = process.env.APP_BASE_URL ?? "";
 const mailAdminEmails = process.env.MAIL_ADMIN_EMAILS ?? "";
@@ -192,7 +192,7 @@ function buildHtml(event: OrderEmailEvent, order: OrderEmailPayload): string {
 
       ${trackUrl ? `<p style=\"margin-top:16px;\">Track your order: <a href=\"${escapeHtml(trackUrl)}\">${escapeHtml(trackUrl)}</a></p>` : ""}
 
-      <p style=\"margin-top:16px;color:#4b5563;\">Thank you for shopping with Dress Shop.</p>
+      <p style=\"margin-top:16px;color:#4b5563;\">Thank you for shopping with Halley Comet.</p>
     </div>
   `;
 }

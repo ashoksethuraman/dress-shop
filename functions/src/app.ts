@@ -41,6 +41,8 @@ app.get( "/orders/me", readLimiter);
 app.get( "/orders/track/:id", readLimiter);
 app.get( "/orders/:id", readLimiter);
 app.post("/orders/:id/status", writeLimiter);
+app.get(  "/users/all",    readLimiter);
+app.patch("/users/status", writeLimiter);
 app.use("/products", productsRouter);
 app.use("/orders", ordersRouter);
 app.use("/payments", paymentsRouter);

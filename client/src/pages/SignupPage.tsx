@@ -1,13 +1,8 @@
 import React, { useState } from 'react';
 import { FiUser, FiMail, FiLock, FiPhone, FiCalendar, FiMapPin, FiEye, FiEyeOff } from 'react-icons/fi';
 import { useNavigate, Link } from 'react-router-dom';
-import { useAppDispatch } from '../store/hooks';
-import { setUser } from '../store/userSlice';
 import { authApi } from '../services/apiClient';
-import { authService } from '../services/authService';
-import Alert, { AlertType } from '../components/Alert';
-
-interface AlertState { type: AlertType; message: string; }
+import AlertModal from '../components/AlertModal';
 
 interface FormState {
   username: string;
@@ -86,7 +81,6 @@ function validate(form: FormState): FormErrors {
 
 export default function SignupPage() {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
 
   const [form, setForm] = useState<FormState>({
     username: '', email: '', password: '', confirmPassword: '',
@@ -97,7 +91,7 @@ export default function SignupPage() {
   const [showPwd, setShowPwd] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [alert, setAlert] = useState<AlertState | null>(null);
+  const [alertMsg, setAlertMsg] = useState<string | null>(null);
 
   const handleChange = (field: keyof FormState, value: string) => {
     setForm((f) => ({ ...f, [field]: value }));
@@ -123,7 +117,7 @@ export default function SignupPage() {
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
-    setAlert(null);
+    setAlertMsg(null);
     setLoading(true);
     try {
       const response = await authApi.signup({
@@ -136,21 +130,15 @@ export default function SignupPage() {
         ...(form.address.trim() ? { address: form.address.trim() } : {}),
       });
 
-      // Store the custom JWT — no Firebase Auth dependency
-      authService.setCustomJwt(response.token);
-
-      dispatch(setUser({
-        id:      response.user.uid,
-        name:    response.user.username || form.email,
-        isGuest: false,
-        isAdmin: response.user.role === 'admin',
-      }));
-
-      navigate('/', { replace: true });
+      // Account created — do NOT auto-login. Discard the token returned by the
+      // signup endpoint and send the user to the login page to authenticate.
+      void response; // suppress unused-var lint
+      navigate('/auth', {
+        replace: true,
+        state: { signupSuccess: true, email: form.email.trim() },
+      });
     } catch (err: any) {
-      const message =
-        err?.body?.error ?? err?.message ?? 'Signup failed. Please try again.';
-      setAlert({ type: 'error', message });
+      setAlertMsg(err?.body?.error ?? err?.message ?? 'Signup failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -171,7 +159,7 @@ export default function SignupPage() {
       <div className={`flex items-center border rounded-xl bg-gray-50 focus-within:ring-2 transition-all ${
         errors[id as keyof FormErrors]
           ? 'border-red-400 focus-within:border-red-400 focus-within:ring-red-100'
-          : 'border-gray-200 focus-within:border-indigo-400 focus-within:ring-indigo-100'
+          : 'border-gray-200 focus-within:border-brand-dark focus-within:ring-brand'
       }`}>
         <span className="pl-3 text-gray-400 shrink-0">{icon}</span>
         <input
@@ -193,20 +181,25 @@ export default function SignupPage() {
   );
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center bg-gradient-to-br from-indigo-50 to-slate-100 px-4 py-10">
+    <div className="min-h-[calc(100vh-90px)] flex items-center justify-center bg-brand-border/10 px-4 py-10">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
         <h1 className="text-2xl font-extrabold text-primary text-center mb-1 tracking-tight">
           Create Account
         </h1>
         <p className="text-center text-sm text-gray-500 mb-6">
           Already have an account?{' '}
-          <Link to="/auth" className="text-indigo-500 font-semibold hover:underline">
+          <Link to="/auth" className="text-brand-border font-semibold hover:underline">
             Login
           </Link>
         </p>
 
-        {alert && (
-          <Alert type={alert.type} message={alert.message} onClose={() => setAlert(null)} />
+        {alertMsg && (
+          <AlertModal
+            type="error"
+            title="Signup Failed"
+            messages={[alertMsg]}
+            onClose={() => setAlertMsg(null)}
+          />
         )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
@@ -224,7 +217,7 @@ export default function SignupPage() {
             <div className={`flex items-center border rounded-xl bg-gray-50 focus-within:ring-2 transition-all ${
               errors.password
                 ? 'border-red-400 focus-within:ring-red-100'
-                : 'border-gray-200 focus-within:border-indigo-400 focus-within:ring-indigo-100'
+                : 'border-gray-200 focus-within:border-brand-dark focus-within:ring-brand'
             }`}>
               <span className="pl-3 text-gray-400 shrink-0"><FiLock size={16} /></span>
               <input
@@ -258,7 +251,7 @@ export default function SignupPage() {
             <div className={`flex items-center border rounded-xl bg-gray-50 focus-within:ring-2 transition-all ${
               errors.confirmPassword
                 ? 'border-red-400 focus-within:ring-red-100'
-                : 'border-gray-200 focus-within:border-indigo-400 focus-within:ring-indigo-100'
+                : 'border-gray-200 focus-within:border-brand-dark focus-within:ring-brand'
             }`}>
               <span className="pl-3 text-gray-400 shrink-0"><FiLock size={16} /></span>
               <input
@@ -293,7 +286,7 @@ export default function SignupPage() {
               <div className={`flex items-center border rounded-xl bg-gray-50 focus-within:ring-2 transition-all ${
                 errors.age
                   ? 'border-red-400 focus-within:ring-red-100'
-                  : 'border-gray-200 focus-within:border-indigo-400 focus-within:ring-indigo-100'
+                  : 'border-gray-200 focus-within:border-brand-dark focus-within:ring-brand'
               }`}>
                 <span className="pl-3 text-gray-400 shrink-0"><FiCalendar size={16} /></span>
                 <input
@@ -325,7 +318,7 @@ export default function SignupPage() {
                 className={`w-full border rounded-xl bg-gray-50 px-3 py-2.5 text-sm outline-none text-gray-800 focus:ring-2 transition-all ${
                   errors.gender
                     ? 'border-red-400 focus:ring-red-100'
-                    : 'border-gray-200 focus:border-indigo-400 focus:ring-indigo-100'
+                    : 'border-gray-200 focus:border-brand-dark focus:ring-brand'
                 }`}
               >
                 <option value="">Select</option>
@@ -346,7 +339,7 @@ export default function SignupPage() {
             <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
               Address <span className="font-normal text-gray-400">(optional)</span>
             </label>
-            <div className="flex items-start border border-gray-200 rounded-xl bg-gray-50 focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
+            <div className="flex items-start border border-gray-200 rounded-xl bg-gray-50 focus-within:border-brand-dark focus-within:ring-2 focus-within:ring-brand transition-all">
               <span className="pl-3 pt-3 text-gray-400 shrink-0"><FiMapPin size={16} /></span>
               <textarea
                 placeholder="123 Main Street, City, Country"
@@ -362,7 +355,7 @@ export default function SignupPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white font-bold text-sm tracking-widest disabled:opacity-50 disabled:cursor-not-allowed transition-colors mt-1"
+            className="w-full py-2.5 rounded-xl bg-brand-dark hover:bg-brand-hover text-white font-bold text-sm tracking-widest disabled:opacity-50 disabled:cursor-not-allowed transition-colors mt-1"
           >
             {loading ? 'CREATING ACCOUNT...' : 'CREATE ACCOUNT'}
           </button>

@@ -1,0 +1,102 @@
+<svg width="260" height="260" viewBox="0 0 260 260" xmlns="http://www.w3.org/2000/svg">
+
+  <defs>
+    <!-- ARC 1 : GREEN -->
+    <linearGradient id="c1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="rgb(137,225,148)"/>
+      <stop offset="100%" stop-color="rgb(87,180,102)"/>
+    </linearGradient>
+
+    <!-- ARC 2 : BLUE -->
+    <linearGradient id="c2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#5AB3FF"/>
+      <stop offset="100%" stop-color="#1976D2"/>
+    </linearGradient>
+
+    <!-- ARC 3 : PURPLE -->
+    <linearGradient id="c3" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#C17CFF"/>
+      <stop offset="100%" stop-color="#7A32C8"/>
+    </linearGradient>
+
+    <!-- ARC 4 : PINK -->
+    <linearGradient id="c4" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FF7AAE"/>
+      <stop offset="100%" stop-color="#C2185B"/>
+    </linearGradient>
+
+    <!-- ARC 5 : YELLOW -->
+    <linearGradient id="c5" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFE066"/>
+      <stop offset="100%" stop-color="#C9A100"/>
+    </linearGradient>
+
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- ARC 1 -->
+  <circle cx="130" cy="130" r="100" stroke="url(#c1)" stroke-width="8"
+    stroke-dasharray="90 540" fill="none" stroke-linecap="round" filter="url(#glow)">
+    <animateTransform attributeName="transform" type="rotate"
+      from="0 130 130" to="360 130 130"
+      dur="2.2s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- ARC 2 -->
+  <circle cx="130" cy="130" r="92" stroke="url(#c2)" stroke-width="7"
+    stroke-dasharray="75 540" fill="none" stroke-linecap="round" filter="url(#glow)">
+    <animateTransform attributeName="transform" type="rotate"
+      from="360 130 130" to="0 130 130"
+      dur="2.6s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- ARC 3 -->
+  <circle cx="130" cy="130" r="84" stroke="url(#c3)" stroke-width="6"
+    stroke-dasharray="65 540" fill="none" stroke-linecap="round" filter="url(#glow)">
+    <animateTransform attributeName="transform" type="rotate"
+      from="0 130 130" to="-360 130 130"
+      dur="3s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- ARC 4 -->
+  <circle cx="130" cy="130" r="76" stroke="url(#c4)" stroke-width="5"
+    stroke-dasharray="55 540" fill="none" stroke-linecap="round" filter="url(#glow)">
+    <animateTransform attributeName="transform" type="rotate"
+      from="360 130 130" to="0 130 130"
+      dur="3.2s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- ARC 5 -->
+  <circle cx="130" cy="130" r="68" stroke="url(#c5)" stroke-width="4"
+    stroke-dasharray="45 540" fill="none" stroke-linecap="round" filter="url(#glow)">
+    <animateTransform attributeName="transform" type="rotate"
+      from="0 130 130" to="360 130 130"
+      dur="3.4s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- ROTATING STAR -->
+  <g transform="translate(130 45)" filter="url(#glow)">
+    <polygon points="0,-16 5,-5 16,0 5,5 0,16 -5,5 -16,0 -5,-5"
+      fill="#F6A019">
+      <animateTransform attributeName="transform" type="rotate"
+        from="0 0 0" to="360 0 0"
+        dur="2s" repeatCount="indefinite"/>
+    </polygon>
+  </g>
+
+  <!-- CENTER TEXT -->
+  <text x="130" y="155" text-anchor="middle"
+    font-size="18"
+    font-family="Arial"
+    letter-spacing="2.5"
+    fill="#885D3A">
+    HALLEY COMET
+  </text>
+
+</svg>

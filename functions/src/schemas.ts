@@ -101,6 +101,7 @@ export interface CreateProductBody {
   sizes?: string[];
   stock?: StockStatus;
   sizeInventory?: Record<string, number>;
+  sizeChart?: string;
 }
 
 export interface UpdateProductBody {
@@ -112,6 +113,7 @@ export interface UpdateProductBody {
   sizes?: string[];
   stock?: StockStatus;
   sizeInventory?: Record<string, number>;
+  sizeChart?: string;
 }
 
 export interface UpdateProfileBody {
@@ -306,6 +308,13 @@ function validateProductFields(b: Record<string, unknown>, requireTitle: boolean
   const sizesErr = optionalStringArray(b, "sizes");
   if (sizesErr) return sizesErr;
 
+  if (b.sizeChart !== undefined && b.sizeChart !== null && b.sizeChart !== "") {
+    if (typeof b.sizeChart !== "string") return fail("sizeChart must be a string URL.", "sizeChart");
+    if (!(b.sizeChart as string).startsWith("https://") && !(b.sizeChart as string).startsWith("/")) {
+      return fail("sizeChart must be a valid URL.", "sizeChart");
+    }
+  }
+
   if (b.sizeInventory !== undefined) {
     if (!isObject(b.sizeInventory) || Array.isArray(b.sizeInventory)) {
       return fail("sizeInventory must be an object mapping size to quantity.", "sizeInventory");
@@ -391,19 +400,30 @@ export function validateRecordPayment(body: unknown): ValidationResult {
 
 export function validateUpdateOrderStatus(body: unknown): ValidationResult {
   if (!isObject(body)) return fail("Request body is required.");
-  return requireStr(body, "orderId") ?? requireOneOf(body, "status", ORDER_STATUSES) ?? {valid: true};
+  // orderId comes from the URL param, not the body — only status needed
+  return requireOneOf(body, "status", ORDER_STATUSES) ?? {valid: true};
 }
 
 export function validateUpdateProfile(body: unknown): ValidationResult {
   if (!isObject(body)) return fail("Request body is required.");
-  if (body.displayName !== undefined && !isNonEmptyString(body.displayName)) {
-    return fail("displayName must be a non-empty string.", "displayName");
+
+  // Reject unexpected fields — prevents mass-assignment
+  const ALLOWED = new Set(["displayName", "phone", "photoURL"]);
+  const extra = Object.keys(body).filter((k) => !ALLOWED.has(k));
+  if (extra.length > 0) return fail(`Unexpected field(s): ${extra.join(", ")}.`);
+
+  if (body.displayName !== undefined) {
+    if (!isNonEmptyString(body.displayName)) return fail("displayName must be a non-empty string.", "displayName");
+    const len = (body.displayName as string).trim().length;
+    if (len < 1 || len > 100) return fail("displayName must be 1–100 characters.", "displayName");
   }
   if (body.phone !== undefined && (typeof body.phone !== "string" || !/^\+[1-9]\d{6,14}$/.test(body.phone as string))) {
     return fail("phone must be in E.164 format (e.g. +919876543210).", "phone");
   }
-  if (body.photoURL !== undefined && !isNonEmptyString(body.photoURL)) {
-    return fail("photoURL must be a non-empty string.", "photoURL");
+  if (body.photoURL !== undefined) {
+    if (!isNonEmptyString(body.photoURL)) return fail("photoURL must be a non-empty string.", "photoURL");
+    if (!(body.photoURL as string).startsWith("https://")) return fail("photoURL must be an https URL.", "photoURL");
+    if ((body.photoURL as string).length > 2048) return fail("photoURL is too long.", "photoURL");
   }
   if (body.displayName === undefined && body.phone === undefined && body.photoURL === undefined) {
     return fail("At least one of displayName, phone, or photoURL is required.");
@@ -427,7 +447,7 @@ export function validateCreateProduct(body: unknown): ValidationResult {
 export function validateUpdateProduct(body: unknown): ValidationResult {
   if (!isObject(body)) return fail("Request body is required.");
   const allowed: Array<keyof UpdateProductBody> = [
-    "title", "description", "price", "category", "images", "sizes", "stock", "sizeInventory",
+    "title", "description", "price", "category", "images", "sizes", "stock", "sizeInventory", "sizeChart",
   ];
   if (!allowed.some((k) => body[k] !== undefined)) {
     return fail("At least one field to update is required.");
@@ -475,4 +495,29 @@ export function validateLogin(body: unknown): ValidationResult {
   if (!isObject(body)) return fail("Invalid request body.");
   if (!isEmail(body.email)) return fail("A valid email address is required.", "email");
   return requireStr(body, "password", "Password") ?? {valid: true};
+}
+
+const UID_RE = /^[\w\-.]{1,128}$/;
+
+export function validateBulkStatusUpdate(body: unknown): ValidationResult {
+  if (!isObject(body)) return fail("Request body is required.");
+  if (!Array.isArray(body.uids) || body.uids.length === 0) {
+    return fail("uids must be a non-empty array.", "uids");
+  }
+  if (body.uids.length > 100) {
+    return fail("Cannot update more than 100 users at once.", "uids");
+  }
+  for (const uid of body.uids as unknown[]) {
+    if (typeof uid !== "string" || !UID_RE.test(uid)) {
+      return fail("All uids must be valid non-empty strings.", "uids");
+    }
+  }
+  if (typeof body.isActive !== "boolean") {
+    return fail("isActive must be a boolean.", "isActive");
+  }
+  // Reject unknown fields
+  const ALLOWED = new Set(["uids", "isActive"]);
+  const extra = Object.keys(body).filter((k) => !ALLOWED.has(k));
+  if (extra.length > 0) return fail(`Unexpected field(s): ${extra.join(", ")}.`);
+  return {valid: true};
 }

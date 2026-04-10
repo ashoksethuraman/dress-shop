@@ -35,7 +35,7 @@ export function corsMiddleware(req: Request, res: Response, next: NextFunction):
   } else {
     logger.warn("[CORS] origin not in allowlist — response may be blocked by browser", {origin});
   }
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Authorization,Content-Type");
   if (req.method === "OPTIONS") {
     res.status(204).end();
@@ -104,6 +104,25 @@ export function validate(
     if (!result.valid) {
       res.status(400).json({error: result.error, field: result.field});
       return;
+    }
+    next();
+  };
+}
+
+/**
+ * Rejects requests where any named route parameter looks malformed.
+ * Accepts only alphanumeric chars, hyphens, underscores, and dots — max 128 chars.
+ * Call as: router.get("/:id", sanitizeParam("id"), ...) 
+ */
+export function sanitizeParam(...params: string[]) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const SAFE_PARAM = /^[\w\-.]{1,128}$/;
+    for (const p of params) {
+      const v = req.params[p];
+      if (!v || !SAFE_PARAM.test(v)) {
+        res.status(400).json({error: `Invalid route parameter: ${p}.`});
+        return;
+      }
     }
     next();
   };

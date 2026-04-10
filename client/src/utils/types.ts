@@ -12,6 +12,7 @@ export type Product = {
   stock?: StockStatus;
   sizeInventory?: Record<string, number>;
   salesCount?: number;
+  sizeChart?: string;
 };
 
 export type CartItem = {

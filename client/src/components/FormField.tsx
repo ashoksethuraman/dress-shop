@@ -24,7 +24,7 @@ export default function FormField({
         placeholder={placeholder ?? label}
         {...(registration as any)}
         className={`w-full border rounded-xl px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 transition-all
-          ${error ? 'border-red-400 focus:ring-red-100' : 'border-gray-300 focus:border-indigo-400 focus:ring-indigo-100'}`}
+          ${error ? 'border-red-400 focus:ring-red-100' : 'border-gray-300 focus:border-brand-dark focus:ring-brand'}`}
       />
       {error && <p className="text-xs text-red-500">{error}</p>}
     </div>

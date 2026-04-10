@@ -56,7 +56,7 @@ export default function ProductsTab() {
                   key={f}
                   onClick={() => setFilter(f)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all capitalize
-                    ${filter === f ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    ${filter === f ? 'bg-white text-brand-dark shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                 >
                   {f === 'all' ? 'All' : f === 'women' ? '👗 Women' : '👔 Men'}
                 </button>
@@ -122,7 +122,7 @@ export default function ProductsTab() {
                         {p.stock === 'out_of_stock' ? 'Out of Stock' : 'Available'}
                       </span>
                       {p.images && p.images.length > 1 && (
-                        <span className="text-xs bg-indigo-50 text-indigo-500 px-2 py-0.5 rounded-full">
+                        <span className="text-xs bg-brand text-brand-dark px-2 py-0.5 rounded-full">
                           {p.images.length} images
                         </span>
                       )}

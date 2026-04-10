@@ -1,0 +1,63 @@
+<svg width="260" height="260" viewBox="0 0 260 260" xmlns="http://www.w3.org/2000/svg">
+
+  <defs>
+    <!-- Glow blur -->
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Neon gradients -->
+    <linearGradient id="c1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFAE33"/>
+      <stop offset="100%" stop-color="#FF6A00"/>
+    </linearGradient>
+    <linearGradient id="c2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFD15F"/>
+      <stop offset="100%" stop-color="#B57C1B"/>
+    </linearGradient>
+    <linearGradient id="c3" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFC48A"/>
+      <stop offset="100%" stop-color="#A66E3A"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Neon arcs -->
+  <circle cx="130" cy="130" r="90" stroke="url(#c1)" stroke-width="6"
+          stroke-dasharray="65 450" fill="none" stroke-linecap="round" filter="url(#glow)">
+    <animateTransform attributeName="transform" type="rotate"
+                      from="0 130 130" to="360 130 130" dur="2s" repeatCount="indefinite"/>
+  </circle>
+
+  <circle cx="130" cy="130" r="90" stroke="url(#c2)" stroke-width="4"
+          stroke-dasharray="45 470" fill="none" stroke-linecap="round" filter="url(#glow)">
+    <animateTransform attributeName="transform" type="rotate"
+                      from="360 130 130" to="0 130 130" dur="2.4s" repeatCount="indefinite"/>
+  </circle>
+
+  <circle cx="130" cy="130" r="90" stroke="url(#c3)" stroke-width="3"
+          stroke-dasharray="35 480" fill="none" stroke-linecap="round" filter="url(#glow)">
+    <animateTransform attributeName="transform" type="rotate"
+                      from="0 130 130" to="-360 130 130" dur="2.8s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- Star with neon glow -->
+  <g transform="translate(130 35)" filter="url(#glow)">
+    <polygon points="0,-18 5,-5 18,0 5,5 0,18 -5,5 -18,0 -5,-5"
+             fill="#FFAE33">
+      <animateTransform attributeName="transform" type="rotate"
+                        from="0 0 0" to="360 0 0" dur="2s" repeatCount="indefinite"/>
+    </polygon>
+  </g>
+
+  <!-- Pulsing center text -->
+  <text x="130" y="140" text-anchor="middle" font-size="20"
+        fill="#B07040" font-family="Arial" letter-spacing="3">
+    <animate attributeName="opacity" values="1;0.6;1"
+             dur="1.8s" repeatCount="indefinite"/>
+    HALLEY COMET
+  </text>
+</svg>

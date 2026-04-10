@@ -78,7 +78,7 @@ export default function AddressSection({ prefix, register, errors }: Props) {
             id={`${prefix}-state`}
             {...register(`${prefix}.state` as any, { required: 'Select a state' })}
             className={`w-full border rounded-xl px-4 py-3 text-sm bg-white text-gray-800 focus:outline-none focus:ring-2 transition-all appearance-none
-              ${errs.state ? 'border-red-400 focus:ring-red-100' : 'border-gray-300 focus:border-indigo-400 focus:ring-indigo-100'}`}
+              ${errs.state ? 'border-red-400 focus:ring-red-100' : 'border-gray-300 focus:border-brand-dark focus:ring-brand'}`}
           >
             <option value="">Select state</option>
             {INDIAN_STATES.map((s) => <option key={s} value={s}>{s}</option>)}

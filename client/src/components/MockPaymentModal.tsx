@@ -61,7 +61,7 @@ function DetailRow({
       <button
         type="button"
         onClick={copy}
-        className="shrink-0 text-gray-400 hover:text-indigo-500 transition-colors"
+        className="shrink-0 text-gray-400 hover:text-brand-dark transition-colors"
         title="Copy"
       >
         {copied ? <FiCheckCircle size={12} className="text-green-500" /> : <FiCopy size={12} />}
@@ -135,7 +135,7 @@ export default function MockPaymentModal({
         {/* ── Header ── */}
         <div className="px-6 pt-5 pb-4 border-b border-gray-100">
           <div className="flex items-center gap-1.5 mb-1">
-            <FiLock size={12} className="text-indigo-500" />
+            <FiLock size={12} className="text-brand-dark" />
             <span className="text-xs text-gray-400 font-medium">Secure Mock Payment</span>
           </div>
           <p className="text-2xl font-extrabold text-gray-900">₹{amount.toFixed(2)}</p>
@@ -164,7 +164,7 @@ export default function MockPaymentModal({
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
             Payment Instrument
           </p>
-          <div className="flex items-center gap-3 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl p-3.5 text-white shadow-md">
+          <div className="flex items-center gap-3 bg-gradient-to-r from-brand-dark to-brand-hover rounded-xl p-3.5 text-white shadow-md">
             <FiCreditCard size={22} />
             <div>
               <p className="text-[10px] font-semibold opacity-75">Test Visa Card</p>

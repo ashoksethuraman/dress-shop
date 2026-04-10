@@ -1,23 +1,44 @@
-import React, { useState, useEffect } from 'react';
-import { FiUser, FiLock } from 'react-icons/fi';
+import React, { useState, useEffect, useRef } from 'react';
+import { FiUser, FiLock, FiX } from 'react-icons/fi';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { setUser } from '../store/userSlice';
-import { addToCart } from '../store/cartSlice';
-import { setWishlist } from '../store/wishlistSlice';
 import { authService } from '../services/authService';
-import { authApi, userApi } from '../services/apiClient';
-import { useNavigate, Link } from 'react-router-dom';
-import Alert, { AlertType } from '../components/Alert';
-import { loadCart, loadWishlist } from '../services/guestSession';
-
-interface AlertState { type: AlertType; message: string; }
+import { authApi } from '../services/apiClient';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 
 export default function Login() {
-  const [username, setUsername] = useState('');
+  const location = useLocation();
+  const signupSuccess = (location.state as any)?.signupSuccess === true;
+  const signupEmail   = (location.state as any)?.email as string | undefined;
+
+  const [username, setUsername] = useState(signupEmail ?? '');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [alert, setAlert] = useState<AlertState | null>(null);
+  const [alertMsg, setAlertMsg] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
+  const [showSignupBanner, setShowSignupBanner] = useState(signupSuccess);
+  const signupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear React Router location.state so a refresh / back-navigation doesn't re-show the banner
+  useEffect(() => {
+    if (signupSuccess) {
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto-dismiss signup success banner after 30 s
+  useEffect(() => {
+    if (showSignupBanner) {
+      signupTimerRef.current = setTimeout(() => setShowSignupBanner(false), 30_000);
+    }
+    return () => { if (signupTimerRef.current) clearTimeout(signupTimerRef.current); };
+  }, [showSignupBanner]);
+
+  // Clear banner as soon as the user starts getting an auth error
+  useEffect(() => {
+    if (alertMsg) setShowSignupBanner(false);
+  }, [alertMsg]);
 
   const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(username);
   const showEmailError = touched && username.length > 0 && !isValidEmail;
@@ -35,7 +56,7 @@ export default function Login() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username || !password) return;
-    setAlert(null);
+    setAlertMsg(null);
     setLoading(true);
     try {
       const response = await authApi.login({ email: username, password });
@@ -47,40 +68,11 @@ export default function Login() {
         isAdmin: response.user.role === 'admin',
       }));
 
-      // Load backend cart + wishlist, merge with any local items
-      try {
-        const [backendCart, backendWishlist] = await Promise.all([
-          userApi.getCart(),
-          userApi.getWishlist(),
-        ]);
-
-        // Merge: backend wins for qty; local items not in backend are added
-        const localCart = loadCart();
-        const mergedMap = new Map<string, { productId: string; qty: number; size: string | null }>();
-        for (const item of backendCart.cart) {
-          mergedMap.set(`${item.productId}__${item.size ?? ''}`, { ...item, size: item.size ?? null });
-        }
-        for (const item of localCart) {
-          const key = `${item.productId}__${item.size ?? ''}`;
-          if (!mergedMap.has(key)) {
-            mergedMap.set(key, { productId: item.productId, qty: item.qty, size: item.size ?? null });
-          }
-        }
-        Array.from(mergedMap.values()).forEach((item) => {
-          dispatch(addToCart({ productId: item.productId, title: '', price: 0, qty: item.qty, size: item.size }));
-        });
-
-        // Merge wishlist: union of backend + local
-        const localWishlist = loadWishlist();
-        const merged = Array.from(new Set([...backendWishlist.wishlist, ...localWishlist]));
-        dispatch(setWishlist(merged));
-      } catch {
-        // non-fatal — localStorage state is already loaded
-      }
-
+      // Navigate — localStorage cart/wishlist already hydrates Redux via preloadedState.
+      // Backend sync will happen automatically when user interacts (add to cart / wishlist).
       navigate('/');
     } catch (e: any) {
-      setAlert({ type: 'error', message: e?.body?.error ?? e?.message ?? 'Login failed. Please try again.' });
+      setAlertMsg(e?.body?.error ?? e?.message ?? 'Login failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -93,18 +85,32 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center bg-gradient-to-br from-indigo-50 to-slate-100 px-4">
+    <div className="min-h-[calc(100vh-132px)] sm:min-h-[calc(100vh-90px)] flex items-center justify-center bg-brand-border/10 px-4">
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-lg p-8">
-        <h1 className="text-2xl font-extrabold text-primary text-center mb-1 tracking-tight">Welcome App</h1>
+        <h1 className="text-2xl font-extrabold text-primary text-center mb-1 tracking-tight">Halley Comet</h1>
         <p className="text-center text-sm text-gray-500 mb-6">
           Don't have an account?{' '}
-          <Link to="/signup" className="text-indigo-500 font-semibold hover:underline">
+          <Link to="/signup" className="text-brand-border font-semibold hover:underline">
             Sign up
           </Link>
         </p>
 
-        {alert && (
-          <Alert type={alert.type} message={alert.message} onClose={() => setAlert(null)} />
+        {showSignupBanner && (
+          <div className="mb-4 flex items-start gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+            <span className="flex-1">Account created successfully. Please log in with your credentials.</span>
+            <button
+              type="button"
+              onClick={() => setShowSignupBanner(false)}
+              className="shrink-0 mt-0.5 text-green-500 hover:text-green-700 transition-colors"
+              aria-label="Dismiss"
+            >
+              <FiX size={16} />
+            </button>
+          </div>
+        )}
+
+        {alertMsg && (
+          <p className="mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">{alertMsg}</p>
         )}
 
         <form onSubmit={handleLogin} className="flex flex-col gap-4">
@@ -114,7 +120,7 @@ export default function Login() {
             <div className={`flex items-center border rounded-xl bg-gray-50 focus-within:ring-2 transition-all ${
               showEmailError
                 ? 'border-red-400 focus-within:border-red-400 focus-within:ring-red-100'
-                : 'border-gray-200 focus-within:border-indigo-400 focus-within:ring-indigo-100'
+                : 'border-gray-200 focus-within:border-brand-dark focus-within:ring-brand'
             }`}>
               <span className="pl-3 text-gray-400"><FiUser size={16} /></span>
               <input
@@ -135,7 +141,7 @@ export default function Login() {
           {/* Password */}
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Password</label>
-            <div className="flex items-center border border-gray-200 rounded-xl bg-gray-50 focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
+            <div className="flex items-center border border-gray-200 rounded-xl bg-gray-50 focus-within:border-brand-dark focus-within:ring-2 focus-within:ring-brand transition-all">
               <span className="pl-3 text-gray-400"><FiLock size={16} /></span>
               <input
                 type="password"
@@ -149,13 +155,13 @@ export default function Login() {
           </div>
 
           <div className="text-right -mt-2">
-            <a href="#forgot" className="text-xs text-indigo-500 hover:underline">Forgot password?</a>
+            <a href="#forgot" className="text-xs text-brand-border hover:underline">Forgot password?</a>
           </div>
 
           <button
             type="submit"
             disabled={loading || !username || !password || !isValidEmail}
-            className="w-full py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white font-bold text-sm tracking-widest disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full py-2.5 rounded-xl bg-brand-dark hover:bg-brand-hover text-white font-bold text-sm tracking-widest disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {loading ? 'LOGGING IN...' : 'LOGIN'}
           </button>
@@ -166,7 +172,7 @@ export default function Login() {
             type="button"
             onClick={handleGuestLogin}
             disabled={loading}
-            className="w-full py-2.5 rounded-xl border-2 border-indigo-300 text-indigo-600 font-semibold text-sm hover:bg-indigo-50 disabled:opacity-50 transition-colors"
+            className="w-full py-2.5 rounded-xl bg-brand-dark hover:bg-brand-hover text-white font-semibold text-sm disabled:opacity-50 transition-colors"
           >
             Continue as Guest
           </button>
