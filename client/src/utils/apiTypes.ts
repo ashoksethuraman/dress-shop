@@ -15,7 +15,7 @@ export type FailReason = "payment_dismissed" | "payment_failed";
 export interface AddressPayload {
   name:    string;
   line1:   string;
-  line2?:  string;
+  line2?:  string | null;
   city:    string;
   state:   string;
   pincode: string;
@@ -116,7 +116,7 @@ export interface UpdateOrderStatusPayload {
 export interface StoredAddress {
   name:    string;
   line1:   string;
-  line2?:  string;
+  line2?:  string | null;
   city:    string;
   state:   string;
   pincode: string;
@@ -194,5 +194,8 @@ export function getErrorMessage(err: unknown, fallback = "Something went wrong. 
 export interface StockValidationIssue {
   productId: string;
   title: string;
-  reason: 'not_found' | 'out_of_stock';
+  reason: 'not_found' | 'out_of_stock' | 'size_unavailable' | 'insufficient_stock';
+  size?: string | null;
+  requestedQty?: number;
+  availableQty?: number;
 }

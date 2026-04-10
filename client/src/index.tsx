@@ -19,8 +19,9 @@ root.render(
   </React.StrictMode>
 );
 
-// initialize firebase and hook auth state to Redux
+// Initialize Firebase app (Firestore/Storage), then restore any stored JWT session
 initFirebase();
-authService.onAuthStateChanged((u) => {
-  store.dispatch(setUser(u));
-});
+const restoredUser = authService.restoreUser();
+if (restoredUser) {
+  store.dispatch(setUser(restoredUser));
+}

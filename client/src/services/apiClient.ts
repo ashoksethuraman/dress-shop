@@ -1,4 +1,5 @@
 import { authService } from './authService';
+import { loadingBus } from './loadingBus';
 import {
   ApiError,
   type CreateOrderPayload,
@@ -33,22 +34,27 @@ async function buildHeaders(extra: HeadersInit = {}): Promise<HeadersInit> {
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const url = path.startsWith('http') ? path : `${BASE}/${path}`;
   const headers = await buildHeaders(options.headers as HeadersInit);
-  const res = await fetch(url, { ...options, headers });
+  loadingBus.increment();
+  try {
+    const res = await fetch(url, { ...options, headers });
 
-  if (!res.ok) {
-    const text = await res.text();
-    let message = `Request failed (${res.status}).`;
-    let field: string | undefined;
-    let body: Record<string, any> | undefined;
-    try {
-      const json = JSON.parse(text) as { error?: string; field?: string; [k: string]: unknown };
-      if (json.error) { message = json.error as string; field = json.field as string | undefined; }
-      body = json as Record<string, any>;
-    } catch { }
-    throw new ApiError(res.status, message, field, body);
+    if (!res.ok) {
+      const text = await res.text();
+      let message = `Request failed (${res.status}).`;
+      let field: string | undefined;
+      let body: Record<string, any> | undefined;
+      try {
+        const json = JSON.parse(text) as { error?: string; field?: string; [k: string]: unknown };
+        if (json.error) { message = json.error as string; field = json.field as string | undefined; }
+        body = json as Record<string, any>;
+      } catch { }
+      throw new ApiError(res.status, message, field, body);
+    }
+
+    return res.status === 204 ? (null as unknown as T) : (res.json() as Promise<T>);
+  } finally {
+    loadingBus.decrement();
   }
-
-  return res.status === 204 ? (null as unknown as T) : (res.json() as Promise<T>);
 }
 
 export const apiClient = {
@@ -62,6 +68,7 @@ type ProductFields = {
   title: string; description?: string; price: number;
   category?: 'men' | 'women'; images?: string[]; sizes?: string[];
   stock?: 'available' | 'out_of_stock';
+  sizeInventory?: Record<string, number>;
 };
 
 export const productsApi = {
@@ -121,4 +128,62 @@ export const paymentsApi = {
 
   record: (payload: RecordPaymentPayload) =>
     apiClient.post<RecordPaymentResponse>('payments/record', payload),
+};
+
+export interface SignupPayload {
+  username: string;
+  email: string;
+  password: string;
+  age: number;
+  gender: 'male' | 'female';
+  mobileNumber: string;
+  address?: string;
+}
+
+export interface AuthUserInfo {
+  uid: string;
+  username: string;
+  email: string;
+  role: string;
+}
+
+export interface AuthResponse {
+  success: true;
+  token: string;
+  user: AuthUserInfo;
+}
+
+export const authApi = {
+  signup: (payload: SignupPayload) =>
+    apiClient.post<AuthResponse>('users/signup', payload),
+
+  login: (payload: { email: string; password: string }) =>
+    apiClient.post<AuthResponse>('users/login', payload),
+};
+
+export interface UserProfile {
+  uid: string;
+  username: string | null;
+  name: string | null;
+  email: string | null;
+  age: number | null;
+  gender: string | null;
+  mobileNumber: string | null;
+  address: string | null;
+  photoURL: string | null;
+  role: string;
+  isAdmin: boolean;
+  isGuest: boolean;
+}
+
+export const userApi = {
+  getProfile: () => apiClient.get<UserProfile>('users/me'),
+
+  getCart: () => apiClient.get<{ cart: Array<{ productId: string; qty: number; size?: string | null }> }>('users/cart'),
+  putCart: (cart: Array<{ productId: string; qty: number; size?: string | null }>) =>
+    apiClient.put<{ success: boolean }>('users/cart', { cart }),
+
+  getWishlist: () => apiClient.get<{ wishlist: string[] }>('users/wishlist'),
+  putWishlist: (wishlist: string[]) =>
+    apiClient.put<{ success: boolean; wishlist: string[] }>('users/wishlist', { wishlist }),
 };

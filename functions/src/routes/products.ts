@@ -82,6 +82,7 @@ productsRouter.post(
         category: body.category ?? "women",
         images: body.images ?? [],
         sizes: body.sizes ?? [],
+        sizeInventory: body.sizeInventory ?? {},
         image: body.images?.[0] ?? "",
         stock: body.stock ?? "available",
         createdAt: FieldValue.serverTimestamp(),
@@ -115,6 +116,7 @@ productsRouter.put(
       updates.images = body.images; updates.image = body.images[0] ?? "";
     }
     if (body.sizes !== undefined) updates.sizes = body.sizes;
+    if (body.sizeInventory !== undefined) updates.sizeInventory = body.sizeInventory;
     if (body.stock !== undefined) updates.stock = body.stock;
 
     try {

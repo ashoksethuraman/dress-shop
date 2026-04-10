@@ -1,8 +1,6 @@
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
-import { getAuth, Auth, connectAuthEmulator } from 'firebase/auth';
 
 let app: FirebaseApp | null = null;
-let auth: Auth | null = null;
 
 export function initFirebase() {
   const apiKey            = process.env.REACT_APP_FIREBASE_API_KEY;
@@ -12,26 +10,17 @@ export function initFirebase() {
   const messagingSenderId = process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID;
   const appId             = process.env.REACT_APP_FIREBASE_APP_ID;
 
-  if (!apiKey || !authDomain || !projectId) {
-    return { app: null, auth: null };
+  if (!apiKey || !projectId) {
+    return { app: null };
   }
 
   if (getApps().length === 0) {
-    app  = initializeApp({ apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId });
-    auth = getAuth(app);
-
-    if (process.env.REACT_APP_USE_EMULATOR === 'true') {
-      connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
-    }
+    app = initializeApp({ apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId });
   }
 
-  return { app, auth };
+  return { app };
 }
 
 export function getFirebaseApp() {
   return app;
-}
-
-export function getFirebaseAuth() {
-  return auth;
 }

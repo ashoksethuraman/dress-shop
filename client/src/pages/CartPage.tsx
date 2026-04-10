@@ -9,6 +9,7 @@ export default function CartPage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [stockError, setStockError] = useState<string | null>(null);
+  const [qtyErrors, setQtyErrors] = useState<Record<string, string>>({});
 
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
 
@@ -58,10 +59,18 @@ export default function CartPage() {
                       <span className="text-xs bg-indigo-50 text-indigo-600 border border-indigo-200 font-semibold px-2 py-0.5 rounded">Size: {it.size}</span>
                     )}
                     <span className="text-xs text-muted">₹{it.price.toFixed(2)} each</span>
+                    {it.maxQty !== undefined && (
+                      <span className="text-xs text-gray-400">Max: {it.maxQty}</span>
+                    )}
                   </div>
                   {it.stock === 'out_of_stock' && (
                     <span className="inline-block mt-1 text-xs font-semibold text-red-500 bg-red-50 border border-red-200 rounded px-2 py-0.5">
                       Out of Stock
+                    </span>
+                  )}
+                  {qtyErrors[`${it.productId}-${it.size ?? 'none'}`] && (
+                    <span className="inline-block mt-1 text-xs font-medium text-red-500">
+                      {qtyErrors[`${it.productId}-${it.size ?? 'none'}`]}
                     </span>
                   )}
                 </div>
@@ -69,9 +78,18 @@ export default function CartPage() {
                   type="number"
                   value={it.qty}
                   min={1}
-                  onChange={(e) =>
-                    dispatch(setQty({ productId: it.productId, size: it.size, qty: Number(e.target.value) || 0 }))
-                  }
+                  max={it.maxQty}
+                  onChange={(e) => {
+                    const key = `${it.productId}-${it.size ?? 'none'}`;
+                    const newQty = Math.max(1, Number(e.target.value) || 1);
+                    if (it.maxQty !== undefined && newQty > it.maxQty) {
+                      setQtyErrors((prev) => ({ ...prev, [key]: `Max ${it.maxQty} unit${it.maxQty !== 1 ? 's' : ''} available` }));
+                      dispatch(setQty({ productId: it.productId, size: it.size, qty: it.maxQty }));
+                    } else {
+                      setQtyErrors((prev) => { const n = { ...prev }; delete n[key]; return n; });
+                      dispatch(setQty({ productId: it.productId, size: it.size, qty: newQty }));
+                    }
+                  }}
                   className="w-14 text-center border border-gray-200 rounded-lg py-1 text-sm outline-none focus:border-indigo-400"
                 />
                 <span className="font-semibold text-sm text-primary w-16 text-right">

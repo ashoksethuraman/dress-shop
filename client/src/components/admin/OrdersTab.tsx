@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { FiRefreshCw, FiShoppingBag, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
-import { ordersApi } from '../../services/apiClient';
+import { ordersApi } from '../../services/apiClient'; // backend
+// import { firestoreOrdersApi as ordersApi } from '../../services/firestoreClient'; // direct firestore
 import { StoredOrder, OrderStatus } from '../../utils/apiTypes';
 import { formatPrice } from '../../utils/format';
 import { PAGE_SIZE, orderStatusBadge, paymentStatusBadge, fmtDate } from './adminHelpers';
@@ -175,8 +176,8 @@ export default function OrdersTab() {
                   onClick={() => setSelectedOrder(order)}
                   className="border-b border-gray-50 last:border-0 hover:bg-indigo-50/40 cursor-pointer transition-colors"
                 >
-                  <td className="px-4 py-3 font-mono text-xs text-gray-500">
-                    #{order.id.slice(0, 10).toUpperCase()}
+                  <td className="px-4 py-3 font-mono text-xs text-gray-500 max-w-[180px] truncate" title={order.id}>
+                    {order.id}
                   </td>
                   <td className="px-4 py-3 max-w-[180px]">
                     {order.billingAddress?.name && (

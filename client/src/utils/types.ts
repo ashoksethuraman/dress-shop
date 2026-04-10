@@ -1,8 +1,3 @@
-/**
- * Stock status for a product.
- *  - 'available'    → in stock, visible on the shop listing
- *  - 'out_of_stock' → not available, hidden from public listing
- */
 export type StockStatus = 'available' | 'out_of_stock';
 
 export type Product = {
@@ -11,11 +6,12 @@ export type Product = {
   description?: string;
   price: number;
   category?: 'men' | 'women';
-  images?: string[];   // array of image URLs / base64
-  sizes?: string[];    // e.g. ['S', 'M', 'L']
-  image?: string;      // backward-compat: first image
-  /** Availability / stock level. Defaults to 'available' when absent (legacy docs). */
+  images?: string[];
+  sizes?: string[];
+  image?: string;
   stock?: StockStatus;
+  sizeInventory?: Record<string, number>;
+  salesCount?: number;
 };
 
 export type CartItem = {
@@ -24,8 +20,8 @@ export type CartItem = {
   price: number;
   qty: number;
   size?: string | null;
-  /** Carried from the product so checkout can block out-of-stock items. */
   stock?: StockStatus;
+  maxQty?: number;
 };
 
 export type User = {

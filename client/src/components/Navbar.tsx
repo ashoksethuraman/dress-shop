@@ -1,9 +1,12 @@
 import React, { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { FiSearch, FiUser, FiShoppingCart, FiLogIn, FiMenu, FiLogOut } from 'react-icons/fi';
-import { useAppDispatch } from '../store/hooks';
+import { FiSearch, FiUser, FiShoppingCart, FiMenu, FiLogOut, FiHeart } from 'react-icons/fi';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { logout } from '../store/userSlice';
+import { clearCart } from '../store/cartSlice';
+import { clearWishlist } from '../store/wishlistSlice';
 import { authService } from '../services/authService';
+import { clearUserSession } from '../services/guestSession';
 import { useClickOutside } from '../hooks/useClickOutside';
 
 type Props = {
@@ -23,13 +26,21 @@ export default function Navbar({ mobileOpen, setMobileOpen, cartCount, user, bum
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const wishlistCount = useAppSelector((s) => s.wishlist.ids.length);
 
   // Close dropdown when clicking outside
   useClickOutside(menuRef, () => setMenuOpen(false), menuOpen);
 
   const handleLogout = async () => {
     setMenuOpen(false);
+    const isGuest = user?.isGuest;
     await authService.signOut();
+    // Clear localStorage only for real users; guests keep their local cart/wishlist
+    if (!isGuest) {
+      clearUserSession();
+      dispatch(clearCart());
+      dispatch(clearWishlist());
+    }
     dispatch(logout());
     navigate('/auth');
   };
@@ -55,8 +66,8 @@ export default function Navbar({ mobileOpen, setMobileOpen, cartCount, user, bum
               aria-expanded={isMenuOpen}
               className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200 border-none cursor-pointer
                 ${isMenuOpen
-                  ? 'bg-indigo-100 text-indigo-600 shadow-md rotate-90'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                  ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  : 'bg-indigo-100 text-indigo-600 shadow-md rotate-90'}`}
             >
               <FiMenu size={20} />
             </button>
@@ -84,6 +95,17 @@ export default function Navbar({ mobileOpen, setMobileOpen, cartCount, user, bum
             </div>
 
             {/* Icons */}
+
+            {/* Wishlist */}
+            <Link to="/wishlist" title="Wishlist"
+              className="relative flex items-center justify-center w-9 h-9 rounded-full text-gray-700 hover:bg-gray-100 hover:text-rose-500 transition-colors no-underline">
+              <FiHeart size={18} />
+              {wishlistCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-xs font-bold w-4 h-4 flex items-center justify-center rounded-full">
+                  {wishlistCount > 9 ? '9+' : wishlistCount}
+                </span>
+              )}
+            </Link>
 
             <Link to="/cart" title="Cart"
               className="relative flex items-center justify-center w-9 h-9 rounded-full text-gray-700 hover:bg-gray-100 hover:text-indigo-500 transition-colors no-underline">
@@ -137,8 +159,16 @@ export default function Navbar({ mobileOpen, setMobileOpen, cartCount, user, bum
               </div>
             ) : (
               <Link to="/auth" title="Login"
-                className="flex items-center justify-center w-9 h-9 rounded-full text-gray-700 hover:bg-gray-100 hover:text-indigo-500 transition-colors no-underline">
-                <FiLogIn size={18} />
+                className="group relative flex items-center justify-center w-9 h-9 rounded-full border-2 border-gray-300 hover:border-indigo-400 bg-gray-100 hover:bg-indigo-50 transition-colors no-underline overflow-hidden">
+                {/* User silhouette SVG */}
+                <svg viewBox="0 0 80 80" fill="currentColor" className="w-6 h-6 text-gray-500 group-hover:text-indigo-500 transition-colors">
+                  <circle cx="40" cy="28" r="16" />
+                  <path d="M10 68c0-16.569 13.431-30 30-30s30 13.431 30 30" />
+                </svg>
+                {/* Tooltip */}
+                <span className="pointer-events-none absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-gray-800 px-2 py-0.5 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                  Login
+                </span>
               </Link>
             )}
           </div>

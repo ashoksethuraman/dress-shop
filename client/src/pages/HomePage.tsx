@@ -1,14 +1,14 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useDeleteProductMutation } from '../store/apiSlice';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAppSelector } from '../store/hooks';
-import { FiShoppingCart } from 'react-icons/fi';
+import { FiShoppingCart, FiTrendingUp, FiGrid } from 'react-icons/fi';
 import ProductCard from '../components/ProductCard';
 import { useProducts } from '../hooks/useProducts';
 
 const INITIAL_COUNT = 8;
 const LOAD_MORE_COUNT = 8;
-
+// 
 // Module-level: persists across navigation so the user sees the same
 // scroll depth when going back — no extra API call needed either.
 let persistedVisibleCount = INITIAL_COUNT;
@@ -28,12 +28,29 @@ function SkeletonCard() {
 
 export default function HomePage() {
   const { products, loading, error, refresh } = useProducts();
-  const cartCount = useAppSelector(state => state.cart.items.reduce((acc, i) => acc + i.qty, 0));
+  // const cartCount = useAppSelector(state => state.cart.items.reduce((acc, i) => acc + i.qty, 0));
   const isAdmin   = useAppSelector((s) => s.user.user?.isAdmin ?? false);
+  const [searchParams] = useSearchParams();
+  const filter = searchParams.get('filter'); // 'bestsellers' | null
+
+  const isBestSellers = filter === 'bestsellers';
+
+  // Derived list — best sellers sorted descending by salesCount
+  const displayProducts = isBestSellers
+    ? [...products]
+        .filter((p) => (p.salesCount ?? 0) > 0)
+        .sort((a, b) => (b.salesCount ?? 0) - (a.salesCount ?? 0))
+    : products;
 
   // Restore scroll-depth from last visit so cached products appear instantly
   const [visibleCount, setVisibleCount] = useState(persistedVisibleCount);
   const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // Reset pagination when filter changes
+  useEffect(() => {
+    persistedVisibleCount = INITIAL_COUNT;
+    setVisibleCount(INITIAL_COUNT);
+  }, [filter]);
 
   const [deleteProduct] = useDeleteProductMutation();
 
@@ -47,7 +64,7 @@ export default function HomePage() {
       (entries) => {
         if (entries[0].isIntersecting) {
           setVisibleCount((prev) => {
-            const next = Math.min(prev + LOAD_MORE_COUNT, products.length);
+            const next = Math.min(prev + LOAD_MORE_COUNT, displayProducts.length);
             persistedVisibleCount = next;
             return next;
           });
@@ -58,10 +75,10 @@ export default function HomePage() {
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [loading, error, products.length]);
+  }, [loading, error, displayProducts.length]);
 
-  const visibleProducts = products.slice(0, visibleCount);
-  const hasMore = visibleCount < products.length;
+  const visibleProducts = displayProducts.slice(0, visibleCount);
+  const hasMore = visibleCount < displayProducts.length;
 
   const handleAdminDelete = async (id: string, title: string) => {
     if (!window.confirm(`Delete "${title}"?`)) return;
@@ -92,7 +109,38 @@ export default function HomePage() {
 
       {/* Products */}
       <section className="max-w-7xl mx-auto px-4 py-8">
-        <h2 className="text-2xl font-bold text-primary mb-6">Products</h2>
+        {/* Section heading with filter tabs */}
+        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+          <h2 className="text-2xl font-bold text-primary flex items-center gap-2">
+            {isBestSellers ? (
+              <><FiTrendingUp className="text-orange-500" size={22} /> Best Sellers</>
+            ) : (
+              <><FiGrid className="text-indigo-500" size={20} /> All Products</>
+            )}
+          </h2>
+          <div className="flex items-center gap-2">
+            <Link
+              to="/"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors no-underline ${
+                !isBestSellers
+                  ? 'bg-indigo-500 border-indigo-500 text-white'
+                  : 'border-gray-200 text-gray-500 hover:border-indigo-300 hover:text-indigo-500'
+              }`}
+            >
+              <FiGrid size={13} /> All Products
+            </Link>
+            <Link
+              to="/?filter=bestsellers"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors no-underline ${
+                isBestSellers
+                  ? 'bg-orange-500 border-orange-500 text-white'
+                  : 'border-gray-200 text-gray-500 hover:border-orange-300 hover:text-orange-500'
+              }`}
+            >
+              <FiTrendingUp size={13} /> Best Sellers
+            </Link>
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
           {loading
@@ -111,6 +159,14 @@ export default function HomePage() {
               )
               : products.length === 0
                 ? <p className="col-span-full text-center py-12 text-gray-400">No products available yet.</p>
+                : displayProducts.length === 0
+                ? (
+                  <div className="col-span-full text-center py-12">
+                    <FiTrendingUp size={36} className="mx-auto text-gray-300 mb-3" />
+                    <p className="text-gray-400 text-sm">No best sellers yet — check back after orders come in!</p>
+                    <Link to="/" className="inline-block mt-4 text-indigo-500 text-sm font-semibold no-underline hover:underline">Browse all products →</Link>
+                  </div>
+                )
                 : visibleProducts.map((p) => (
                     <ProductCard
                       key={p.id}
@@ -123,27 +179,29 @@ export default function HomePage() {
         </div>
 
         {/* Sentinel — triggers loading next batch when scrolled near */}
-        {!loading && !error && products.length > 0 && (
+        {!loading && !error && displayProducts.length > 0 && (
           <div ref={sentinelRef} aria-hidden="true" className="h-4" />
         )}
 
         {/* Loading-more skeletons */}
         {!loading && !error && hasMore && (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6 mt-6">
-            {Array.from({ length: Math.min(LOAD_MORE_COUNT, products.length - visibleCount) }).map((_, i) => (
+            {Array.from({ length: Math.min(LOAD_MORE_COUNT, displayProducts.length - visibleCount) }).map((_, i) => (
               <SkeletonCard key={i} />
             ))}
           </div>
         )}
 
         {/* End of list label */}
-        {!loading && !error && !hasMore && products.length > 0 && (
-          <p className="text-center text-xs text-gray-400 mt-8">All products loaded</p>
+        {!loading && !error && !hasMore && displayProducts.length > 0 && (
+          <p className="text-center text-xs text-gray-400 mt-8">
+            {isBestSellers ? `${displayProducts.length} best seller${displayProducts.length !== 1 ? 's' : ''} shown` : 'All products loaded'}
+          </p>
         )}
       </section>
 
       {/* Floating cart button */}
-      {cartCount > 0 && (
+      {/* {cartCount > 0 && (
         <Link
           to="/cart"
           title="Go to cart"
@@ -154,7 +212,7 @@ export default function HomePage() {
             {cartCount}
           </span>
         </Link>
-      )}
+      )} */}
     </div>
   );
 }

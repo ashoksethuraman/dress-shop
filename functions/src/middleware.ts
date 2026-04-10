@@ -1,14 +1,21 @@
 import type {Request, Response, NextFunction} from "express";
 import * as logger from "firebase-functions/logger";
-import {auth} from "./firebase";
+import * as jwt from "jsonwebtoken";
 import type {ValidationResult} from "./schemas";
 
+/** Authenticated user payload extracted from a verified HS256 JWT. */
+export interface AuthUserPayload {
+  uid: string;
+  email: string;
+  name: string;
+  role: string;
+}
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
-      user?: import("firebase-admin/auth").DecodedIdToken | null;
+      user?: AuthUserPayload | null;
     }
   }
 }
@@ -16,6 +23,7 @@ declare global {
 
 const ALLOWED_ORIGINS = [
   "http://localhost:3000",
+  // Firebase Hosting domains — GCLOUD_PROJECT is set by the Functions runtime
   `https://${process.env.GCLOUD_PROJECT}.web.app`,
   `https://${process.env.GCLOUD_PROJECT}.firebaseapp.com`,
 ];
@@ -36,31 +44,44 @@ export function corsMiddleware(req: Request, res: Response, next: NextFunction):
   next();
 }
 
+function verifyJwt(token: string): AuthUserPayload | null {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) return null;
+  try {
+    const payload = jwt.verify(token, secret) as jwt.JwtPayload & {
+      userId: string; username: string; email: string; role: string;
+    };
+    return {
+      uid: payload.userId,
+      email: payload.email,
+      name: payload.username,
+      role: payload.role,
+    };
+  } catch {
+    return null;
+  }
+}
 
-export async function authenticate(req: Request, res: Response, next: NextFunction): Promise<void> {
+export function authenticate(req: Request, res: Response, next: NextFunction): void {
   const header = req.headers.authorization ?? "";
   if (!header.startsWith("Bearer ")) {
     res.status(401).json({error: "Missing or malformed Authorization header."});
     return;
   }
-  try {
-    req.user = await auth.verifyIdToken(header.slice(7));
-    next();
-  } catch {
+  const decoded = verifyJwt(header.slice(7));
+  if (!decoded) {
     res.status(401).json({error: "Invalid or expired token."});
-  }
-}
-
-export async function optionalAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const header = req.headers.authorization ?? "";
-  if (!header.startsWith("Bearer ")) {
-    req.user = null;
-    next();
     return;
   }
-  try {
-    req.user = await auth.verifyIdToken(header.slice(7));
-  } catch {
+  req.user = decoded;
+  next();
+}
+
+export function optionalAuth(req: Request, res: Response, next: NextFunction): void {
+  const header = req.headers.authorization ?? "";
+  if (header.startsWith("Bearer ")) {
+    req.user = verifyJwt(header.slice(7));
+  } else {
     req.user = null;
   }
   next();
@@ -68,7 +89,7 @@ export async function optionalAuth(req: Request, res: Response, next: NextFuncti
 
 export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   const user = req.user;
-  if (!user || (user["isAdmin"] !== true && user["role"] !== "admin")) {
+  if (!user || user.role !== "admin") {
     res.status(403).json({error: "Admin access required."});
     return;
   }

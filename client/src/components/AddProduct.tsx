@@ -1,13 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { FiUpload, FiX, FiPlus } from 'react-icons/fi';
-import { productsApi } from '../services/apiClient';
+import { productsApi } from '../services/apiClient'; // backend
+// import { firestoreProductsApi as productsApi } from '../services/firestoreClient'; // direct firestore
 import { uploadImages, checkImageSize } from '../services/imageService';
 import { StockStatus } from '../utils/types';
 import { useAppDispatch } from '../store/hooks';
 import { dressShopApi } from '../store/apiSlice';
 import AlertModal from './AlertModal';
-import Loader from './Loader';
-
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
 const MAX_IMAGES = 5;
 
@@ -54,7 +53,7 @@ export default function AddProductForm({ onAdded }: Props) {
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
   const [category, setCategory] = useState<'men' | 'women'>('women');
-  const [sizes, setSizes] = useState<string[]>([]);
+  const [sizeInventory, setSizeInventory] = useState<Record<string, number>>({});
   const [stockMode, setStockMode] = useState<'available' | 'out_of_stock'>('available');
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
@@ -74,8 +73,9 @@ export default function AddProductForm({ onAdded }: Props) {
 
   // Re-validate live once the user has hit submit once
   useEffect(() => {
-    if (submitted) setFieldErrors(validate(title, description, price, sizes, imageFiles.length, stockMode));
-  }, [title, description, price, sizes, imageFiles.length, submitted, stockMode]);
+    if (submitted) setFieldErrors(validate(title, description, price, Object.keys(sizeInventory), imageFiles.length, stockMode));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title, description, price, JSON.stringify(sizeInventory), imageFiles.length, submitted, stockMode]);
 
   const handleImages = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -120,7 +120,15 @@ export default function AddProductForm({ onAdded }: Props) {
   };
 
   const toggleSize = (s: string) =>
-    setSizes((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
+    setSizeInventory((prev) => {
+      const next = { ...prev };
+      if (s in next) delete next[s];
+      else next[s] = 0;
+      return next;
+    });
+
+  const setSizeQty = (s: string, qty: number) =>
+    setSizeInventory((prev) => ({ ...prev, [s]: Math.max(0, qty) }));
 
   const removeImage = (i: number) => {
     URL.revokeObjectURL(previews[i]);
@@ -131,7 +139,7 @@ export default function AddProductForm({ onAdded }: Props) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitted(true);
-    const errs = validate(title, description, price, sizes, imageFiles.length, stockMode);
+    const errs = validate(title, description, price, Object.keys(sizeInventory), imageFiles.length, stockMode);
     setFieldErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
@@ -145,7 +153,10 @@ export default function AddProductForm({ onAdded }: Props) {
       const savedTitle = title.trim();
       const res = await productsApi.add({
         title: savedTitle, description: description.trim(),
-        price: Number(price), category, sizes, images: uploadedImages,
+        price: Number(price), category,
+        sizes: Object.keys(sizeInventory),
+        sizeInventory,
+        images: uploadedImages,
         stock: stockValue,
       });
       const addedId = res.id;
@@ -156,8 +167,9 @@ export default function AddProductForm({ onAdded }: Props) {
       ]));
       setSuccessInfo({ id: addedId, name: savedTitle });
       setTitle(''); setDescription(''); setPrice('');
-      setSizes([]); setImageFiles([]); setPreviews([]); setCategory('women');
+      setImageFiles([]); setPreviews([]); setCategory('women');
       setStockMode('available');
+      setSizeInventory({});
       setSubmitted(false); setFieldErrors({});
       onAdded();
     } catch (err: any) {
@@ -183,7 +195,6 @@ export default function AddProductForm({ onAdded }: Props) {
 
   return (
     <>
-      {loading && <Loader fullPage label="Adding product…" />}
       <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm p-6">
       <h3 className="text-base font-bold text-primary mb-5 flex items-center gap-2">
         <span className="w-1.5 h-5 bg-indigo-500 rounded-full inline-block" />
@@ -220,7 +231,7 @@ export default function AddProductForm({ onAdded }: Props) {
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            onBlur={() => submitted && setFieldErrors((p) => ({ ...p, ...validate(title, description, price, sizes, imageFiles.length, stockMode) }))}
+            onBlur={() => submitted && setFieldErrors((p) => ({ ...p, ...validate(title, description, price, Object.keys(sizeInventory), imageFiles.length, stockMode) }))}
             placeholder="e.g. Summer Floral Dress"
             className={inputCls(!!fieldErrors.title)}
           />
@@ -307,7 +318,7 @@ export default function AddProductForm({ onAdded }: Props) {
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
             Sizes <span className="text-red-400">*</span>
-            {sizes.length > 0 && <span className="ml-1 text-indigo-500 normal-case font-normal">({sizes.join(', ')})</span>}
+            {Object.keys(sizeInventory).length > 0 && <span className="ml-1 text-indigo-500 normal-case font-normal">({Object.keys(sizeInventory).join(', ')})</span>}
           </label>
           <div className="flex flex-wrap gap-2">
             {SIZES.map((s) => (
@@ -316,7 +327,7 @@ export default function AddProductForm({ onAdded }: Props) {
                 type="button"
                 onClick={() => toggleSize(s)}
                 className={`w-11 h-11 rounded-xl border-2 text-xs font-bold transition-all
-                  ${sizes.includes(s)
+                  ${s in sizeInventory
                     ? 'border-indigo-500 bg-indigo-500 text-white shadow-sm'
                     : fieldErrors.sizes
                       ? 'border-red-300 text-red-400 hover:border-red-400'
@@ -328,6 +339,30 @@ export default function AddProductForm({ onAdded }: Props) {
           </div>
           {errMsg(fieldErrors.sizes)}
         </div>
+
+        {/* Quantity per size */}
+        {Object.keys(sizeInventory).length > 0 && (
+          <div className="md:col-span-2">
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+              Quantity per Size
+            </label>
+            <div className="flex flex-wrap gap-5">
+              {Object.keys(sizeInventory).map((sz) => (
+                <div key={sz} className="flex flex-col items-center gap-1.5">
+                  <span className="text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-lg">{sz}</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={sizeInventory[sz]}
+                    onChange={(e) => setSizeQty(sz, parseInt(e.target.value) || 0)}
+                    className="w-16 text-center border border-gray-200 rounded-lg py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 bg-gray-50"
+                  />
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 mt-1.5">Set 0 if the size is out of stock.</p>
+          </div>
+        )}
 
         {/* Images */}
         <div className="md:col-span-2">

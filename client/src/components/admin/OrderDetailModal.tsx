@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { FiX, FiLoader, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
-import { ordersApi } from '../../services/apiClient';
+import { ordersApi } from '../../services/apiClient'; // backend
+// import { firestoreOrdersApi as ordersApi } from '../../services/firestoreClient'; // direct firestore
 import { StoredOrder, OrderStatus } from '../../utils/apiTypes';
 import { formatPrice } from '../../utils/format';
 import { orderStatusBadge, paymentStatusBadge, fmtDate } from './adminHelpers';
@@ -84,7 +85,7 @@ export default function OrderDetailModal({ order, onClose, onStatusUpdated }: Pr
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl z-10">
           <div>
-            <p className="text-xs text-muted font-mono">#{order.id.toUpperCase()}</p>
+            <p className="text-xs text-muted font-mono">{order.id}</p>
             <h2 className="text-base font-extrabold text-primary">Order Details</h2>
           </div>
           <button

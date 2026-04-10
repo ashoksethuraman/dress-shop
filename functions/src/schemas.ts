@@ -1,16 +1,3 @@
-/**
- * schemas.ts — Canonical data contracts for all Cloud Function endpoints.
- *
- * Every request body shape is defined here as a TypeScript interface plus a
- * corresponding `validate*` function that does runtime type-checking and
- * returns a structured result.  Cloud Functions import from here so the
- * validation logic is defined in exactly one place.
- *
- * The matching frontend mirror lives in:  client/src/utils/apiTypes.ts
- * Keep both files in sync whenever you add or rename a field.
- */
-
-
 export const ORDER_STATUSES = [
   "PENDING", "PLACED", "CONFIRMED", "PROCESSING", "SHIPPED",
   "DELIVERED", "CANCELLED", "PAYMENT_FAILED",
@@ -25,6 +12,11 @@ export type PaymentStatus = typeof PAYMENT_STATUSES[number];
 export const FAIL_REASONS = ["payment_dismissed", "payment_failed"] as const;
 export type FailReason = typeof FAIL_REASONS[number];
 
+export const PRODUCT_CATEGORIES = ["men", "women"] as const;
+export type ProductCategory = typeof PRODUCT_CATEGORIES[number];
+
+export const STOCK_STATUSES = ["available", "out_of_stock"] as const;
+export type StockStatus = typeof STOCK_STATUSES[number];
 
 export interface AddressSchema {
   name: string;
@@ -45,7 +37,6 @@ export interface OrderItemSchema {
   total: number;
   size?: string | null;
 }
-
 
 export interface CreateOrderBody {
   id?: string;
@@ -101,13 +92,6 @@ export interface UpdateOrderStatusBody {
   status: OrderStatus;
 }
 
-
-export const PRODUCT_CATEGORIES = ["men", "women"] as const;
-export type ProductCategory = typeof PRODUCT_CATEGORIES[number];
-
-export const STOCK_STATUSES = ["available", "out_of_stock"] as const;
-export type StockStatus = typeof STOCK_STATUSES[number];
-
 export interface CreateProductBody {
   title: string;
   description?: string;
@@ -116,6 +100,7 @@ export interface CreateProductBody {
   images?: string[];
   sizes?: string[];
   stock?: StockStatus;
+  sizeInventory?: Record<string, number>;
 }
 
 export interface UpdateProductBody {
@@ -126,6 +111,7 @@ export interface UpdateProductBody {
   images?: string[];
   sizes?: string[];
   stock?: StockStatus;
+  sizeInventory?: Record<string, number>;
 }
 
 export interface UpdateProfileBody {
@@ -138,7 +124,6 @@ export interface SetAdminClaimBody {
   targetUid: string;
   isAdmin: boolean;
 }
-
 
 export interface ApiErrorResponse {
   error: string;
@@ -159,10 +144,45 @@ export interface RecordPaymentResponse {
   paymentId: string;
 }
 
+export interface SignupBody {
+  username: string;
+  email: string;
+  password: string;
+  age: number;
+  gender: "male" | "female";
+  mobileNumber: string;
+  address?: string;
+}
+
+export interface LoginBody {
+  email: string;
+  password: string;
+}
+
+export interface AuthUserResponse {
+  uid: string;
+  username: string;
+  email: string;
+  role: "user";
+}
+
+export interface AuthSignupResponse {
+  success: true;
+  token: string;
+  user: AuthUserResponse;
+}
+
+export interface AuthLoginResponse {
+  success: true;
+  token: string;
+  user: AuthUserResponse;
+}
 
 export type ValidationResult =
   | { valid: true }
   | { valid: false; error: string; field?: string };
+
+// ── Primitive guards ──────────────────────────────────────────────────────────
 
 function isNonEmptyString(v: unknown): v is string {
   return typeof v === "string" && v.trim().length > 0;
@@ -184,327 +204,275 @@ function isEmail(v: unknown): v is string {
   return isNonEmptyString(v) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 }
 
-function validateAddress(addr: unknown, label: string): ValidationResult {
-  if (!addr || typeof addr !== "object") {
-    return {valid: false, error: `${label} is required.`, field: label};
+function isObject(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === "object";
+}
+
+// ── Validation builder helpers ────────────────────────────────────────────────
+// Each returns a ValidationResult on failure, or null on success, so callers
+// can chain them with: `return helperA(...) ?? helperB(...) ?? {valid: true}`.
+
+function fail(error: string, field?: string): ValidationResult {
+  return {valid: false, error, field};
+}
+
+function requireStr(b: Record<string, unknown>, field: string, label?: string): ValidationResult | null {
+  return isNonEmptyString(b[field]) ? null : fail(`${label ?? field} is required.`, field);
+}
+
+function requirePosNum(b: Record<string, unknown>, field: string): ValidationResult | null {
+  return isPositiveNumber(b[field]) ? null : fail(`${field} must be a positive number.`, field);
+}
+
+function requireNonNegNum(b: Record<string, unknown>, field: string): ValidationResult | null {
+  return isNonNegativeNumber(b[field]) ? null : fail(`${field} must be a non-negative number.`, field);
+}
+
+function requireOneOf(
+  b: Record<string, unknown>,
+  field: string,
+  values: readonly string[]
+): ValidationResult | null {
+  if (!isNonEmptyString(b[field]) || !(values as string[]).includes(b[field] as string)) {
+    return fail(`${field} must be one of: ${values.join(", ")}.`, field);
   }
-  const a = addr as Record<string, unknown>;
-  const required = ["name", "line1", "city", "state", "pincode", "country", "phone"] as const;
-  for (const field of required) {
-    if (!isNonEmptyString(a[field])) {
-      return {
-        valid: false,
-        error: `${label}.${field} is required and must be a non-empty string.`,
-        field: `${label}.${field}`,
-      };
+  return null;
+}
+
+function optionalStringArray(b: Record<string, unknown>, field: string): ValidationResult | null {
+  if (b[field] === undefined) return null;
+  if (!Array.isArray(b[field]) || (b[field] as unknown[]).some((v) => typeof v !== "string")) {
+    return fail(`${field} must be an array of strings.`, field);
+  }
+  return null;
+}
+
+// ── Compound sub-validators ───────────────────────────────────────────────────
+
+function validateAddress(addr: unknown, label: string): ValidationResult {
+  if (!isObject(addr)) return fail(`${label} is required.`, label);
+  for (const field of ["name", "line1", "city", "state", "pincode", "country", "phone"] as const) {
+    if (!isNonEmptyString(addr[field])) {
+      return fail(`${label}.${field} is required and must be a non-empty string.`, `${label}.${field}`);
     }
   }
   return {valid: true};
 }
 
 function validateOrderItem(item: unknown, idx: number): ValidationResult {
-  if (!item || typeof item !== "object") {
-    return {valid: false, error: `items[${idx}] must be an object.`, field: `items[${idx}]`};
+  if (!isObject(item)) return fail(`items[${idx}] must be an object.`, `items[${idx}]`);
+  const pre = `items[${idx}]`;
+  if (!isNonEmptyString(item.productId)) return fail(`${pre}.productId is required.`, `${pre}.productId`);
+  if (!isNonEmptyString(item.title)) return fail(`${pre}.title is required.`, `${pre}.title`);
+  if (!isFiniteNumber(item.qty) || (item.qty as number) < 1 || !Number.isInteger(item.qty)) {
+    return fail(`${pre}.qty must be a positive integer.`, `${pre}.qty`);
   }
-  const it = item as Record<string, unknown>;
+  if (!isNonNegativeNumber(item.unitPrice)) return fail(`${pre}.unitPrice must be a non-negative number.`, `${pre}.unitPrice`);
+  if (!isNonNegativeNumber(item.total)) return fail(`${pre}.total must be a non-negative number.`, `${pre}.total`);
+  return {valid: true};
+}
 
-  if (!isNonEmptyString(it.productId)) {
-    return {valid: false, error: `items[${idx}].productId is required.`, field: `items[${idx}].productId`};
+function validateProductFields(b: Record<string, unknown>, requireTitle: boolean): ValidationResult {
+  if (requireTitle) {
+    const e = requireStr(b, "title");
+    if (e) return e;
+  } else if (b.title !== undefined && !isNonEmptyString(b.title)) {
+    return fail("title must be a non-empty string.", "title");
   }
-  if (!isNonEmptyString(it.title)) {
-    return {valid: false, error: `items[${idx}].title is required.`, field: `items[${idx}].title`};
+
+  if (b.description !== undefined && typeof b.description !== "string") {
+    return fail("description must be a string.", "description");
   }
-  if (!isFiniteNumber(it.qty) || (it.qty as number) < 1 || !Number.isInteger(it.qty)) {
-    return {valid: false, error: `items[${idx}].qty must be a positive integer.`, field: `items[${idx}].qty`};
+
+  if (requireTitle && b.price === undefined) return fail("price is required.", "price");
+  if (b.price !== undefined) {
+    const e = requireNonNegNum(b, "price");
+    if (e) return e;
   }
-  if (!isNonNegativeNumber(it.unitPrice)) {
-    return {valid: false, error: `items[${idx}].unitPrice must be a non-negative number.`, field: `items[${idx}].unitPrice`};
+
+  if (b.category !== undefined) {
+    const e = requireOneOf(b, "category", PRODUCT_CATEGORIES);
+    if (e) return e;
   }
-  if (!isNonNegativeNumber(it.total)) {
-    return {valid: false, error: `items[${idx}].total must be a non-negative number.`, field: `items[${idx}].total`};
+
+  if (b.stock !== undefined) {
+    const e = requireOneOf(b, "stock", STOCK_STATUSES);
+    if (e) return e;
+  }
+
+  const imagesErr = optionalStringArray(b, "images");
+  if (imagesErr) return imagesErr;
+
+  const sizesErr = optionalStringArray(b, "sizes");
+  if (sizesErr) return sizesErr;
+
+  if (b.sizeInventory !== undefined) {
+    if (!isObject(b.sizeInventory) || Array.isArray(b.sizeInventory)) {
+      return fail("sizeInventory must be an object mapping size to quantity.", "sizeInventory");
+    }
+    for (const [k, v] of Object.entries(b.sizeInventory as Record<string, unknown>)) {
+      if (typeof v !== "number" || !Number.isInteger(v) || v < 0) {
+        return fail(`sizeInventory["${k}"] must be a non-negative integer.`, "sizeInventory");
+      }
+    }
   }
 
   return {valid: true};
 }
 
+// ── Public validators ─────────────────────────────────────────────────────────
 
 export function validateCreateOrder(body: unknown): ValidationResult {
-  if (!body || typeof body !== "object") {
-    return {valid: false, error: "Request body is required."};
+  if (!isObject(body)) return fail("Request body is required.");
+  if (!isEmail(body.contactEmail)) return fail("A valid contactEmail is required.", "contactEmail");
+  if (typeof body.billingAndShippingSame !== "boolean") {
+    return fail("billingAndShippingSame must be a boolean.", "billingAndShippingSame");
   }
 
-  const b = body as Record<string, unknown>;
-
-  if (!isEmail(b.contactEmail)) {
-    return {valid: false, error: "A valid contactEmail is required.", field: "contactEmail"};
-  }
-
-  if (typeof b.billingAndShippingSame !== "boolean") {
-    return {valid: false, error: "billingAndShippingSame must be a boolean.", field: "billingAndShippingSame"};
-  }
-
-  const billCheck = validateAddress(b.billingAddress, "billingAddress");
+  const billCheck = validateAddress(body.billingAddress, "billingAddress");
   if (!billCheck.valid) return billCheck;
 
-  if (!b.billingAndShippingSame) {
-    const shipCheck = validateAddress(b.shippingAddress, "shippingAddress");
-    if (!shipCheck.valid) return shipCheck;
-  } else if (b.shippingAddress !== undefined) {
-    const shipCheck = validateAddress(b.shippingAddress, "shippingAddress");
+  if (!body.billingAndShippingSame || body.shippingAddress !== undefined) {
+    const shipCheck = validateAddress(body.shippingAddress, "shippingAddress");
     if (!shipCheck.valid) return shipCheck;
   }
 
-  if (!Array.isArray(b.items) || b.items.length === 0) {
-    return {valid: false, error: "items must be a non-empty array.", field: "items"};
+  if (!Array.isArray(body.items) || body.items.length === 0) {
+    return fail("items must be a non-empty array.", "items");
+  }
+  for (let i = 0; i < body.items.length; i++) {
+    const e = validateOrderItem(body.items[i], i);
+    if (!e.valid) return e;
   }
 
-  for (let i = 0; i < b.items.length; i++) {
-    const itemCheck = validateOrderItem(b.items[i], i);
-    if (!itemCheck.valid) return itemCheck;
+  for (const field of ["subtotal", "taxAmount", "shippingFee", "discount", "totalAmount"] as const) {
+    const e = requireNonNegNum(body, field);
+    if (e) return e;
   }
-
-  const numericFields = ["subtotal", "taxAmount", "shippingFee", "discount", "totalAmount"] as const;
-  for (const field of numericFields) {
-    if (!isNonNegativeNumber(b[field])) {
-      return {valid: false, error: `${field} must be a non-negative number.`, field};
-    }
-  }
-
-  if (!isPositiveNumber(b.totalAmount)) {
-    return {valid: false, error: "totalAmount must be greater than zero.", field: "totalAmount"};
-  }
+  if (!isPositiveNumber(body.totalAmount)) return fail("totalAmount must be greater than zero.", "totalAmount");
 
   return {valid: true};
 }
 
 export function validateVerifyPayment(body: unknown): ValidationResult {
-  if (!body || typeof body !== "object") {
-    return {valid: false, error: "Request body is required."};
-  }
-
-  const b = body as Record<string, unknown>;
-  if (!isNonEmptyString(b.orderId)) {
-    return {valid: false, error: "orderId is required.", field: "orderId"};
-  }
-  if (!isNonEmptyString(b.razorpay_payment_id)) {
-    return {valid: false, error: "razorpay_payment_id is required.", field: "razorpay_payment_id"};
-  }
-  if (!isNonEmptyString(b.razorpay_signature)) {
-    return {valid: false, error: "razorpay_signature is required.", field: "razorpay_signature"};
-  }
-
-  return {valid: true};
+  if (!isObject(body)) return fail("Request body is required.");
+  return (
+    requireStr(body, "orderId") ??
+    requireStr(body, "razorpay_payment_id") ??
+    requireStr(body, "razorpay_signature") ??
+    {valid: true}
+  );
 }
 
 export function validateFailPayment(body: unknown): ValidationResult {
-  if (!body || typeof body !== "object") {
-    return {valid: false, error: "Request body is required."};
+  if (!isObject(body)) return fail("Request body is required.");
+  const e = requireStr(body, "orderId");
+  if (e) return e;
+  if (body.reason !== undefined && !(FAIL_REASONS as readonly string[]).includes(body.reason as string)) {
+    return fail(`reason must be one of: ${FAIL_REASONS.join(", ")}.`, "reason");
   }
-
-  const b = body as Record<string, unknown>;
-  if (!isNonEmptyString(b.orderId)) {
-    return {valid: false, error: "orderId is required.", field: "orderId"};
-  }
-  if (b.reason !== undefined && !(FAIL_REASONS as readonly string[]).includes(b.reason as string)) {
-    return {
-      valid: false,
-      error: `reason must be one of: ${FAIL_REASONS.join(", ")}.`,
-      field: "reason",
-    };
-  }
-
   return {valid: true};
 }
 
 export function validateCreateRazorpayOrder(body: unknown): ValidationResult {
-  if (!body || typeof body !== "object") {
-    return {valid: false, error: "Request body is required."};
-  }
-
-  const b = body as Record<string, unknown>;
-  if (!isPositiveNumber(b.amount)) {
-    return {valid: false, error: "amount must be a positive number.", field: "amount"};
-  }
-  if (!isNonEmptyString(b.orderId)) {
-    return {valid: false, error: "orderId is required.", field: "orderId"};
-  }
-
-  return {valid: true};
+  if (!isObject(body)) return fail("Request body is required.");
+  return requirePosNum(body, "amount") ?? requireStr(body, "orderId") ?? {valid: true};
 }
 
 export function validateRecordPayment(body: unknown): ValidationResult {
-  if (!body || typeof body !== "object") {
-    return {valid: false, error: "Request body is required."};
-  }
-
-  const b = body as Record<string, unknown>;
-  if (!isNonEmptyString(b.paymentId)) {
-    return {valid: false, error: "paymentId is required.", field: "paymentId"};
-  }
-  if (!isNonEmptyString(b.orderId)) {
-    return {valid: false, error: "orderId is required.", field: "orderId"};
-  }
-  if (!isPositiveNumber(b.amount)) {
-    return {valid: false, error: "amount must be a positive number.", field: "amount"};
-  }
-
-  return {valid: true};
+  if (!isObject(body)) return fail("Request body is required.");
+  return (
+    requireStr(body, "paymentId") ??
+    requireStr(body, "orderId") ??
+    requirePosNum(body, "amount") ??
+    {valid: true}
+  );
 }
 
 export function validateUpdateOrderStatus(body: unknown): ValidationResult {
-  if (!body || typeof body !== "object") {
-    return {valid: false, error: "Request body is required."};
-  }
-
-  const b = body as Record<string, unknown>;
-  if (!isNonEmptyString(b.orderId)) {
-    return {valid: false, error: "orderId is required.", field: "orderId"};
-  }
-  if (!isNonEmptyString(b.status) || !(ORDER_STATUSES as readonly string[]).includes(b.status as string)) {
-    return {
-      valid: false,
-      error: `status must be one of: ${ORDER_STATUSES.join(", ")}.`,
-      field: "status",
-    };
-  }
-
-  return {valid: true};
+  if (!isObject(body)) return fail("Request body is required.");
+  return requireStr(body, "orderId") ?? requireOneOf(body, "status", ORDER_STATUSES) ?? {valid: true};
 }
 
 export function validateUpdateProfile(body: unknown): ValidationResult {
-  if (!body || typeof body !== "object") {
-    return {valid: false, error: "Request body is required."};
+  if (!isObject(body)) return fail("Request body is required.");
+  if (body.displayName !== undefined && !isNonEmptyString(body.displayName)) {
+    return fail("displayName must be a non-empty string.", "displayName");
   }
-
-  const b = body as Record<string, unknown>;
-
-  if (
-    b.displayName !== undefined &&
-    (typeof b.displayName !== "string" || (b.displayName as string).trim().length === 0)
-  ) {
-    return {valid: false, error: "displayName must be a non-empty string.", field: "displayName"};
+  if (body.phone !== undefined && (typeof body.phone !== "string" || !/^\+[1-9]\d{6,14}$/.test(body.phone as string))) {
+    return fail("phone must be in E.164 format (e.g. +919876543210).", "phone");
   }
-
-  if (b.phone !== undefined) {
-    if (typeof b.phone !== "string" || !/^\+[1-9]\d{6,14}$/.test(b.phone as string)) {
-      return {
-        valid: false,
-        error: "phone must be in E.164 format (e.g. +919876543210).",
-        field: "phone",
-      };
-    }
+  if (body.photoURL !== undefined && !isNonEmptyString(body.photoURL)) {
+    return fail("photoURL must be a non-empty string.", "photoURL");
   }
-
-  if (
-    b.photoURL !== undefined &&
-    (typeof b.photoURL !== "string" || (b.photoURL as string).trim().length === 0)
-  ) {
-    return {valid: false, error: "photoURL must be a non-empty string.", field: "photoURL"};
+  if (body.displayName === undefined && body.phone === undefined && body.photoURL === undefined) {
+    return fail("At least one of displayName, phone, or photoURL is required.");
   }
-
-  if (
-    b.displayName === undefined &&
-    b.phone === undefined &&
-    b.photoURL === undefined
-  ) {
-    return {valid: false, error: "At least one of displayName, phone, or photoURL is required."};
-  }
-
   return {valid: true};
 }
 
 export function validateSetAdminClaim(body: unknown): ValidationResult {
-  if (!body || typeof body !== "object") {
-    return {valid: false, error: "Request body is required."};
-  }
-
-  const b = body as Record<string, unknown>;
-  if (!isNonEmptyString(b.targetUid)) {
-    return {valid: false, error: "targetUid is required.", field: "targetUid"};
-  }
-  if (typeof b.isAdmin !== "boolean") {
-    return {valid: false, error: "isAdmin must be a boolean.", field: "isAdmin"};
-  }
-
-  return {valid: true};
-}
-
-
-function validateProductFields(b: Record<string, unknown>, requireTitle: boolean): ValidationResult {
-  if (requireTitle && !isNonEmptyString(b.title)) {
-    return {valid: false, error: "title is required and must be a non-empty string.", field: "title"};
-  }
-
-  if (b.title !== undefined && !isNonEmptyString(b.title)) {
-    return {valid: false, error: "title must be a non-empty string.", field: "title"};
-  }
-
-  if (b.description !== undefined && typeof b.description !== "string") {
-    return {valid: false, error: "description must be a string.", field: "description"};
-  }
-
-  if (requireTitle && b.price === undefined) {
-    return {valid: false, error: "price is required.", field: "price"};
-  }
-
-  if (b.price !== undefined) {
-    if (typeof b.price !== "number" || !Number.isFinite(b.price) || b.price < 0) {
-      return {valid: false, error: "price must be a non-negative finite number.", field: "price"};
-    }
-  }
-
-  if (b.category !== undefined && !(PRODUCT_CATEGORIES as readonly string[]).includes(b.category as string)) {
-    return {
-      valid: false,
-      error: `category must be one of: ${PRODUCT_CATEGORIES.join(", ")}.`,
-      field: "category",
-    };
-  }
-
-  if (b.stock !== undefined && !(STOCK_STATUSES as readonly string[]).includes(b.stock as string)) {
-    return {
-      valid: false,
-      error: `stock must be one of: ${STOCK_STATUSES.join(", ")}.`,
-      field: "stock",
-    };
-  }
-
-  if (b.images !== undefined) {
-    if (!Array.isArray(b.images) || (b.images as unknown[]).some((i) => typeof i !== "string")) {
-      return {valid: false, error: "images must be an array of strings.", field: "images"};
-    }
-  }
-
-  if (b.sizes !== undefined) {
-    if (!Array.isArray(b.sizes) || (b.sizes as unknown[]).some((s) => typeof s !== "string")) {
-      return {valid: false, error: "sizes must be an array of strings.", field: "sizes"};
-    }
-  }
-
+  if (!isObject(body)) return fail("Request body is required.");
+  const e = requireStr(body, "targetUid");
+  if (e) return e;
+  if (typeof body.isAdmin !== "boolean") return fail("isAdmin must be a boolean.", "isAdmin");
   return {valid: true};
 }
 
 export function validateCreateProduct(body: unknown): ValidationResult {
-  if (!body || typeof body !== "object") {
-    return {valid: false, error: "Request body is required."};
-  }
-
-  return validateProductFields(body as Record<string, unknown>, true);
+  if (!isObject(body)) return fail("Request body is required.");
+  return validateProductFields(body, true);
 }
 
 export function validateUpdateProduct(body: unknown): ValidationResult {
-  if (!body || typeof body !== "object") {
-    return {valid: false, error: "Request body is required."};
-  }
-
-  const b = body as Record<string, unknown>;
+  if (!isObject(body)) return fail("Request body is required.");
   const allowed: Array<keyof UpdateProductBody> = [
-    "title", "description", "price", "category", "images", "sizes", "stock",
+    "title", "description", "price", "category", "images", "sizes", "stock", "sizeInventory",
   ];
-  const hasUpdateField = allowed.some((k) => b[k] !== undefined);
-  if (!hasUpdateField) {
-    return {valid: false, error: "At least one field to update is required."};
+  if (!allowed.some((k) => body[k] !== undefined)) {
+    return fail("At least one field to update is required.");
   }
+  return validateProductFields(body, false);
+}
 
-  return validateProductFields(b, false);
+// Strong password: min 8 chars, ≥1 upper, ≥1 lower, ≥1 digit, ≥1 special char
+const STRONG_PASSWORD_RE =
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()\-_=+[\]{};':"\\|,.<>/?]).{8,}$/;
+
+const PHONE_RE = /^\+?[0-9]{10,15}$/;
+
+export function validateSignup(body: unknown): ValidationResult {
+  if (!isObject(body)) return fail("Invalid request body.");
+  const usernameErr = requireStr(body, "username", "Username");
+  if (usernameErr) return usernameErr;
+  const ulen = (body.username as string).trim().length;
+  if (ulen < 2 || ulen > 50) return fail("Username must be 2–50 characters.", "username");
+  if (!isEmail(body.email)) return fail("A valid email address is required.", "email");
+  const pwErr = requireStr(body, "password", "Password");
+  if (pwErr) return pwErr;
+  if (!STRONG_PASSWORD_RE.test(body.password as string)) {
+    return fail(
+      "Password must be ≥8 characters with uppercase, lowercase, digit, and special character.",
+      "password"
+    );
+  }
+  if (typeof body.age !== "number" || !Number.isInteger(body.age) || body.age < 13 || body.age > 120) {
+    return fail("Age must be an integer between 13 and 120.", "age");
+  }
+  if (body.gender !== "male" && body.gender !== "female") {
+    return fail("Gender must be 'male' or 'female'.", "gender");
+  }
+  if (!isNonEmptyString(body.mobileNumber) || !PHONE_RE.test((body.mobileNumber as string).trim())) {
+    return fail("A valid mobile number (10–15 digits) is required.", "mobileNumber");
+  }
+  if (body.address !== undefined && body.address !== null && typeof body.address !== "string") {
+    return fail("Address must be a string.", "address");
+  }
+  return {valid: true};
+}
+
+export function validateLogin(body: unknown): ValidationResult {
+  if (!isObject(body)) return fail("Invalid request body.");
+  if (!isEmail(body.email)) return fail("A valid email address is required.", "email");
+  return requireStr(body, "password", "Password") ?? {valid: true};
 }

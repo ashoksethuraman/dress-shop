@@ -4,7 +4,8 @@ import { clearCart } from '../store/cartSlice';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { generateOrderId } from '../utils/generateOrderId';
-import { paymentsApi, ordersApi } from '../services/apiClient';
+import { paymentsApi, ordersApi } from '../services/apiClient'; // backend
+// import { firestorePaymentsApi as paymentsApi, firestoreOrdersApi as ordersApi } from '../services/firestoreClient'; // direct firestore
 import { initRazorpayPayment, preloadRazorpayScript } from '../services/paymentService';
 import { FiChevronDown, FiChevronUp, FiLock, FiShoppingBag, FiArrowLeft } from 'react-icons/fi';
 import { CheckoutFormState } from '../utils/types';
@@ -101,7 +102,7 @@ export default function CheckoutPage() {
       const normalizeAddr = (a: typeof form.shippingAddress): AddressPayload => ({
         name:    `${a.firstName} ${a.lastName}`.trim(),
         line1:   a.address,
-        line2:   a.apartment || undefined,
+        line2:   a.apartment || null,
         city:    a.city,
         state:   a.state,
         pincode: a.pinCode,
@@ -348,11 +349,19 @@ export default function CheckoutPage() {
         <AlertModal
           type="warning"
           title="Some items in your cart are unavailable"
-          messages={stockIssues.map((i) =>
-            i.reason === 'not_found'
-              ? `"${i.title}" is no longer available — please remove it from your cart.`
-              : `"${i.title}" is out of stock — please remove it from your cart.`
-          )}
+          messages={stockIssues.map((i) => {
+            const sizeText = i.size ? ` (Size ${i.size})` : '';
+            if (i.reason === 'not_found') {
+              return `"${i.title}"${sizeText} is no longer available — please remove it from your cart.`;
+            }
+            if (i.reason === 'size_unavailable') {
+              return `"${i.title}"${sizeText} is not available anymore — please choose another size.`;
+            }
+            if (i.reason === 'insufficient_stock') {
+              return `"${i.title}"${sizeText} has only ${i.availableQty ?? 0} left, but your cart has ${i.requestedQty ?? 0}.`;
+            }
+            return `"${i.title}"${sizeText} is out of stock — please update your cart.`;
+          })}
           onClose={() => setStockIssues(null)}
           actionLabel="Go to Cart"
           onAction={() => { setStockIssues(null); navigate('/cart'); }}

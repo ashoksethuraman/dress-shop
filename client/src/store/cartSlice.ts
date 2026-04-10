@@ -18,7 +18,9 @@ const slice = createSlice({
         (i) => i.productId === item.productId && (i.size ?? null) === (item.size ?? null)
       );
       if (found) {
-        found.qty += item.qty;
+        const cap = found.maxQty ?? item.maxQty ?? Infinity;
+        found.qty = Math.min(found.qty + item.qty, cap);
+        if (item.maxQty !== undefined) found.maxQty = item.maxQty;
       } else {
         state.items.push(item);
       }
@@ -37,7 +39,7 @@ const slice = createSlice({
       const f = state.items.find(
         (i) => i.productId === productId && (i.size ?? null) === (size ?? null)
       );
-      if (f) f.qty = qty;
+      if (f) f.qty = f.maxQty !== undefined ? Math.min(qty, f.maxQty) : qty;
     },
   },
 });

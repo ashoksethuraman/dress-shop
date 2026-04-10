@@ -1,5 +1,6 @@
 import { createApi, fakeBaseQuery } from '@reduxjs/toolkit/query/react';
-import { productsApi, ordersApi } from '../services/apiClient';
+import { productsApi, ordersApi } from '../services/apiClient'; // backend
+// import { firestoreProductsApi as productsApi, firestoreOrdersApi as ordersApi } from '../services/firestoreClient'; // direct firestore
 import type { Product } from '../utils/types';
 import type { StoredOrder, TrackOrderResponse } from '../utils/apiTypes';
 

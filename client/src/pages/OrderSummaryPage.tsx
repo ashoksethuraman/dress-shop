@@ -49,69 +49,60 @@ export default function OrderSummaryPage() {
         <div className="grid lg:grid-cols-[1fr_360px] gap-8 items-start">
 
           {/* ══ LEFT: Item list ══ */}
-          <div className="flex flex-col gap-4">
-
-            {/* Header row */}
-            <div className="hidden sm:grid grid-cols-[1fr_auto_auto_auto] gap-4 px-4 text-xs font-semibold uppercase tracking-wide text-gray-400">
-              <span>Product</span>
-              <span className="w-28 text-center">Quantity</span>
-              <span className="w-20 text-right">Price</span>
-              <span className="w-8" />
-            </div>
-
-            {/* Items */}
+          <div className="flex flex-col gap-4">            {/* Items */}
             {items.map((it) => (
               <div
                 key={`${it.productId}-${it.size ?? 'none'}`}
-                className="flex items-center gap-4 bg-white rounded-2xl px-4 py-4 shadow-sm"
+                className="bg-white rounded-2xl px-4 py-4 shadow-sm"
               >
-                {/* Thumbnail placeholder */}
-                <div className="w-16 h-16 rounded-xl bg-indigo-50 flex items-center justify-center flex-shrink-0 border border-indigo-100">
-                  <FiShoppingBag size={22} className="text-indigo-300" />
-                </div>
-
-                {/* Title + unit price */}
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm text-gray-800 truncate">{it.title}</p>
-                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                    {it.size && (
-                      <span className="text-xs bg-indigo-50 text-indigo-600 border border-indigo-200 font-semibold px-2 py-0.5 rounded">Size: {it.size}</span>
-                    )}
-                    <span className="text-xs text-gray-400">₹{it.price.toFixed(2)} each</span>
+                {/* Row 1: thumbnail + info + remove */}
+                <div className="flex items-start gap-3">
+                  <div className="w-14 h-14 rounded-xl bg-indigo-50 flex items-center justify-center flex-shrink-0 border border-indigo-100">
+                    <FiShoppingBag size={20} className="text-indigo-300" />
                   </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm text-gray-800 line-clamp-2 leading-snug">{it.title}</p>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      {it.size && (
+                        <span className="text-xs bg-indigo-50 text-indigo-600 border border-indigo-200 font-semibold px-2 py-0.5 rounded">
+                          Size: {it.size}
+                        </span>
+                      )}
+                      <span className="text-xs text-gray-400">₹{it.price.toFixed(2)} each</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => dispatch(removeFromCart({ productId: it.productId, size: it.size }))}
+                    className="text-red-400 hover:text-red-600 transition-colors p-1 flex-shrink-0"
+                    title="Remove item"
+                  >
+                    <FiTrash2 size={15} />
+                  </button>
                 </div>
 
-                {/* Qty stepper */}
-                <div className="flex items-center gap-1.5 border border-gray-200 rounded-xl overflow-hidden">
-                  <button
-                    onClick={() => dispatch(setQty({ productId: it.productId, size: it.size, qty: it.qty - 1 }))}
-                    disabled={it.qty <= 1}
-                    className="px-2.5 py-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-30 transition-colors text-base font-bold"
-                  >
-                    −
-                  </button>
-                  <span className="w-7 text-center text-sm font-semibold text-gray-800">{it.qty}</span>
-                  <button
-                    onClick={() => dispatch(setQty({ productId: it.productId, size: it.size, qty: it.qty + 1 }))}
-                    className="px-2.5 py-1.5 text-gray-500 hover:bg-gray-100 transition-colors text-base font-bold"
-                  >
-                    +
-                  </button>
+                {/* Row 2: qty stepper + line total */}
+                <div className="flex items-center justify-between mt-3 pl-[68px]">
+                  <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden">
+                    <button
+                      onClick={() => dispatch(setQty({ productId: it.productId, size: it.size, qty: it.qty - 1 }))}
+                      disabled={it.qty <= 1}
+                      className="px-3 py-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-30 transition-colors font-bold"
+                    >
+                      −
+                    </button>
+                    <span className="w-8 text-center text-sm font-semibold text-gray-800">{it.qty}</span>
+                    <button
+                      onClick={() => dispatch(setQty({ productId: it.productId, size: it.size, qty: it.qty + 1 }))}
+                      disabled={it.maxQty !== undefined && it.qty >= it.maxQty}
+                      className="px-3 py-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-30 transition-colors font-bold"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <span className="font-bold text-sm text-gray-800">
+                    ₹{(it.price * it.qty).toFixed(2)}
+                  </span>
                 </div>
-
-                {/* Line total */}
-                <span className="w-20 text-right font-bold text-sm text-gray-800">
-                  ₹{(it.price * it.qty).toFixed(2)}
-                </span>
-
-                {/* Remove */}
-                <button
-                  onClick={() => dispatch(removeFromCart({ productId: it.productId, size: it.size }))}
-                  className="text-red-400 hover:text-red-600 transition-colors p-1 flex-shrink-0"
-                  title="Remove item"
-                >
-                  <FiTrash2 size={15} />
-                </button>
               </div>
             ))}
 

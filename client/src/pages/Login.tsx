@@ -2,9 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { FiUser, FiLock } from 'react-icons/fi';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { setUser } from '../store/userSlice';
+import { addToCart } from '../store/cartSlice';
+import { setWishlist } from '../store/wishlistSlice';
 import { authService } from '../services/authService';
-import { useNavigate } from 'react-router-dom';
+import { authApi, userApi } from '../services/apiClient';
+import { useNavigate, Link } from 'react-router-dom';
 import Alert, { AlertType } from '../components/Alert';
+import { loadCart, loadWishlist } from '../services/guestSession';
 
 interface AlertState { type: AlertType; message: string; }
 
@@ -34,45 +38,70 @@ export default function Login() {
     setAlert(null);
     setLoading(true);
     try {
-      const fbUser = await authService.signInWithEmail(username, password);
-      if (fbUser) {
-        const { claims } = await fbUser.getIdTokenResult();
-        dispatch(setUser({
-          id:       fbUser.uid,
-          name:     fbUser.displayName || fbUser.email || username,
-          photoURL: fbUser.photoURL   || undefined,
-          isGuest:  false,
-          isAdmin:  claims['isAdmin'] === true || claims['role'] === 'admin',
-        }));
-        navigate('/');
+      const response = await authApi.login({ email: username, password });
+      authService.setCustomJwt(response.token);
+      dispatch(setUser({
+        id:      response.user.uid,
+        name:    response.user.username || response.user.email || username,
+        isGuest: false,
+        isAdmin: response.user.role === 'admin',
+      }));
+
+      // Load backend cart + wishlist, merge with any local items
+      try {
+        const [backendCart, backendWishlist] = await Promise.all([
+          userApi.getCart(),
+          userApi.getWishlist(),
+        ]);
+
+        // Merge: backend wins for qty; local items not in backend are added
+        const localCart = loadCart();
+        const mergedMap = new Map<string, { productId: string; qty: number; size: string | null }>();
+        for (const item of backendCart.cart) {
+          mergedMap.set(`${item.productId}__${item.size ?? ''}`, { ...item, size: item.size ?? null });
+        }
+        for (const item of localCart) {
+          const key = `${item.productId}__${item.size ?? ''}`;
+          if (!mergedMap.has(key)) {
+            mergedMap.set(key, { productId: item.productId, qty: item.qty, size: item.size ?? null });
+          }
+        }
+        Array.from(mergedMap.values()).forEach((item) => {
+          dispatch(addToCart({ productId: item.productId, title: '', price: 0, qty: item.qty, size: item.size }));
+        });
+
+        // Merge wishlist: union of backend + local
+        const localWishlist = loadWishlist();
+        const merged = Array.from(new Set([...backendWishlist.wishlist, ...localWishlist]));
+        dispatch(setWishlist(merged));
+      } catch {
+        // non-fatal — localStorage state is already loaded
       }
+
+      navigate('/');
     } catch (e: any) {
-      setAlert({ type: 'error', message: e.message || 'Login failed. Please try again.' });
+      setAlert({ type: 'error', message: e?.body?.error ?? e?.message ?? 'Login failed. Please try again.' });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGuestLogin = async () => {
-    setAlert(null);
-    setLoading(true);
-    try {
-      const fbUser = await authService.signInGuest('Guest');
-      if (fbUser) {
-        dispatch(setUser({ id: fbUser.uid, name: 'Guest', isGuest: true }));
-        navigate('/');
-      }
-    } catch (e: any) {
-      setAlert({ type: 'error', message: e.message || 'Guest login failed.' });
-    } finally {
-      setLoading(false);
-    }
+  const handleGuestLogin = () => {
+    const guestUser = authService.signInGuest();
+    dispatch(setUser(guestUser));
+    navigate('/');
   };
 
   return (
     <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center bg-gradient-to-br from-indigo-50 to-slate-100 px-4">
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-lg p-8">
-        <h1 className="text-2xl font-extrabold text-primary text-center mb-6 tracking-tight">Welcome App</h1>
+        <h1 className="text-2xl font-extrabold text-primary text-center mb-1 tracking-tight">Welcome App</h1>
+        <p className="text-center text-sm text-gray-500 mb-6">
+          Don't have an account?{' '}
+          <Link to="/signup" className="text-indigo-500 font-semibold hover:underline">
+            Sign up
+          </Link>
+        </p>
 
         {alert && (
           <Alert type={alert.type} message={alert.message} onClose={() => setAlert(null)} />

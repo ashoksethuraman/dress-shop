@@ -12,6 +12,138 @@ import {
 
 export const ordersRouter = Router();
 
+type StockIssueReason =
+  | "not_found"
+  | "out_of_stock"
+  | "size_unavailable"
+  | "insufficient_stock";
+
+interface StockValidationIssue {
+  productId: string;
+  title: string;
+  reason: StockIssueReason;
+  size?: string | null;
+  requestedQty?: number;
+  availableQty?: number;
+}
+
+async function validateOrderStock(items: CreateOrderBody["items"]): Promise<StockValidationIssue[]> {
+  const requested = new Map<string, {productId: string; size: string | null; qty: number; title: string}>();
+  for (const item of items) {
+    const size = typeof item.size === "string" && item.size.trim().length > 0 ? item.size.trim() : null;
+    const key = `${item.productId}::${size ?? "__noSize"}`;
+    const prev = requested.get(key);
+    if (prev) {
+      prev.qty += item.qty;
+    } else {
+      requested.set(key, {productId: item.productId, size, qty: item.qty, title: item.title});
+    }
+  }
+
+  const productIds = Array.from(new Set(Array.from(requested.values()).map((r) => r.productId)));
+  const products = new Map<string, FirebaseFirestore.DocumentSnapshot>();
+  await Promise.all(productIds.map(async (productId) => {
+    const snap = await db.doc(`products/${productId}`).get();
+    products.set(productId, snap);
+  }));
+
+  const issues: StockValidationIssue[] = [];
+
+  for (const reqItem of requested.values()) {
+    const snap = products.get(reqItem.productId);
+    if (!snap || !snap.exists) {
+      issues.push({
+        productId: reqItem.productId,
+        title: reqItem.title,
+        reason: "not_found",
+        size: reqItem.size,
+        requestedQty: reqItem.qty,
+      });
+      continue;
+    }
+
+    const product = snap.data() as Record<string, unknown>;
+    const resolvedTitle = typeof product.title === "string" && product.title.trim().length > 0 ? product.title : reqItem.title;
+
+    if (product.stock === "out_of_stock") {
+      issues.push({
+        productId: reqItem.productId,
+        title: resolvedTitle,
+        reason: "out_of_stock",
+        size: reqItem.size,
+        requestedQty: reqItem.qty,
+      });
+      continue;
+    }
+
+    const inv = (product.sizeInventory ?? {}) as Record<string, unknown>;
+    const sizes = Array.isArray(product.sizes) ? (product.sizes as unknown[]) : [];
+
+    if (reqItem.size !== null) {
+      const hasSize = sizes.length === 0 || sizes.includes(reqItem.size);
+      if (!hasSize) {
+        issues.push({
+          productId: reqItem.productId,
+          title: resolvedTitle,
+          reason: "size_unavailable",
+          size: reqItem.size,
+          requestedQty: reqItem.qty,
+        });
+        continue;
+      }
+
+      const available = inv[reqItem.size];
+      if (typeof available === "number") {
+        if (available <= 0) {
+          issues.push({
+            productId: reqItem.productId,
+            title: resolvedTitle,
+            reason: "out_of_stock",
+            size: reqItem.size,
+            requestedQty: reqItem.qty,
+            availableQty: 0,
+          });
+          continue;
+        }
+        if (reqItem.qty > available) {
+          issues.push({
+            productId: reqItem.productId,
+            title: resolvedTitle,
+            reason: "insufficient_stock",
+            size: reqItem.size,
+            requestedQty: reqItem.qty,
+            availableQty: available,
+          });
+          continue;
+        }
+      }
+    } else if (typeof inv["__noSize"] === "number") {
+      const available = inv["__noSize"] as number;
+      if (available <= 0) {
+        issues.push({
+          productId: reqItem.productId,
+          title: resolvedTitle,
+          reason: "out_of_stock",
+          requestedQty: reqItem.qty,
+          availableQty: 0,
+        });
+        continue;
+      }
+      if (reqItem.qty > available) {
+        issues.push({
+          productId: reqItem.productId,
+          title: resolvedTitle,
+          reason: "insufficient_stock",
+          requestedQty: reqItem.qty,
+          availableQty: available,
+        });
+      }
+    }
+  }
+
+  return issues;
+}
+
 function toIso(ts: unknown): string | null {
   return (ts as FirebaseFirestore.Timestamp)?.toDate?.()?.toISOString() ?? null;
 }
@@ -26,6 +158,15 @@ ordersRouter.post(
     const userEmail = req.user?.email ?? body.contactEmail ?? null;
 
     try {
+      const issues = await validateOrderStock(body.items);
+      if (issues.length > 0) {
+        res.status(422).json({
+          error: "Some items in your cart are unavailable or no longer in stock.",
+          issues,
+        });
+        return;
+      }
+
       const orderId = body.id ?? db.collection("orders").doc().id;
 
       await db.doc(`orders/${orderId}`).set({
@@ -172,7 +313,7 @@ ordersRouter.get("/:id", authenticate, async (req: Request, res: Response) => {
     }
 
     const data = snap.data()!;
-    if (data.userId !== req.user!.uid && !req.user!["isAdmin"]) {
+    if (data.userId !== req.user!.uid && req.user!.role !== "admin") {
       res.status(403).json({error: "Access denied."});
       return;
     }

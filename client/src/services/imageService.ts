@@ -1,16 +1,3 @@
-import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage';
-import { getFirebaseApp } from './firebaseClient';
-import { v4 as uuidv4 } from "uuid";
-
-const FUNCTIONS_BASE =
-  process.env.REACT_APP_FUNCTIONS_BASE_URL ||
-  `https://asia-south1-shopping-app-63a1f.cloudfunctions.net`;
-
-export function generateImageName(category: string, title?: string): string {
-  const rand = uuidv4();
-  return `shopping-app-${rand}.jpg`;
-}
-
 function compressToDataUrl(file: File): Promise<string> {
   return new Promise((resolve) => {
     const img = new Image();
@@ -52,38 +39,10 @@ export async function checkImageSize(file: File): Promise<string> {
 
 export async function uploadImage(
   file: File,
-  category: string,
-  title: string,
+  _category: string,
+  _title: string,
 ): Promise<string> {
-  const filename = generateImageName(category, title);
-
-  const storageMode =
-    process.env.REACT_APP_IMAGE_STORAGE ||
-    (process.env.REACT_APP_USE_EMULATOR === 'true' ? 'local' : 'firebase');
-
-  const base64 = await checkImageSize(file);
-
-  if (storageMode === 'local') {
-    const resp = await fetch(`${FUNCTIONS_BASE}/images/upload`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ base64, filename }),
-    });
-    if (!resp.ok) {
-      const body = await resp.text();
-      throw new Error(`Local image upload failed (${resp.status}): ${body}`);
-    }
-    const { path } = await resp.json();
-    return path as string; // '/assets/{filename}'
-  }
-
-  const app = getFirebaseApp();
-  if (!app) throw new Error('Firebase app not initialised — check firebaseClient.ts');
-  const storage = getStorage(app);
-  const storageRef = ref(storage, `products/${filename}`);
-  await uploadString(storageRef, base64, 'data_url');
-  const downloadUrl = await getDownloadURL(storageRef);
-  return downloadUrl;
+  return checkImageSize(file);
 }
 
 export async function uploadImages(

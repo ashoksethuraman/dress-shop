@@ -1,13 +1,31 @@
 import { configureStore, Middleware } from '@reduxjs/toolkit';
 import userReducer from './userSlice';
 import cartReducer from './cartSlice';
-import { saveCart, loadCart } from '../services/guestSession';
+import wishlistReducer from './wishlistSlice';
+import { saveCart, loadCart, saveWishlist, loadWishlist } from '../services/guestSession';
+import { scheduleSyncCart, scheduleSyncWishlist } from '../services/syncService';
 import { dressShopApi } from './apiSlice';
 
 const cartPersistMiddleware: Middleware = (storeAPI) => (next) => (action) => {
   const result = next(action);
-  if ((action as any).type?.startsWith('cart/')) {
-    saveCart(storeAPI.getState().cart.items);
+  if ((action as { type?: string }).type?.startsWith('cart/')) {
+    const state = storeAPI.getState() as RootState;
+    const items = state.cart.items;
+    saveCart(items);
+    const isLoggedIn = !!(state.user.user && !state.user.user.isGuest);
+    scheduleSyncCart(items, isLoggedIn);
+  }
+  return result;
+};
+
+const wishlistPersistMiddleware: Middleware = (storeAPI) => (next) => (action) => {
+  const result = next(action);
+  if ((action as { type?: string }).type?.startsWith('wishlist/')) {
+    const state = storeAPI.getState() as RootState;
+    const ids = state.wishlist.ids;
+    saveWishlist(ids);
+    const isLoggedIn = !!(state.user.user && !state.user.user.isGuest);
+    scheduleSyncWishlist(ids, isLoggedIn);
   }
   return result;
 };
@@ -16,13 +34,19 @@ export const store = configureStore({
   reducer: {
     user: userReducer,
     cart: cartReducer,
+    wishlist: wishlistReducer,
     [dressShopApi.reducerPath]: dressShopApi.reducer,
   },
   preloadedState: {
     cart: { items: loadCart() },
+    wishlist: { ids: loadWishlist() },
   },
   middleware: (getDefaultMiddleware) =>
-    getDefaultMiddleware().concat(cartPersistMiddleware, dressShopApi.middleware),
+    getDefaultMiddleware().concat(
+      cartPersistMiddleware,
+      wishlistPersistMiddleware,
+      dressShopApi.middleware,
+    ),
 });
 
 export type RootState = ReturnType<typeof store.getState>;

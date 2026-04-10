@@ -5,9 +5,19 @@ import AdminRoute from './components/AdminRoute';
 import SideMenu from './components/SideMenu';
 import { useAppSelector } from './store/hooks';
 import Loader from './components/Loader';
+import { loadingBus } from './services/loadingBus';
 
-// Lazy-load all pages so each route is only downloaded when first visited
+function useApiLoadingCount(): number {
+  const [count, setCount] = useState(loadingBus.getCount);
+  useEffect(() => {
+    loadingBus.subscribe(setCount);
+    return () => loadingBus.unsubscribe();
+  }, []);
+  return count;
+}
+
 const Login             = lazy(() => import('./pages/Login'));
+const SignupPage        = lazy(() => import('./pages/SignupPage'));
 const HomePage          = lazy(() => import('./pages/HomePage'));
 const ProductDetailsPage = lazy(() => import('./pages/ProductDetailsPage'));
 const CartPage          = lazy(() => import('./pages/CartPage'));
@@ -18,6 +28,8 @@ const ContactUsPage     = lazy(() => import('./pages/ContactUsPage'));
 const AboutPage         = lazy(() => import('./pages/AboutPage'));
 const ShippingPage      = lazy(() => import('./pages/ShippingPage'));
 const AdminPage         = lazy(() => import('./pages/AdminPage'));
+const ProfilePage       = lazy(() => import('./pages/ProfilePage'));
+const WishlistPage      = lazy(() => import('./pages/WishlistPage'));
 
 const PageFallback = () => <Loader fullPage label="Loading…" />;
 
@@ -30,7 +42,7 @@ function AppLayout() {
   const prevCount = useRef(cartCount);
   const location = useLocation();
 
-  const isAuthPage = location.pathname === '/auth';
+  const isAuthPage = location.pathname === '/auth' || location.pathname === '/signup';
 
   useEffect(() => {
     if (cartCount > prevCount.current) {
@@ -58,12 +70,13 @@ function AppLayout() {
     });
   };
 
-  // px offset for the sidebar: 240px expanded, 64px collapsed (desktop ≥992px only)
-  // No offset on the auth/login page
   const sideWidth = isAuthPage ? '' : sideCollapsed ? 'min-[992px]:pl-16' : 'min-[992px]:pl-60';
+
+  const apiLoadingCount = useApiLoadingCount();
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
+        {apiLoadingCount > 0 && <Loader fullPage />}
         <Navbar
           mobileOpen={mobileOpen}
           setMobileOpen={setMobileOpen}
@@ -83,6 +96,7 @@ function AppLayout() {
           <Suspense fallback={<PageFallback />}>
             <Routes>
             <Route path="/auth" element={<Login />} />
+            <Route path="/signup" element={<SignupPage />} />
             <Route path="/" element={<HomePage />} />
             <Route path="/product/:id" element={<ProductDetailsPage />} />
             <Route path="/cart" element={<CartPage />} />
@@ -93,6 +107,8 @@ function AppLayout() {
             <Route path="/shipping" element={<ShippingPage />} />
             <Route path="/order-success" element={<OrderStatusPage />} />
             <Route path="/order-failure" element={<OrderStatusPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/wishlist" element={<WishlistPage />} />
             <Route
               path="/admin"
               element={

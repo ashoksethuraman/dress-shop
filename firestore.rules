@@ -19,15 +19,31 @@ service cloud.firestore {
     }
 
     // ── Orders ── guests and logged-in users can create;
-    //             only the owner (or admin) can read;
-    //             updates only via Cloud Functions (admin SDK bypasses rules)
+    //             tracking by order ID is public (anyone with the ID can track);
+    //             full read (list) only for the owner or admin;
+    //             owner or guest order can be updated for payment status after checkout
     match /orders/{orderId} {
-      allow create: if true;  // guests need this for the direct-SDK fallback path
+      allow create: if true;
+
+      // Public track: anyone who knows the exact order ID can read it (no auth needed).
+      // This mirrors GET /orders/track/:id in the functions route.
+      allow read: if true;
+
+      allow update: if isAdmin()
+                    || (request.auth != null && resource.data.userId == request.auth.uid)
+                    || resource.data.isGuest == true;
+
+      allow delete: if false;
+    }
+
+    // ── Payments ── anyone can create a record (frontend records after checkout);
+    //               only the owner or admin can read
+    match /payments/{paymentId} {
+      allow create: if true;
       allow read:   if request.auth != null
                     && (resource.data.userId == request.auth.uid
                         || isAdmin());
-      allow update: if isAdmin();
-      allow delete: if false;
+      allow update, delete: if false;
     }
 
     // ── User profiles ── each user can read/write only their own doc

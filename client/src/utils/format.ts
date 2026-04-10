@@ -1,9 +1,3 @@
-/**
- * Shared formatting utilities.
- * Import individual functions — tree-shaking will drop unused ones.
- */
-
-/** Format a price value as an Indian Rupee string: ₹1,234.56 */
 export function formatPrice(price: number): string {
   return `₹${price.toFixed(2)}`;
 }
@@ -19,12 +13,6 @@ interface AddressLike {
   phone?:   string;
 }
 
-/**
- * Convert a stored address object (AddressPayload schema) into an ordered
- * array of non-empty display lines suitable for rendering or PDF output.
- *
- * Stored schema: { name, line1, line2?, city, state, pincode, country, phone }
- */
 export function formatAddressLines(addr: AddressLike): string[] {
   const cityLine =
     addr.city && addr.state

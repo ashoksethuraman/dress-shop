@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useGetProductByIdQuery } from '../store/apiSlice';
-import { useAppDispatch } from '../store/hooks';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { addToCart } from '../store/cartSlice';
+import { toggleWishlist } from '../store/wishlistSlice';
 import { getPriceLevel, BADGE_COLORS } from '../utils/priceLevel';
 import { formatPrice } from '../utils/format';
-import { FiChevronLeft, FiChevronRight, FiShoppingCart, FiStar } from 'react-icons/fi';
+import { FiChevronLeft, FiChevronRight, FiShoppingCart, FiStar, FiHeart } from 'react-icons/fi';
 import { resolveImageUrl } from '../config/imageConfig';
 
 export default function ProductDetailsPage() {
@@ -15,9 +16,10 @@ export default function ProductDetailsPage() {
   const [sizeError, setSizeError]       = useState(false);
   const [added, setAdded]               = useState(false);
   const dispatch = useAppDispatch();
+  const wishlisted = useAppSelector((s) => s.wishlist.ids.includes(id ?? ''));
+  const cartItems = useAppSelector((s) => s.cart.items);
+  const [cartError, setCartError]        = useState<string | null>(null);
 
-  // RTK Query: 5-minute in-memory cache keyed by product ID.
-  // The same data is served instantly on back-navigation without a network hit.
   const { data: product, isLoading } = useGetProductByIdQuery(id!, { skip: !id });
 
   if (isLoading || !product) return (
@@ -37,7 +39,32 @@ export default function ProductDetailsPage() {
       setSizeError(true);
       return;
     }
-    dispatch(addToCart({ productId: product.id, title: product.title, price: product.price, qty: 1, size: selectedSize, stock: product.stock ?? 'available' }));
+
+    // Inventory check for selected size
+    if (selectedSize && product.sizeInventory) {
+      const available = product.sizeInventory[selectedSize];
+      if (available !== undefined) {
+        if (available === 0) {
+          setCartError(`Size ${selectedSize} is currently out of stock.`);
+          return;
+        }
+        const alreadyInCart = cartItems.find(
+          (i) => i.productId === product.id && i.size === selectedSize
+        )?.qty ?? 0;
+        if (alreadyInCart >= available) {
+          setCartError(`Only ${available} unit${available !== 1 ? 's' : ''} available in size ${selectedSize}.`);
+          return;
+        }
+      }
+    }
+
+    setCartError(null);
+    const available = selectedSize ? (product.sizeInventory?.[selectedSize]) : undefined;
+    dispatch(addToCart({
+      productId: product.id, title: product.title, price: product.price, qty: 1,
+      size: selectedSize, stock: product.stock ?? 'available',
+      maxQty: available,
+    }));
     setAdded(true);
     setTimeout(() => setAdded(false), 1200);
   };
@@ -194,21 +221,29 @@ export default function ProductDetailsPage() {
                 <button className="text-xs text-indigo-500 hover:underline font-medium">Size Chart →</button>
               </div>
               <div className="flex gap-2 flex-wrap">
-                {product.sizes.map((sz: string) => (
-                  <button
-                    key={sz}
-                    onClick={() => { setSelectedSize(sz); setSizeError(false); }}
-                    className={`w-12 h-12 rounded-full border-2 text-sm font-semibold transition-all duration-150 ${
-                      selectedSize === sz
-                        ? 'border-indigo-500 bg-indigo-500 text-white shadow-md scale-105'
-                        : sizeError
-                        ? 'border-red-400 text-gray-700 hover:border-indigo-300 hover:text-indigo-500'
-                        : 'border-gray-300 text-gray-700 hover:border-indigo-300 hover:text-indigo-500'
-                    }`}
-                  >
-                    {sz}
-                  </button>
-                ))}
+                {product.sizes.map((sz: string) => {
+                  const inv = product.sizeInventory?.[sz];
+                  const sizeOos = inv !== undefined && inv === 0;
+                  return (
+                    <button
+                      key={sz}
+                      disabled={sizeOos}
+                      onClick={() => { if (!sizeOos) { setSelectedSize(sz); setSizeError(false); setCartError(null); } }}
+                      className={`w-12 h-12 rounded-full border-2 text-sm font-semibold transition-all duration-150 ${
+                        sizeOos
+                          ? 'border-gray-200 bg-gray-50 text-gray-300 cursor-not-allowed line-through'
+                          : selectedSize === sz
+                          ? 'border-indigo-500 bg-indigo-500 text-white shadow-md scale-105'
+                          : sizeError
+                          ? 'border-red-400 text-gray-700 hover:border-indigo-300 hover:text-indigo-500'
+                          : 'border-gray-300 text-gray-700 hover:border-indigo-300 hover:text-indigo-500'
+                      }`}
+                      title={sizeOos ? 'Out of stock' : undefined}
+                    >
+                      {sz}
+                    </button>
+                  );
+                })}
               </div>
               {sizeError && (
                 <p className="text-xs text-red-500 font-medium mt-1.5">Please select a size before adding to bag.</p>
@@ -225,6 +260,11 @@ export default function ProductDetailsPage() {
           )}
 
           {/* Action buttons */}
+          {cartError && (
+            <div className="flex items-center gap-2 px-4 py-2.5 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm font-medium">
+              {cartError}
+            </div>
+          )}
           <div className="flex gap-3 mt-2">
             <button
               onClick={handleAddToCart}
@@ -238,7 +278,19 @@ export default function ProductDetailsPage() {
               }`}
             >
               <FiShoppingCart size={16} />
-              {product.stock === 'out_of_stock' ? 'Out of Stock' : added ? '✓ Added to Bag' : 'Add to Bag'}
+              {product.stock === 'out_of_stock' ? 'Out of Stock' : added ? '\u2713 Added to Bag' : 'Add to Bag'}
+            </button>
+            <button
+              onClick={() => dispatch(toggleWishlist(product.id))}
+              className={`flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl border-2 font-bold text-sm transition-all duration-200 ${
+                wishlisted
+                  ? 'bg-rose-50 border-rose-300 text-rose-500 hover:bg-rose-100'
+                  : 'border-gray-200 text-gray-500 hover:border-rose-300 hover:text-rose-500'
+              }`}
+              title={wishlisted ? 'Remove from wishlist' : 'Save to wishlist'}
+            >
+              <FiHeart size={16} className={wishlisted ? 'fill-rose-500' : ''} />
+              {wishlisted ? 'Wishlisted' : 'Wishlist'}
             </button>
           </div>
 

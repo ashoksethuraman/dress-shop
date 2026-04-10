@@ -4,6 +4,7 @@ import * as crypto from "crypto";
 import * as logger from "firebase-functions/logger";
 import {db} from "../firebase";
 import {optionalAuth, validate} from "../middleware";
+import {sendOrderEmail, type OrderEmailPayload} from "../emailService";
 import {
   type VerifyPaymentBody,
   type FailPaymentBody,
@@ -16,6 +17,88 @@ import {
 } from "../schemas";
 
 export const paymentsRouter = Router();
+
+const enforceRazorpaySignature = (process.env.ENFORCE_RAZORPAY_SIGNATURE ?? "true").toLowerCase() === "true";
+const allowMockPayments = (process.env.ALLOW_MOCK_PAYMENTS ??
+  (process.env.NODE_ENV === "production" ? "false" : "true")).toLowerCase() === "true";
+
+function toOrderEmailPayload(
+  orderId: string,
+  orderData: Record<string, unknown>,
+  paymentId?: string | null
+): OrderEmailPayload {
+  return {
+    orderId,
+    isGuest: (orderData.isGuest as boolean | undefined) ?? false,
+    contactEmail: (orderData.contactEmail as string | undefined) ?? null,
+    userEmail: (orderData.userEmail as string | undefined) ?? null,
+    totalAmount: (orderData.totalAmount as number | undefined) ?? 0,
+    paymentId: paymentId ?? (orderData.paymentId as string | undefined) ?? null,
+    paymentStatus: (orderData.paymentStatus as string | undefined) ?? null,
+    orderStatus: (orderData.orderStatus as string | undefined) ?? null,
+    items: (orderData.items as Array<Record<string, unknown>> | undefined)?.map((it) => ({
+      title: (it.title as string | undefined) ?? "Item",
+      qty: (it.qty as number | undefined) ?? 0,
+      unitPrice: (it.unitPrice as number | undefined) ?? 0,
+      total: (it.total as number | undefined) ?? 0,
+      size: (it.size as string | null | undefined) ?? null,
+    })) ?? [],
+    billingAddress: (orderData.billingAddress as Record<string, unknown> | undefined),
+    shippingAddress: (orderData.shippingAddress as Record<string, unknown> | undefined),
+  };
+}
+
+async function deductInventory(
+  orderId: string,
+  items: Array<{ productId?: unknown; size?: unknown; qty?: unknown }>
+): Promise<void> {
+  const byProduct = new Map<string, Array<{ size: string | null; qty: number }>>();
+  for (const item of items) {
+    const productId = typeof item.productId === "string" ? item.productId : null;
+    if (!productId) continue;
+    const size = typeof item.size === "string" ? item.size : null;
+    const qty = typeof item.qty === "number" && item.qty > 0 ? item.qty : 0;
+    if (!qty) continue;
+    if (!byProduct.has(productId)) byProduct.set(productId, []);
+    byProduct.get(productId)!.push({size, qty});
+  }
+
+  await Promise.all(
+    Array.from(byProduct.entries()).map(async ([productId, sizeQtys]) => {
+      const ref = db.doc(`products/${productId}`);
+      try {
+        await db.runTransaction(async (tx) => {
+          const snap = await tx.get(ref);
+          if (!snap.exists) return;
+          const data = snap.data()!;
+          const inv: Record<string, number> = {...(data.sizeInventory ?? {})};
+
+          for (const {size, qty} of sizeQtys) {
+            if (size === null) {
+              if (typeof inv["__noSize"] === "number") {
+                inv["__noSize"] = Math.max(0, inv["__noSize"] - qty);
+              }
+            } else if (typeof inv[size] === "number") {
+              inv[size] = Math.max(0, inv[size] - qty);
+            }
+          }
+
+          const currentSales = (data.salesCount as number | undefined) ?? 0;
+          const unitsSold = sizeQtys.reduce((s, x) => s + x.qty, 0);
+          tx.update(ref, {
+            sizeInventory: inv,
+            salesCount: currentSales + unitsSold,
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        });
+        logger.info(`[deductInventory] product ${productId} updated for order ${orderId}`);
+      } catch (err) {
+        logger.error(`[deductInventory] failed for product ${productId}`, err);
+        // Non-fatal — payment is already confirmed
+      }
+    })
+  );
+}
 
 paymentsRouter.post(
   "/razorpay-order",
@@ -72,6 +155,17 @@ paymentsRouter.post(
       req.body as VerifyPaymentBody;
 
     const keySecret = process.env.RAZORPAY_KEY_SECRET ?? "";
+
+    if (enforceRazorpaySignature && !keySecret) {
+      res.status(503).json({error: "RAZORPAY_KEY_SECRET is required for payment verification."});
+      return;
+    }
+
+    if (enforceRazorpaySignature && !razorpay_order_id) {
+      res.status(400).json({error: "razorpay_order_id is required for signature verification."});
+      return;
+    }
+
     if (razorpay_order_id && keySecret) {
       const expected = crypto
         .createHmac("sha256", keySecret)
@@ -95,7 +189,7 @@ paymentsRouter.post(
 
       const orderData = orderSnap.data()!;
 
-      if (req.user && orderData.userId !== req.user.uid && !req.user["isAdmin"]) {
+      if (req.user && orderData.userId !== req.user.uid && req.user.role !== "admin") {
         res.status(403).json({error: "Access denied."});
         return;
       }
@@ -141,6 +235,15 @@ paymentsRouter.post(
 
       await batch.commit();
 
+      // Deduct inventory (non-fatal — runs after payment is confirmed)
+      deductInventory(orderId, orderData.items ?? []).catch(() => {/* already logged */});
+
+      sendOrderEmail("payment_success", {
+        ...toOrderEmailPayload(orderId, orderData, razorpay_payment_id),
+        paymentStatus: "SUCCESS",
+        orderStatus: "PLACED",
+      }).catch((mailErr) => logger.error("[mail] payment_success failed", {orderId, error: mailErr}));
+
       logger.info(`[POST /payments/verify] Confirmed: order ${orderId}, payment ${razorpay_payment_id}, user ${req.user?.uid ?? "guest"}`);
       res.json({success: true, paymentId: razorpay_payment_id});
     } catch (err) {
@@ -165,7 +268,7 @@ paymentsRouter.post(
 
       const orderData = orderSnap.data()!;
 
-      if (req.user && orderData.userId !== req.user.uid && !req.user["isAdmin"]) {
+      if (req.user && orderData.userId !== req.user.uid && req.user.role !== "admin") {
         res.status(403).json({error: "Access denied."});
         return;
       }
@@ -192,6 +295,15 @@ paymentsRouter.post(
         }),
       });
 
+      sendOrderEmail(
+        reason === "payment_failed" ? "payment_failed" : "payment_cancelled",
+        {
+          ...toOrderEmailPayload(orderId, orderData),
+          paymentStatus: newPaymentStatus,
+          orderStatus: newOrderStatus,
+        }
+      ).catch((mailErr) => logger.error("[mail] payment_fail/cancel failed", {orderId, error: mailErr}));
+
       logger.info(`[POST /payments/fail] Order ${orderId} → ${newOrderStatus} (reason: ${reason}) by ${req.user?.uid ?? "guest"}`);
       res.json({success: true});
     } catch (err) {
@@ -206,6 +318,11 @@ paymentsRouter.post(
   optionalAuth,
   validate(validateRecordPayment),
   async (req: Request, res: Response) => {
+    if (!allowMockPayments) {
+      res.status(403).json({error: "Mock payment recording is disabled in this environment."});
+      return;
+    }
+
     const body = req.body as RecordPaymentBody;
 
     try {
@@ -216,7 +333,7 @@ paymentsRouter.post(
 
       const orderData = orderSnap.data()!;
 
-      if (req.user && orderData.userId !== req.user.uid && !req.user["isAdmin"]) {
+      if (req.user && orderData.userId !== req.user.uid && req.user.role !== "admin") {
         res.status(403).json({error: "Access denied."});
         return;
       }
@@ -261,6 +378,15 @@ paymentsRouter.post(
       });
 
       await batch.commit();
+
+      // Deduct inventory (non-fatal — runs after payment is confirmed)
+      deductInventory(body.orderId, orderData.items ?? []).catch(() => {/* already logged */});
+
+      sendOrderEmail("payment_success", {
+        ...toOrderEmailPayload(body.orderId, orderData, body.paymentId),
+        paymentStatus: "SUCCESS",
+        orderStatus: "PLACED",
+      }).catch((mailErr) => logger.error("[mail] payment_success(record) failed", {orderId: body.orderId, error: mailErr}));
 
       logger.info(`[POST /payments/record] Recorded ${body.paymentId} for order ${body.orderId} (isTest: ${body.isTest ?? true})`);
       res.status(201).json({success: true, paymentId: body.paymentId});

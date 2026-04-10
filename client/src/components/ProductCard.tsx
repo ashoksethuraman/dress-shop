@@ -1,9 +1,10 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useAppDispatch } from '../store/hooks';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { addToCart } from '../store/cartSlice';
+import { toggleWishlist } from '../store/wishlistSlice';
 import { getPriceLevel, BADGE_COLORS } from '../utils/priceLevel';
-import { FiTrash2, FiEye } from 'react-icons/fi';
+import { FiTrash2, FiEye, FiHeart } from 'react-icons/fi';
 import { Product } from '../utils/types';
 import { resolveImageUrl } from '../config/imageConfig';
 
@@ -15,6 +16,8 @@ interface Props {
 
 export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
   const dispatch = useAppDispatch();
+  const wishlisted = useAppSelector((s) => s.wishlist.ids.includes(p.id));
+  const cartItems = useAppSelector((s) => s.cart.items);
   const level = getPriceLevel(p.price);
 
   /** All images for this product (normalise legacy `image` field + resolve base URL) */
@@ -30,6 +33,7 @@ export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
   const [adding,    setAdding]      = useState(false);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [sizeError, setSizeError]   = useState(false);
+  const [cartError, setCartError]   = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   /* Start auto-carousel on hover */
@@ -54,7 +58,32 @@ export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
       setSizeError(true);
       return;
     }
-    dispatch(addToCart({ productId: p.id, title: p.title, price: p.price, qty: 1, size: selectedSize, stock: p.stock ?? 'available' }));
+
+    // Inventory check for selected size
+    if (selectedSize && p.sizeInventory) {
+      const available = p.sizeInventory[selectedSize];
+      if (available !== undefined) {
+        if (available === 0) {
+          setCartError(`Size ${selectedSize} is currently out of stock.`);
+          return;
+        }
+        const alreadyInCart = cartItems.find(
+          (i) => i.productId === p.id && i.size === selectedSize
+        )?.qty ?? 0;
+        if (alreadyInCart >= available) {
+          setCartError(`Only ${available} unit${available !== 1 ? 's' : ''} available in size ${selectedSize}.`);
+          return;
+        }
+      }
+    }
+
+    setCartError(null);
+    const available = selectedSize ? (p.sizeInventory?.[selectedSize]) : undefined;
+    dispatch(addToCart({
+      productId: p.id, title: p.title, price: p.price, qty: 1,
+      size: selectedSize, stock: p.stock ?? 'available',
+      maxQty: available,
+    }));
     setAdding(true);
     setSelectedSize(null);
     setSizeError(false);
@@ -162,43 +191,73 @@ export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
               <p className="text-xs text-red-500 mb-1">Please select a size</p>
             )}
             <div className="flex items-center gap-1.5 flex-wrap">
-              {p.sizes!.map((sz) => (
-                <button
-                  key={sz}
-                  onClick={() => { setSelectedSize(sz); setSizeError(false); }}
-                  className={`px-2 py-0.5 rounded text-xs font-semibold border transition-all ${
-                    selectedSize === sz
-                      ? 'bg-indigo-500 border-indigo-500 text-white'
-                      : sizeError
-                      ? 'border-red-400 text-gray-600 hover:border-indigo-400'
-                      : 'border-gray-300 text-gray-500 hover:border-indigo-400 hover:text-indigo-500'
-                  }`}
-                >
-                  {sz}
-                </button>
-              ))}
+              {p.sizes!.map((sz) => {
+                const inv = p.sizeInventory?.[sz];
+                const sizeOos = inv !== undefined && inv === 0;
+                return (
+                  <button
+                    key={sz}
+                    disabled={sizeOos}
+                    onClick={() => { if (!sizeOos) { setSelectedSize(sz); setSizeError(false); setCartError(null); } }}
+                    className={`px-2 py-0.5 rounded text-xs font-semibold border transition-all ${
+                      sizeOos
+                        ? 'border-gray-200 text-gray-300 bg-gray-50 cursor-not-allowed line-through'
+                        : selectedSize === sz
+                        ? 'bg-indigo-500 border-indigo-500 text-white'
+                        : sizeError
+                        ? 'border-red-400 text-gray-600 hover:border-indigo-400'
+                        : 'border-gray-300 text-gray-500 hover:border-indigo-400 hover:text-indigo-500'
+                    }`}
+                    title={sizeOos ? 'Out of stock' : undefined}
+                  >
+                    {sz}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
 
-        <div className="font-bold text-accent text-lg">₹{p.price.toFixed(2)}</div>
-        <span className={`inline-block mt-1 text-xs font-semibold px-2 py-0.5 rounded-full w-fit ${BADGE_COLORS[level.className] ?? 'bg-gray-100 text-gray-600'}`}>
-          {level.level}
-        </span>
+        <div className="flex items-start justify-between mt-auto">
+          <div>
+            <div className="font-bold text-accent text-lg">₹{p.price.toFixed(2)}</div>
+            <span className={`inline-block mt-1 text-xs font-semibold px-2 py-0.5 rounded-full w-fit ${BADGE_COLORS[level.className] ?? 'bg-gray-100 text-gray-600'}`}>
+              {level.level}
+            </span>
+          </div>
+          <div className="relative group/wish ml-2 shrink-0">
+            <button
+              onClick={() => dispatch(toggleWishlist(p.id))}
+              className={`flex items-center justify-center w-9 h-9 rounded-xl border transition-colors ${
+                wishlisted
+                  ? 'bg-rose-50 border-rose-300 text-rose-500'
+                  : 'border-gray-200 text-gray-400 hover:border-rose-300 hover:text-rose-400'
+              }`}
+            >
+              <FiHeart size={15} className={wishlisted ? 'fill-rose-500' : ''} />
+            </button>
+            <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded bg-gray-800 px-2 py-1 text-xs text-white opacity-0 group-hover/wish:opacity-100 transition-opacity z-20">
+              {wishlisted ? 'Remove from Wishlist' : 'Add to Wishlist'}
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* ── Footer buttons ── */}
-      <div className="px-4 pb-4 flex gap-2">
+      {cartError && (
+        <p className="px-4 pb-1 text-xs font-medium text-red-500">{cartError}</p>
+      )}
+      <div className="px-4 pb-4 grid grid-cols-2 gap-2">
         <Link
           to={`/product/${p.id}`}
-          className="flex-1 text-center py-2 rounded-xl border border-indigo-300 text-indigo-600 text-sm font-semibold hover:bg-indigo-50 transition-colors no-underline"
+          className="text-center py-2.5 rounded-xl border border-indigo-300 text-indigo-600 text-sm font-semibold hover:bg-indigo-50 transition-colors no-underline"
         >
           View
         </Link>
         <button
           onClick={handleAddToCart}
           disabled={isOutOfStock}
-          className={`flex-1 py-2 rounded-xl text-white text-sm font-semibold transition-all ${
+          className={`py-2.5 rounded-xl text-white text-sm font-semibold transition-all ${
             isOutOfStock
               ? 'bg-gray-300 cursor-not-allowed'
               : adding ? 'bg-green-500 scale-95' : 'bg-indigo-500 hover:bg-indigo-600'

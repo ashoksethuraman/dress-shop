@@ -3,6 +3,7 @@ import { CartItem, CheckoutFormState } from '../utils/types';
 
 const K = {
   CART:           'ds_cart',
+  WISHLIST:       'ds_wishlist',
   CHECKOUT_FORM:  'ds_checkout_form',
 } as const;
 
@@ -39,6 +40,25 @@ export function loadCart(): CartItem[] {
 
 export function clearCartItems(): void {
   remove(K.CART);
+}
+
+
+export function saveWishlist(ids: string[]): void {
+  write(K.WISHLIST, ids);
+}
+
+export function loadWishlist(): string[] {
+  return read<string[]>(K.WISHLIST) ?? [];
+}
+
+export function clearWishlistItems(): void {
+  remove(K.WISHLIST);
+}
+
+/** Called on logout of a real (non-guest) user — wipe cart + wishlist from localStorage. */
+export function clearUserSession(): void {
+  remove(K.CART);
+  remove(K.WISHLIST);
 }
 
 type PersistedCheckoutForm = Pick<
