@@ -138,7 +138,16 @@ export default function SignupPage() {
         state: { signupSuccess: true, email: form.email.trim() },
       });
     } catch (err: any) {
-      setAlertMsg(err?.body?.error ?? err?.message ?? 'Signup failed. Please try again.');
+      const serverField = err?.field as string | undefined;
+      const serverMsg   = err?.message ?? err?.body?.error ?? 'Signup failed. Please try again.';
+
+      if (serverField === 'email' || serverField === 'mobileNumber') {
+        // Show the error inline on the specific field
+        setErrors((e) => ({ ...e, [serverField]: serverMsg }));
+        setTouched((t) => ({ ...t, [serverField]: true }));
+      } else {
+        setAlertMsg(serverMsg);
+      }
     } finally {
       setLoading(false);
     }

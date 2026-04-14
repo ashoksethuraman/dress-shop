@@ -6,6 +6,7 @@ import { logout } from '../store/userSlice';
 import { clearCart } from '../store/cartSlice';
 import { clearWishlist } from '../store/wishlistSlice';
 import { authService } from '../services/authService';
+import { authApi } from '../services/apiClient';
 import { clearUserSession } from '../services/guestSession';
 import { useClickOutside } from '../hooks/useClickOutside';
 
@@ -59,7 +60,11 @@ export default function Navbar({ menuOpen, setMenuOpen, cartCount, user, bump, i
   const handleLogout = async () => {
     setUserMenuOpen(false);
     const isGuest = user?.isGuest;
-    await authService.signOut();
+    // Tell the server to clear the HttpOnly __session and XSRF-TOKEN cookies
+    if (!isGuest) {
+      await authApi.logout().catch(() => { /* best-effort */ });
+    }
+    authService.signOut();
     if (!isGuest) {
       clearUserSession();
       dispatch(clearCart());

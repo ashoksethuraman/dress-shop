@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import {
-  FiUser, FiMail, FiPhone, FiCalendar, FiMapPin, FiShield, FiAlertCircle,
+  FiUser, FiMail, FiPhone, FiCalendar, FiMapPin, FiAlertCircle,
 } from 'react-icons/fi';
 import { Navigate } from 'react-router-dom';
 import { useAppSelector } from '../store/hooks';
-import { userApi, type UserProfile } from '../services/apiClient';
+import { userApi } from '../services/apiClient';
+import { type UserProfile } from '../utils/apiTypes';
 
 function FieldRow({
   icon, label, value, placeholder,
@@ -65,9 +66,6 @@ export default function ProfilePage() {
       </div>
     );
   }
-
-  // Derive isAdmin from role — single source of truth
-  const isAdmin = profile?.role === 'admin';
 
   const genderLabel =
     profile?.gender === 'male' ? 'Male' :

@@ -20,7 +20,6 @@ module.exports = {
   ignorePatterns: [
     "/lib/**/*", // Ignore built files.
     "/generated/**/*", // Ignore generated files.
-    "setAdmin.js", // One-off admin script, not deployed code.
   ],
   plugins: [
     "@typescript-eslint",
@@ -30,13 +29,5 @@ module.exports = {
     "quotes": ["error", "double"],
     "import/no-unresolved": 0,
     "indent": ["error", 2],
-    // google config defaults that don't suit this codebase
-    "max-len": "off",
-    "require-jsdoc": "off",
-    "valid-jsdoc": "off",
-    "new-cap": "off",
-    "camelcase": "off",
-    "@typescript-eslint/no-non-null-assertion": "off",
-    "@typescript-eslint/no-unused-vars": ["warn", {"argsIgnorePattern": "^_"}],
   },
 };

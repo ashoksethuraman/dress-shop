@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useGetProductByIdQuery } from '../store/apiSlice';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { addToCart, clearCart } from '../store/cartSlice';
+import { addToCart } from '../store/cartSlice';
 import { toggleWishlist } from '../store/wishlistSlice';
 import { getPriceLevel, BADGE_COLORS } from '../utils/priceLevel';
 import { formatPrice } from '../utils/format';
@@ -159,13 +159,15 @@ export default function ProductDetailsPage() {
     if (err) { setCartError(err); return; }
     setCartError(null);
     const available = selectedSize ? (product.sizeInventory?.[selectedSize]) : undefined;
-    // Replace cart with just this item, then go to checkout
-    dispatch(clearCart());
-    dispatch(addToCart({
-      productId: product.id, title: product.title, price: product.price, qty,
-      size: selectedSize, stock: product.stock ?? 'available', maxQty: available,
-    }));
-    navigate('/checkout');
+    // Go to order summary with only this item — don't touch the cart
+    navigate('/order-summary', {
+      state: {
+        buyNowItem: {
+          productId: product.id, title: product.title, price: product.price, qty,
+          size: selectedSize ?? null, stock: product.stock ?? 'available', maxQty: available,
+        },
+      },
+    });
   };
 
   const changeQty = (delta: number) => {

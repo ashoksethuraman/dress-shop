@@ -14,7 +14,7 @@ to make admin. This creates the Firebase Auth user record.
 
 ## Step 2 — Download the Firebase service account key
 
-1. Go to [Firebase Console](https://console.firebase.google.com) → select project **shopping-app-63a1f**
+1. Go to [Firebase Console](https://console.firebase.google.com) → select project **halleycomet-7cd48**
 2. Click the ⚙️ gear icon → **Project Settings**
 3. Open the **Service accounts** tab
 4. Click **Generate new private key** → confirm → a JSON file downloads
@@ -80,7 +80,7 @@ Once you are an admin, you can grant admin to other users without running the sc
 Call the Cloud Function directly using a REST client (e.g. Postman):
 
 ```
-POST https://asia-south1-shopping-app-63a1f.cloudfunctions.net/apiSetAdminClaim
+POST https://asia-south1-halleycomet-7cd48.cloudfunctions.net/apiSetAdminClaim
 Authorization: Bearer <your-id-token>
 Content-Type: application/json
 

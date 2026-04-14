@@ -1,22 +1,47 @@
-import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { removeFromCart, setQty } from '../store/cartSlice';
 import {
   FiShoppingBag, FiTrash2, FiChevronRight, FiArrowLeft,
   FiTruck, FiShield, FiRefreshCw,
 } from 'react-icons/fi';
+import { formatPrice } from '../utils/format';
+import type { CartItem } from '../utils/types';
+import { calcOrderTotals, FREE_SHIPPING } from '../utils/priceLevel';
 
 export default function OrderSummaryPage() {
-  const items    = useAppSelector((s) => s.cart.items);
-  const dispatch = useAppDispatch();
-  const navigate = useNavigate();
+  const cartItems = useAppSelector((s) => s.cart.items);
+  const dispatch  = useAppDispatch();
+  const navigate  = useNavigate();
+  const location  = useLocation();
+
+  // Buy Now flow: single item passed via route state, never added to cart yet
+  const buyNowItem = (location.state as { buyNowItem?: CartItem } | null)?.buyNowItem ?? null;
+  const isBuyNow   = buyNowItem !== null;
+
+  // Local qty for buy-now (doesn't affect Redux cart)
+  const [buyNowQty, setBuyNowQty] = useState(buyNowItem?.qty ?? 1);
+
+  const items: CartItem[] = isBuyNow
+    ? [{ ...buyNowItem!, qty: buyNowQty }]
+    : cartItems;
 
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
-  const total    = subtotal; // free shipping
+  const { taxAmount, shippingFee, totalAmount } = calcOrderTotals(subtotal);
 
-  /* ── Empty cart ── */
-  if (items.length === 0) {
+  const handleProceed = () => {
+    if (isBuyNow) {
+      // Pass the buy-now item directly to checkout — never touch the cart,
+      // so other cart items remain intact.
+      navigate('/checkout', { state: { buyNowItem: { ...buyNowItem!, qty: buyNowQty } } });
+    } else {
+      navigate('/checkout');
+    }
+  };
+
+  /* ── Empty cart (only shown in normal cart flow) ── */
+  if (!isBuyNow && items.length === 0) {
     return (
       <div className="max-w-md mx-auto px-4 py-20 text-center">
         <FiShoppingBag size={52} className="text-gray-300 mx-auto mb-4" />
@@ -38,10 +63,10 @@ export default function OrderSummaryPage() {
 
         {/* Back link */}
         <button
-          onClick={() => navigate('/')}
+          onClick={() => navigate(-1)}
           className="flex items-center gap-1.5 text-sm text-brand-dark hover:text-brand-hover font-medium mb-6 transition-colors"
         >
-          <FiArrowLeft size={15} /> Back to home
+          <FiArrowLeft size={15} /> {isBuyNow ? 'Back to product' : 'Back'}
         </button>
 
         <h1 className="text-2xl font-extrabold text-gray-900 mb-6">Order Summary</h1>
@@ -71,20 +96,25 @@ export default function OrderSummaryPage() {
                       <span className="text-xs text-gray-400">₹{it.price.toFixed(2)} each</span>
                     </div>
                   </div>
-                  <button
-                    onClick={() => dispatch(removeFromCart({ productId: it.productId, size: it.size }))}
-                    className="text-red-400 hover:text-red-600 transition-colors p-1 flex-shrink-0"
-                    title="Remove item"
-                  >
-                    <FiTrash2 size={15} />
-                  </button>
+                  {!isBuyNow && (
+                    <button
+                      onClick={() => dispatch(removeFromCart({ productId: it.productId, size: it.size }))}
+                      className="text-red-400 hover:text-red-600 transition-colors p-1 flex-shrink-0"
+                      title="Remove item"
+                    >
+                      <FiTrash2 size={15} />
+                    </button>
+                  )}
                 </div>
 
                 {/* Row 2: qty stepper + line total */}
                 <div className="flex items-center justify-between mt-3 pl-[68px]">
                   <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden">
                     <button
-                      onClick={() => dispatch(setQty({ productId: it.productId, size: it.size, qty: it.qty - 1 }))}
+                      onClick={() => isBuyNow
+                        ? setBuyNowQty((q) => Math.max(1, q - 1))
+                        : dispatch(setQty({ productId: it.productId, size: it.size, qty: it.qty - 1 }))
+                      }
                       disabled={it.qty <= 1}
                       className="px-3 py-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-30 transition-colors font-bold"
                     >
@@ -92,7 +122,10 @@ export default function OrderSummaryPage() {
                     </button>
                     <span className="w-8 text-center text-sm font-semibold text-gray-800">{it.qty}</span>
                     <button
-                      onClick={() => dispatch(setQty({ productId: it.productId, size: it.size, qty: it.qty + 1 }))}
+                      onClick={() => isBuyNow
+                        ? setBuyNowQty((q) => it.maxQty !== undefined ? Math.min(q + 1, it.maxQty) : q + 1)
+                        : dispatch(setQty({ productId: it.productId, size: it.size, qty: it.qty + 1 }))
+                      }
                       disabled={it.maxQty !== undefined && it.qty >= it.maxQty}
                       className="px-3 py-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-30 transition-colors font-bold"
                     >
@@ -100,7 +133,7 @@ export default function OrderSummaryPage() {
                     </button>
                   </div>
                   <span className="font-bold text-sm text-gray-800">
-                    ₹{(it.price * it.qty).toFixed(2)}
+                    {formatPrice(it.price * it.qty)}
                   </span>
                 </div>
               </div>
@@ -109,7 +142,7 @@ export default function OrderSummaryPage() {
             {/* Trust badges */}
             <div className="grid grid-cols-3 gap-3 mt-2">
               {[
-                { icon: <FiTruck size={16} />, label: 'Free Delivery', sub: 'On all orders' },
+                { icon: <FiTruck size={16} />, label: 'Free Shipping', sub: 'Orders above ₹999' },
                 { icon: <FiRefreshCw size={16} />, label: 'Easy Returns', sub: '7-day policy' },
                 { icon: <FiShield size={16} />, label: 'Secure Payment', sub: 'Razorpay encrypted' },
               ].map(({ icon, label, sub }) => (
@@ -131,21 +164,33 @@ export default function OrderSummaryPage() {
             <div className="flex flex-col gap-2.5 text-sm">
               <div className="flex justify-between text-gray-600">
                 <span>Subtotal ({items.reduce((a, i) => a + i.qty, 0)} items)</span>
-                <span>₹{subtotal.toFixed(2)}</span>
+                <span>{formatPrice(subtotal)}</span>
+              </div>
+              <div className="flex justify-between text-gray-600">
+                <span>GST (18%)</span>
+                <span>{formatPrice(taxAmount)}</span>
               </div>
               <div className="flex justify-between text-gray-600">
                 <span>Shipping</span>
-                <span className="text-green-600 font-medium">Free</span>
+                {shippingFee === 0
+                  ? <span className="text-green-600 font-medium">Free</span>
+                  : <span>{formatPrice(shippingFee)}</span>
+                }
               </div>
+              {subtotal < FREE_SHIPPING && (
+                <p className="text-xs text-gray-400">
+                  Add {formatPrice(FREE_SHIPPING - subtotal)} more for free shipping
+                </p>
+              )}
               <div className="flex justify-between font-extrabold text-base text-gray-900 pt-2 border-t border-gray-100">
                 <span>Total</span>
-                <span className="text-brand-dark">₹{total.toFixed(2)}</span>
+                <span className="text-brand-dark">{formatPrice(totalAmount)}</span>
               </div>
             </div>
 
             {/* CTA */}
             <button
-              onClick={() => navigate('/checkout')}
+              onClick={handleProceed}
               className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-brand-dark hover:bg-brand-hover text-white font-bold text-sm transition-all shadow-md hover:shadow-lg"
             >
               Proceed to Checkout

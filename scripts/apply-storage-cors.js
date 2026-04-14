@@ -20,7 +20,7 @@ const crypto = require("crypto");
 const fs     = require("fs");
 const path   = require("path");
 
-const BUCKET          = "shopping-app-63a1f.firebasestorage.app";
+const BUCKET          = "halleycomet-7cd48.firebasestorage.app";
 const CORS_SRC        = path.resolve(__dirname, "..", "cors.json");
 const SERVICE_ACCOUNT = path.resolve(__dirname, "serviceAccountKey.json");
 

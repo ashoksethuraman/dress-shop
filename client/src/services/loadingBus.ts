@@ -1,22 +1,21 @@
 type Listener = (count: number) => void;
 
 let count = 0;
-let listener: Listener | null = null;
+const listeners = new Set<Listener>();
 
 export const loadingBus = {
-  subscribe(fn: Listener) {
-    listener = fn;
-  },
-  unsubscribe() {
-    listener = null;
+  /** Subscribe to count changes. Returns an unsubscribe function. */
+  subscribe(fn: Listener): () => void {
+    listeners.add(fn);
+    return () => listeners.delete(fn);
   },
   increment() {
     count += 1;
-    listener?.(count);
+    listeners.forEach((fn) => fn(count));
   },
   decrement() {
     count = Math.max(0, count - 1);
-    listener?.(count);
+    listeners.forEach((fn) => fn(count));
   },
   getCount() {
     return count;

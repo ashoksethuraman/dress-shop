@@ -81,10 +81,19 @@ export default function AddProductForm({ onAdded }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [title, description, price, JSON.stringify(sizeInventory), imageFiles.length, submitted, stockMode]);
 
+  const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp'];
+
   const handleImages = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     setUploadError(null);
     if (files.length === 0) return;
+
+    const badType = files.find((f) => !ALLOWED_MIME.includes(f.type));
+    if (badType) {
+      setUploadError(`"${badType.name}" is not allowed. Only JPEG, PNG, and WebP images are accepted.`);
+      e.target.value = '';
+      return;
+    }
 
     const remaining = MAX_IMAGES - imageFiles.length;
     if (files.length > remaining) {
@@ -125,6 +134,12 @@ export default function AddProductForm({ onAdded }: Props) {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploadError(null);
+
+    if (!ALLOWED_MIME.includes(file.type)) {
+      setUploadError(`"${file.name}" is not allowed. Only JPEG, PNG, and WebP images are accepted.`);
+      e.target.value = '';
+      return;
+    }
 
     const MAX_RAW_BYTES = 100 * 1024; // 100 KB
     if (file.size > MAX_RAW_BYTES) {
@@ -382,7 +397,7 @@ export default function AddProductForm({ onAdded }: Props) {
                   </button>
                 )}
               </div>
-              <input ref={sizeChartRef} type="file" accept="image/*" onChange={handleSizeChart} className="hidden" />
+              <input ref={sizeChartRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handleSizeChart} className="hidden" />
               <p className="text-xs text-gray-400 mt-1.5">Single size chart · max 100 KB · 1 image only</p>
             </div>
 
@@ -420,7 +435,7 @@ export default function AddProductForm({ onAdded }: Props) {
                   </button>
                 )}
               </div>
-              <input ref={fileRef} type="file" accept="image/*" multiple onChange={handleImages} className="hidden" />
+              <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={handleImages} className="hidden" />
               <p className="text-xs text-gray-400 mt-1.5">Max 5 images · 100 KB per image (500 KB total) · JPEG</p>
               {errMsg(fieldErrors.images)}
               {uploadError && (

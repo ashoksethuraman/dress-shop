@@ -2,12 +2,12 @@ import React, { useRef, useEffect, useState } from 'react';
 import { useDeleteProductMutation, useSearchProductsQuery } from '../store/apiSlice';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAppSelector } from '../store/hooks';
-import { FiShoppingCart, FiTrendingUp, FiGrid, FiSearch } from 'react-icons/fi';
+import { FiTrendingUp, FiGrid, FiSearch } from 'react-icons/fi';
 import ProductCard from '../components/ProductCard';
 import { useProducts } from '../hooks/useProducts';
 
-const INITIAL_COUNT = 8;
-const LOAD_MORE_COUNT = 8;
+const INITIAL_COUNT = 10;
+const LOAD_MORE_COUNT = 10;
 // 
 // Module-level: persists across navigation so the user sees the same
 // scroll depth when going back — no extra API call needed either.

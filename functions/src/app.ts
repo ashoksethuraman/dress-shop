@@ -1,11 +1,12 @@
 import express, {type Request, type Response, type NextFunction} from "express";
 import * as logger from "firebase-functions/logger";
 import helmet from "helmet";
-import {corsMiddleware} from "./middleware";
+import cookieParser from "cookie-parser";
+import {corsMiddleware, csrfProtection} from "./middleware";
 import {
   globalLimiter, authLimiter, writeLimiter,
   paymentLimiter, readLimiter, uploadLimiter,
-} from "./rateLimits";
+} from "./config";
 import {productsRouter} from "./routes/products";
 import {ordersRouter} from "./routes/orders";
 import {paymentsRouter} from "./routes/payments";
@@ -17,9 +18,11 @@ const app = express();
 app.set("trust proxy", 1);
 app.use(helmet());
 app.disable("x-powered-by");
-app.use(express.json({limit: "64kb"}));
+app.use(cookieParser());
+app.use(express.json({limit: "1mb"}));
 
 app.use(corsMiddleware);
+app.use(csrfProtection);
 
 app.use(globalLimiter);
 

@@ -1,8 +1,5 @@
 import { authService } from './authService';
-
-const API_BASE =
-  process.env.REACT_APP_FUNCTIONS_BASE_URL ||
-  `https://asia-south1-${process.env.REACT_APP_FIREBASE_PROJECT_ID}.cloudfunctions.net/api`;
+import { API_BASE_URL } from './apiClient';
 
 function compressToDataUrl(file: File, maxPx = 900, quality = 0.78): Promise<string> {
   return new Promise((resolve) => {
@@ -41,19 +38,27 @@ async function uploadToBackend(
   file: File,
   folder: 'products' | 'size-charts',
 ): Promise<string> {
-  const token = await authService.getIdToken();
   const base64 = await compressToDataUrl(file);
+  const csrf = authService.getCsrfToken();
 
-  const resp = await fetch(`${API_BASE}/images/upload`, {
+  const resp = await fetch(`${API_BASE_URL}/images/upload`, {
     method: 'POST',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      'X-Requested-With': 'XMLHttpRequest',
+      ...(csrf ? { 'X-CSRF-Token': csrf } : {}),
     },
     body: JSON.stringify({ base64, folder }),
   });
 
   if (!resp.ok) {
+    if (resp.status === 401) {
+      throw new Error('Your session has expired. Please log in again and retry upload.');
+    }
+    if (resp.status === 403) {
+      throw new Error('Admin access is required to upload images.');
+    }
     const err = await resp.json().catch(() => ({})) as { error?: string };
     throw new Error(err.error ?? `Image upload failed (${resp.status}).`);
   }

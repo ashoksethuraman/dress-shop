@@ -1,47 +1,63 @@
 import {Router, type Request, type Response} from "express";
 import * as crypto from "crypto";
-import * as fs from "fs";
-import * as path from "path";
 import * as logger from "firebase-functions/logger";
 import {authenticate, requireAdmin} from "../middleware";
+import {admin} from "../config/firebase";
 
 export const imagesRouter = Router();
 
-const ALLOWED_FOLDERS = ["products", "size-charts"] as const;
-type UploadFolder = typeof ALLOWED_FOLDERS[number];
+const ALLOWED_FOLDERS = ["products", "size-charts"];
+const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
-imagesRouter.post("/upload", authenticate, requireAdmin, async (req: Request, res: Response) => {
-  const {base64, folder} = req.body as {
-    base64?: string;
-    filename?: string; // accepted but ignored — name is generated server-side
-    folder?: string;
-  };
+function getExtension(mimeType: string): string {
+  if (mimeType === "image/png") return "png";
+  if (mimeType === "image/webp") return "webp";
+  return "jpg";
+}
 
+imagesRouter.post("/upload", authenticate, requireAdmin, (req: Request, res: Response) => {
+  const {base64, folder} = req.body as {base64?: string; folder?: string};
   if (!base64) {
     res.status(400).json({error: "base64 is required."});
     return;
   }
 
-  const safeFolder: UploadFolder = ALLOWED_FOLDERS.includes(folder as UploadFolder)
-    ? (folder as UploadFolder)
-    : "products";
-
-  const imageData = base64.replace(/^data:image\/\w+;base64,/, "");
-  const buffer = Buffer.from(imageData, "base64");
-
-  // Always name: halleycomet_<uuid>.jpg
-  const uniqueName = `halleycomet_${crypto.randomUUID()}.jpg`;
-
-  // Always save locally to client/public/assets/
-  const assetsDir = path.resolve(__dirname, "..", "..", "..", "client", "public", "assets");
-  const filePath = path.join(assetsDir, uniqueName);
-  try {
-    if (!fs.existsSync(assetsDir)) fs.mkdirSync(assetsDir, {recursive: true});
-    fs.writeFileSync(filePath, buffer);
-    logger.info(`[POST /images/upload] Saved: ${uniqueName} (folder=${safeFolder})`);
-    res.json({url: `/assets/${uniqueName}`});
-  } catch (err) {
-    logger.error("[POST /images/upload] write error", {error: err});
-    res.status(500).json({error: "Failed to save image."});
+  // Validate MIME type from the data-URI prefix before decoding anything
+  const mimeMatch = base64.match(/^data:([^;]+);base64,/);
+  const mimeType = mimeMatch?.[1] ?? "";
+  if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
+    res.status(400).json({error: `Unsupported image type "${mimeType}". Allowed: JPEG, PNG, WebP.`});
+    return;
   }
+
+  const safeFolder = ALLOWED_FOLDERS.includes(folder ?? "") ? folder! : "products";
+  const imageData = base64.replace(/^data:[^;]+;base64,/, "");
+  const buffer = Buffer.from(imageData, "base64");
+  const ext = getExtension(mimeType);
+  const uniqueName = `halleycomet_${crypto.randomUUID()}.${ext}`;
+  const objectPath = `${safeFolder}/${uniqueName}`;
+  const downloadToken = crypto.randomUUID();
+
+  const bucket = admin.storage().bucket();
+  const object = bucket.file(objectPath);
+
+  object.save(buffer, {
+    resumable: false,
+    contentType: mimeType,
+    metadata: {
+      cacheControl: "public,max-age=31536000,immutable",
+      metadata: {
+        firebaseStorageDownloadTokens: downloadToken,
+      },
+    },
+  }).then(() => {
+    const encodedPath = encodeURIComponent(objectPath);
+    const publicUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${downloadToken}`;
+    logger.info(`[POST /images/upload] Uploaded to bucket ${bucket.name}: ${objectPath}`);
+    res.json({url: publicUrl});
+  }).catch((err) => {
+    logger.error("[POST /images/upload] storage upload error", {error: err});
+    res.status(500).json({error: "Failed to upload image to Firebase Storage."});
+  });
 });
+
