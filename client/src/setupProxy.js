@@ -21,8 +21,12 @@ module.exports = function (app) {
     createProxyMiddleware({
       target: `http://127.0.0.1:5001/${projectId}/asia-south1/api`,
       changeOrigin: true,
+      // Strip the /api prefix before forwarding so the emulator receives
+      // /{projectId}/{region}/api/{path} and Express sees just /{path}
+      pathRewrite: { '^/api': '' },
       // Forward cookies both ways so the session / CSRF flow works
       cookieDomainRewrite: 'localhost',
+      logLevel: 'debug',
     }),
   );
 };
