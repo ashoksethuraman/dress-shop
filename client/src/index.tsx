@@ -19,8 +19,12 @@ root.render(
   </React.StrictMode>
 );
 
-// Initialize Firebase app (Firestore/Storage), then restore any stored JWT session
+// Initialize Firebase app (Firestore/Storage)
 initFirebase();
+
+// Restore non-sensitive user metadata from localStorage so the UI renders
+// correctly on refresh without a flash of unauthenticated state.
+// Full session validation happens when the user visits the Profile page.
 const restoredUser = authService.restoreUser();
 if (restoredUser) {
   store.dispatch(setUser(restoredUser));

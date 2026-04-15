@@ -14,29 +14,66 @@ import {
   type StoredOrder,
   type TrackOrderResponse,
   type OrderStatus,
+  type SignupPayload,
+  type AuthUserInfo,
+  type AuthResponse,
+  type UserProfile,
 } from '../utils/apiTypes';
+
+// Re-export so consumers can import these types from either location
+export type { SignupPayload, AuthUserInfo, AuthResponse, UserProfile };
 
 export type { ApiError };
 
-const BASE =
+export const API_BASE_URL =
   process.env.REACT_APP_FUNCTIONS_BASE_URL ||
   `https://asia-south1-${process.env.REACT_APP_FIREBASE_PROJECT_ID}.cloudfunctions.net/api`;
 
-async function buildHeaders(extra: HeadersInit = {}): Promise<HeadersInit> {
-  const token = await authService.getIdToken();
-  return {
+// Deduplicate concurrent CSRF refresh calls — only one in-flight at a time.
+let _csrfRefreshPromise: Promise<void> | null = null;
+
+/**
+ * Fetch a fresh CSRF cookie from the server only when the current token is
+ * missing or about to expire (> 55 min old). Concurrent callers share the
+ * same in-flight Promise so only one network request is made.
+ */
+async function ensureCsrfToken(): Promise<void> {
+  if (authService.isCsrfValid()) return;          // token present and fresh — skip
+  if (!_csrfRefreshPromise) {
+    _csrfRefreshPromise = fetch(`${API_BASE_URL}/users/csrf-token`, { credentials: 'include' })
+      .then(() => { authService.markCsrfFetched(); })
+      .catch(() => { /* non-fatal */ })
+      .finally(() => { _csrfRefreshPromise = null; });
+  }
+  await _csrfRefreshPromise;
+}
+
+async function buildHeaders(method: string, extra: HeadersInit = {}): Promise<HeadersInit> {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...extra,
+    'X-Requested-With': 'XMLHttpRequest',
+    ...extra as Record<string, string>,
   };
+  // For state-changing requests: ensure a valid CSRF token exists, then attach it.
+  if (!/^(GET|HEAD|OPTIONS)$/i.test(method)) {
+    await ensureCsrfToken();
+    const csrf = authService.getCsrfToken();
+    if (csrf) headers['X-CSRF-Token'] = csrf;
+  }
+  return headers;
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const url = path.startsWith('http') ? path : `${BASE}/${path}`;
-  const headers = await buildHeaders(options.headers as HeadersInit);
+  const url = path.startsWith('http') ? path : `${API_BASE_URL}/${path}`;
+  const method = (options.method ?? 'GET').toUpperCase();
+  const headers = await buildHeaders(method, options.headers as HeadersInit);
   loadingBus.increment();
   try {
-    const res = await fetch(url, { ...options, headers });
+    const res = await fetch(url, {
+      ...options,
+      headers,
+      credentials: 'include', // send __session HttpOnly cookie automatically
+    });
 
     if (!res.ok) {
       const text = await res.text();
@@ -135,51 +172,16 @@ export const paymentsApi = {
     apiClient.post<RecordPaymentResponse>('payments/record', payload),
 };
 
-export interface SignupPayload {
-  username: string;
-  email: string;
-  password: string;
-  age: number;
-  gender: 'male' | 'female';
-  mobileNumber: string;
-  address?: string;
-}
-
-export interface AuthUserInfo {
-  uid: string;
-  username: string;
-  email: string;
-  role: string;
-}
-
-export interface AuthResponse {
-  success: true;
-  token: string;
-  user: AuthUserInfo;
-}
-
 export const authApi = {
   signup: (payload: SignupPayload) =>
     apiClient.post<AuthResponse>('users/signup', payload),
 
   login: (payload: { email: string; password: string }) =>
     apiClient.post<AuthResponse>('users/login', payload),
-};
 
-export interface UserProfile {
-  uid: string;
-  username: string | null;
-  name: string | null;
-  email: string | null;
-  age: number | null;
-  gender: string | null;
-  mobileNumber: string | null;
-  address: string | null;
-  photoURL: string | null;
-  role: string;
-  isAdmin: boolean;
-  isGuest: boolean;
-}
+  logout: () =>
+    apiClient.post<{ success: boolean }>('users/logout', {}),
+};
 
 export const userApi = {
   getProfile: () => apiClient.get<UserProfile>('users/me'),
@@ -206,4 +208,6 @@ export const adminUsersApi = {
   getAll: () => apiClient.get<{ users: ManagedUser[] }>('users/all'),
   updateStatus: (uids: string[], isActive: boolean) =>
     apiClient.patch<{ success: boolean; updated: number }>('users/status', { uids, isActive }),
+  setAdmin: (targetUid: string, isAdmin: boolean) =>
+    apiClient.post<{ success: boolean }>('users/set-admin', { targetUid, isAdmin }),
 };

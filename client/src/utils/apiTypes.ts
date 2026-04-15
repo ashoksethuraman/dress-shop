@@ -27,8 +27,7 @@ export interface OrderItemPayload {
   productId: string;
   title:     string;
   qty:       number;
-  unitPrice: number;
-  total:     number;
+  // unitPrice and total omitted — server fetches authoritative prices from Firestore
   size?:     string | null;
 }
 
@@ -40,15 +39,14 @@ export interface CreateOrderPayload {
   shippingAddress?:       AddressPayload;
   billingAndShippingSame: boolean;
   items:                  OrderItemPayload[];
-  subtotal:               number;
-  taxAmount:              number;
-  shippingFee:            number;
-  discount:               number;
-  totalAmount:            number;
+  // Client sends totalAmount only for server-side tamper detection.
+  // subtotal, taxAmount, shippingFee, discount are computed by the server.
+  totalAmount?:           number;
 }
 
 export interface CreateOrderResponse {
-  id: string;
+  id:          string;
+  totalAmount: number;  // server-calculated authoritative total
 }
 
 
@@ -72,7 +70,7 @@ export interface FailPaymentPayload {
 
 
 export interface CreateRazorpayOrderPayload {
-  amount:  number;
+  // amount intentionally removed — server reads from stored order
   orderId: string;
 }
 
@@ -86,7 +84,7 @@ export interface CreateRazorpayOrderResponse {
 export interface RecordPaymentPayload {
   paymentId:          string;
   orderId:            string;
-  amount:             number;
+  // amount intentionally removed — server reads totalAmount from stored order
   provider?:          string;
   razorpayOrderId?:   string | null;
   razorpaySignature?: string | null;
@@ -198,4 +196,44 @@ export interface StockValidationIssue {
   size?: string | null;
   requestedQty?: number;
   availableQty?: number;
+}
+
+// ── Auth / User types ─────────────────────────────────────────────────────────
+
+export interface SignupPayload {
+  username:     string;
+  email:        string;
+  password:     string;
+  age:          number;
+  gender:       'male' | 'female';
+  mobileNumber: string;
+  address?:     string;
+}
+
+export interface AuthUserInfo {
+  uid:      string;
+  username: string;
+  email:    string;
+  role:     string;
+}
+
+export interface AuthResponse {
+  success: true;
+  token:   string;
+  user:    AuthUserInfo;
+}
+
+export interface UserProfile {
+  uid:          string;
+  username:     string | null;
+  name:         string | null;
+  email:        string | null;
+  age:          number | null;
+  gender:       string | null;
+  mobileNumber: string | null;
+  address:      string | null;
+  photoURL:     string | null;
+  role:         string;
+  isAdmin:      boolean;
+  isGuest:      boolean;
 }

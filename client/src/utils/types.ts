@@ -53,7 +53,7 @@ export interface CheckoutFormState {
   billingAddress?: AddressData;
   saveInfo: boolean;
   textOffers: boolean;
-  billingOption: 'same' | 'different';
+  billingOptionSame: boolean;
 }
 
 export interface FormErrors {

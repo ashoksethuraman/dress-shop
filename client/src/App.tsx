@@ -6,12 +6,13 @@ import SideMenu from './components/SideMenu';
 import { useAppSelector } from './store/hooks';
 import Loader from './components/Loader';
 import { loadingBus } from './services/loadingBus';
+import { authService } from './services/authService';
+import { API_BASE_URL } from './services/apiClient';
 
 function useApiLoadingCount(): number {
   const [count, setCount] = useState(loadingBus.getCount);
   useEffect(() => {
-    loadingBus.subscribe(setCount);
-    return () => loadingBus.unsubscribe();
+    return loadingBus.subscribe(setCount);
   }, []);
   return count;
 }
@@ -43,6 +44,16 @@ function AppLayout() {
   const location = useLocation();
   const isAuthPage = location.pathname === '/auth' || location.pathname === '/signup';
   const apiLoadingCount = useApiLoadingCount();
+
+  // Bootstrap the CSRF cookie on mount — but only when the current token
+  // is missing or older than 55 min (proactive refresh before 1 h expiry).
+  useEffect(() => {
+    if (!authService.isCsrfValid()) {
+      fetch(`${API_BASE_URL}/users/csrf-token`, { credentials: 'include' })
+        .then(() => authService.markCsrfFetched())
+        .catch(() => {/* non-fatal — apiClient will retry before next mutation */});
+    }
+  }, []);
 
   useEffect(() => {
     if (cartCount > prevCount.current) {

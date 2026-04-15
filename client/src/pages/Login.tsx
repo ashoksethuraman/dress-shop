@@ -60,13 +60,14 @@ export default function Login() {
     setLoading(true);
     try {
       const response = await authApi.login({ email: username, password });
-      authService.setCustomJwt(response.token);
-      dispatch(setUser({
+      const userMeta = {
         id:      response.user.uid,
         name:    response.user.username || response.user.email || username,
         isGuest: false,
         isAdmin: response.user.role === 'admin',
-      }));
+      };
+      authService.saveUserMeta(userMeta);
+      dispatch(setUser(userMeta));
 
       // Navigate — localStorage cart/wishlist already hydrates Redux via preloadedState.
       // Backend sync will happen automatically when user interacts (add to cart / wishlist).

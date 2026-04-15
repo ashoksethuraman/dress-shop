@@ -1,15 +1,29 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useAppSelector } from '../store/hooks';
+import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { setWishlist } from '../store/wishlistSlice';
+import { scheduleSyncWishlist } from '../services/syncService';
 import { useProducts } from '../hooks/useProducts';
 import ProductCard from '../components/ProductCard';
 import { FiHeart, FiArrowLeft } from 'react-icons/fi';
 
 export default function WishlistPage() {
   const wishlistIds = useAppSelector((s) => s.wishlist.ids);
+  const user        = useAppSelector((s) => s.user.user);
+  const dispatch    = useAppDispatch();
   const { products, loading } = useProducts();
 
   const wishlistProducts = products.filter((p) => wishlistIds.includes(p.id));
+
+  // Prune stale IDs (products that no longer exist in the catalog)
+  useEffect(() => {
+    if (loading || products.length === 0) return;
+    const validIds = wishlistIds.filter((id) => products.some((p) => p.id === id));
+    if (validIds.length !== wishlistIds.length) {
+      dispatch(setWishlist(validIds));
+      scheduleSyncWishlist(validIds, !!(user && !user.isGuest));
+    }
+  }, [loading, products, wishlistIds, dispatch, user]);
 
   return (
     <div className="h-full flex flex-col bg-gray-50">
@@ -51,8 +65,8 @@ export default function WishlistPage() {
         {/* Empty state */}
         {!loading && wishlistProducts.length === 0 && (
           <div className="flex flex-col items-center pt-8 text-center px-4">
-            <div className="w-20 h-20 rounded-full bg-rose-50 flex items-center justify-center mb-4">
-              <FiHeart size={36} className="text-rose-300" />
+            <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+              <FiHeart size={36} className="text-gray-400" />
             </div>
             <h2 className="text-xl font-semibold text-gray-700 mb-2">Your wishlist is empty</h2>
             <p className="text-sm text-gray-400 mb-6 max-w-xs">

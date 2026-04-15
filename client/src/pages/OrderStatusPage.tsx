@@ -76,9 +76,9 @@ function ItemRows({ items, compact }: { items: any[]; compact: boolean }) {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-gray-800 truncate">{it.title}</p>
             {it.size && <p className="text-xs text-gray-400 mt-0.5">Size: {it.size}</p>}
-            <p className="text-xs text-gray-500 mt-0.5">Qty: {it.qty} × ₹{Number(it.unitPrice).toFixed(2)}</p>
+            <p className="text-xs text-gray-500 mt-0.5">Qty: {it.qty} × ₹{Number(it.unitPrice ?? it.price ?? 0).toFixed(2)}</p>
           </div>
-          <p className="text-sm font-bold text-gray-800 flex-shrink-0">₹{Number(it.total ?? it.unitPrice * it.qty).toFixed(2)}</p>
+          <p className="text-sm font-bold text-gray-800 flex-shrink-0">₹{Number(it.total ?? (it.unitPrice ?? it.price ?? 0) * it.qty).toFixed(2)}</p>
         </div>
       ))}
     </div>
@@ -90,10 +90,16 @@ function PriceSummary({ order, subtotal, isFailure }: { order: any; subtotal: nu
     <div className="border-t border-gray-100 px-6 py-4 bg-gray-50/50">
       <div className="ml-auto max-w-xs space-y-1.5 text-sm">
         <div className="flex justify-between text-gray-500"><span>Subtotal</span><span>₹{Number(subtotal).toFixed(2)}</span></div>
-        <div className="flex justify-between text-gray-500"><span>Shipping</span><span className="text-green-600 font-medium">Free</span></div>
         {Number(order.taxAmount) > 0 && (
-          <div className="flex justify-between text-gray-600"><span>Tax</span><span>₹{Number(order.taxAmount).toFixed(2)}</span></div>
+          <div className="flex justify-between text-gray-600"><span>GST (18%)</span><span>₹{Number(order.taxAmount).toFixed(2)}</span></div>
         )}
+        <div className="flex justify-between text-gray-500">
+          <span>Shipping</span>
+          {Number(order.shippingFee) === 0
+            ? <span className="text-green-600 font-medium">Free</span>
+            : <span>₹{Number(order.shippingFee ?? 0).toFixed(2)}</span>
+          }
+        </div>
         {Number(order.discount) > 0 && (
           <div className="flex justify-between text-green-600"><span>Discount</span><span>-₹{Number(order.discount).toFixed(2)}</span></div>
         )}
@@ -127,19 +133,23 @@ function buildPdf({ order, isFailure, reason, paymentId, paymentMethod, placedOn
   const tx = (t: string, x: number, a: 'left' | 'right' | 'center' = 'left') => doc.text(t, x, y, { align: a });
 
   // Header band — use fixed y coords inside the band, then jump y to 38
-  isFailure ? doc.setFillColor(220, 38, 38) : doc.setFillColor(115, 138, 110);
-  doc.rect(0, 0, W, 30, 'F');
+  // Header — white background with bottom border
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, W, 32, 'F');
+  doc.setDrawColor(220, 220, 220);
+  doc.line(0, 32, W, 32);
   if (logoDataUrl) {
-    doc.addImage(logoDataUrl, 'PNG', L, 4, 42, 22);
+    doc.addImage(logoDataUrl, 'PNG', L, 3, 42, 22);
   } else {
-    sf(20, 'bold'); sc(255, 255, 255);
-    doc.text('Halley Comet', L, 14);
+    sf(20, 'bold'); sc(80, 60, 40);
+    doc.text('Halley Comet', L, 16);
   }
-  sf(10); sc(255, 255, 255);
-  doc.text(isFailure ? 'Payment Failure Report' : 'Order Receipt', L, 26);
+  sf(9); sc(120, 120, 120);
+  doc.text(isFailure ? 'Payment Failure Report' : 'Order Receipt', L, 28);
+  sf(9); sc(100, 100, 100);
   doc.text(placedOn, R, 14, { align: 'right' });
   if (order.id) doc.text(`Order: ${order.id}`, R, 22, { align: 'right' });
-  y = 38;
+  y = 40;
 
   // Status badge
   if (isFailure) {
@@ -188,9 +198,11 @@ function buildPdf({ order, isFailure, reason, paymentId, paymentMethod, placedOn
   ln(1); hr(210); sf(10); sc(30, 30, 30);
   order.items?.forEach((it: any) => {
     const itemLabel = it.size ? `${it.title} (Size: ${it.size})` : it.title;
+    const uPrice = Number(it.unitPrice ?? it.price ?? 0);
+    const iTotal = Number(it.total ?? uPrice * it.qty);
     tx(itemLabel, L); tx(String(it.qty), 125);
-    tx(`Rs.${Number(it.unitPrice).toFixed(2)}`, 148);
-    sf(10, 'bold'); tx(`Rs.${Number(it.total ?? it.unitPrice * it.qty).toFixed(2)}`, R, 'right');
+    tx(`Rs.${uPrice.toFixed(2)}`, 148);
+    sf(10, 'bold'); tx(`Rs.${iTotal.toFixed(2)}`, R, 'right');
     sf(10); ln();
   });
   ln(1); hr(210);
@@ -198,8 +210,10 @@ function buildPdf({ order, isFailure, reason, paymentId, paymentMethod, placedOn
   // Totals
   const tX = 140; sf(10);
   tx('Subtotal', tX); tx(`Rs.${Number(subtotal).toFixed(2)}`, R, 'right'); ln();
-  tx('Shipping', tX); tx(`Rs.${Number(order.shippingFee ?? 0).toFixed(2)}`, R, 'right'); ln();
-  if (Number(order.taxAmount) > 0) { tx('Tax', tX); tx(`Rs.${Number(order.taxAmount).toFixed(2)}`, R, 'right'); ln(); }
+  if (Number(order.taxAmount) > 0) { tx('GST (18%)', tX); tx(`Rs.${Number(order.taxAmount).toFixed(2)}`, R, 'right'); ln(); }
+  tx('Shipping', tX);
+  if (Number(order.shippingFee ?? 0) === 0) { sc(22, 163, 74); tx('Free', R, 'right'); sc(30, 30, 30); } else { tx(`Rs.${Number(order.shippingFee).toFixed(2)}`, R, 'right'); }
+  ln();
   if (Number(order.discount)  > 0) { tx('Discount', tX); tx(`-Rs.${Number(order.discount).toFixed(2)}`, R, 'right'); ln(); }
   sf(12, 'bold'); isFailure ? sc(220, 38, 38) : sc(115, 138, 110);
   tx(isFailure ? 'Total (NOT CHARGED)' : 'Grand Total', tX);
@@ -231,7 +245,7 @@ export default function OrderStatusPage() {
   const billAddr = useMemo(() => order?.billingAddress ?? {}, [order]);
   const addrSame = order?.billingAndShippingSame !== false;
   const subtotal = order?.subtotal
-    ?? order?.items?.reduce((s: number, i: any) => s + Number(i.unitPrice) * Number(i.qty), 0)
+    ?? order?.items?.reduce((s: number, i: any) => s + Number(i.unitPrice ?? i.price ?? 0) * Number(i.qty), 0)
     ?? order?.totalAmount ?? 0;
   const placedOn = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
 

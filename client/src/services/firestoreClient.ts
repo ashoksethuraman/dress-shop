@@ -174,7 +174,7 @@ export const firestoreOrdersApi = {
       timeline:      [],
       createdAt:     serverTimestamp(),
     });
-    return { id: payload.id };
+    return { id: payload.id, totalAmount: payload.totalAmount ?? 0 };
   },
 
   /** Current user's own orders — mirrors GET /orders/me */
@@ -274,6 +274,13 @@ export const firestorePaymentsApi = {
     // overwritten with the same data, so no separate getDoc check needed.
     // (A getDoc here would require READ permission on payments, which guest
     // users don't have — causing the entire payment record to fail.)
+    // 1. Fetch the order to get the authoritative amount (direct-Firestore path doesn't have a server)
+    const orderSnap = await getDoc(doc(db, 'orders', payload.orderId));
+    const orderAmount: number = orderSnap.exists()
+      ? ((orderSnap.data().totalAmount ?? orderSnap.data().total ?? 0) as number)
+      : 0;
+
+    // 2. Write the full payment ledger record
     const paymentRef = doc(db, 'payments', payload.paymentId);
     const batch = writeBatch(db);
 
@@ -284,7 +291,7 @@ export const firestorePaymentsApi = {
       providerOrderId:    payload.razorpayOrderId ?? null,
       providerPaymentId:  payload.paymentId,
       razorpaySignature:  payload.razorpaySignature ?? null,
-      amount:             payload.amount,
+      amount:             orderAmount,
       currency:           payload.currency ?? 'INR',
       status:             'SUCCESS',
       method:             payload.method ?? null,

@@ -63,7 +63,7 @@ export function clearUserSession(): void {
 
 type PersistedCheckoutForm = Pick<
   CheckoutFormState,
-  'email' | 'shippingAddress' | 'billingAddress' | 'billingOption'
+  'email' | 'shippingAddress' | 'billingAddress' | 'billingOptionSame'
 >;
 
 export function saveCheckoutForm(data: Partial<PersistedCheckoutForm>): void {
