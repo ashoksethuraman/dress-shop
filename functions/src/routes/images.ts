@@ -52,7 +52,8 @@ imagesRouter.post("/upload", authenticate, requireAdmin, (req: Request, res: Res
     },
   }).then(() => {
     const encodedPath = encodeURIComponent(objectPath);
-    const publicUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${downloadToken}`;
+    // "https://firebasestorage.googleapis.com/v0/b/halleycomet-7cd48.firebasestorage.app/o/products%2Fhalleycomet_d72b7d47-f332-4055-be43-16832f2b6216.jpg?alt=media&token=64175b15-e1e8-493b-bace-597c7340be00"
+    const publicUrl = `${encodedPath}?alt=media&token=${downloadToken}`;
     logger.info(`[POST /images/upload] Uploaded to bucket ${bucket.name}: ${objectPath}`);
     res.json({url: publicUrl});
   }).catch((err) => {

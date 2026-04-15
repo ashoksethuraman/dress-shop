@@ -5,6 +5,7 @@ import {db} from "../config/firebase";
 import {authenticate, requireAdmin, validate, sanitizeParam} from "../middleware";
 import {type CreateProductBody, type UpdateProductBody} from "../types";
 import {validateCreateProduct, validateUpdateProduct} from "../validators";
+import {admin} from "../config/firebase";
 
 export const productsRouter = Router();
 
@@ -95,18 +96,26 @@ productsRouter.post("/", authenticate, requireAdmin, validate(validateCreateProd
   try {
     const ref = db.collection("products").doc();
     const images = body.images ?? [];
-    const {imagePaths, imageNames} = deriveImageRefs(images);
-    const sizeChartRef = deriveSingleRef(body.sizeChart ?? null);
+    // hiding no need refrence 
+    // const {imagePaths, imageNames} = deriveImageRefs(images);
+    // const sizeChartRef = deriveSingleRef(body.sizeChart ?? null);
 
     await ref.set({
-      id: ref.id, title: body.title, description: body.description ?? "",
-      price: Number(body.price), category: body.category ?? "women",
-      images, sizes: body.sizes ?? [],
-      imagePaths, imageNames,
-      sizeInventory: body.sizeInventory ?? {}, image: images[0] ?? "",
-      stock: body.stock ?? "available", sizeChart: body.sizeChart ?? null,
-      sizeChartPath: sizeChartRef.path,
-      sizeChartName: sizeChartRef.name,
+      id: ref.id, 
+      title: body.title, 
+      description: body.description ?? "",
+      price: Number(body.price), 
+      category: body.category ?? "women",
+      images, 
+      sizes: body.sizes ?? [],
+      // imagePaths, 
+      // imageNames,
+      sizeInventory: body.sizeInventory ?? {}, 
+      // image: images[0] ?? "",
+      stock: body.stock ?? "available", 
+      sizeChart: body.sizeChart ?? null,
+      // sizeChartPath: sizeChartRef.path,
+      // sizeChartName: sizeChartRef.name,
       createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
     });
     logger.info(`[POST /products] Added: ${ref.id} by ${req.user!.uid}`);
@@ -152,14 +161,27 @@ productsRouter.put("/:id", authenticate, requireAdmin, sanitizeParam("id"), vali
 });
 
 productsRouter.delete("/:id", authenticate, requireAdmin, sanitizeParam("id"), async (req: Request, res: Response) => {
-  const {id} = req.params;
+  const { id } = req.params;
+  const { images } = req.body as { images?: string[] };
+  logger.info(`[Image] delete : ${images}`);
   try {
     await db.doc(`products/${id}`).delete();
     logger.info(`[DELETE /products/:id] Deleted: ${id} by ${req.user!.uid}`);
-    res.json({success: true});
+    // 2. Delete images from Cloud Storage (if provided)
+    if (images && Array.isArray(images)) {
+      const bucket = admin.storage().bucket();
+      const deleteOps = images.map((path) =>
+        bucket.file(path).delete().catch((err) => {
+          // Log error but don’t stop deletion
+          logger.warn(`Image delete failed: ${path}`, err);
+        })
+      );
+      await Promise.all(deleteOps);
+    }
+    res.json({ success: true });
   } catch (err) {
     logger.error("[DELETE /products/:id] error", err);
-    res.status(500).json({error: "Failed to delete product."});
+    res.status(500).json({ error: "Failed to delete product." });
   }
 });
 

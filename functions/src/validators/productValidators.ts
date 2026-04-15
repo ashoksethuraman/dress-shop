@@ -1,6 +1,6 @@
-import type {ValidationResult} from "../types";
-import {PRODUCT_CATEGORIES, STOCK_STATUSES} from "../types";
-import type {UpdateProductBody} from "../types/product";
+import type { ValidationResult } from "../types";
+import { PRODUCT_CATEGORIES, STOCK_STATUSES } from "../types";
+import type { UpdateProductBody } from "../types/product";
 import {
   isObject, isNonEmptyString, isNonNegativeNumber,
   requireStr, requireNonNegNum, requireOneOf, optionalStringArray, fail,
@@ -44,10 +44,7 @@ function validateProductFields(
 
   if (b.sizeChart !== undefined && b.sizeChart !== null && b.sizeChart !== "") {
     if (typeof b.sizeChart !== "string") return fail("sizeChart must be a string URL.", "sizeChart");
-    if (
-      !(b.sizeChart as string).startsWith("https://") &&
-      !(b.sizeChart as string).startsWith("/")
-    ) {
+    if (!(b.sizeChart as string).startsWith("size-charts")) {
       return fail("sizeChart must be a valid URL.", "sizeChart");
     }
   }
@@ -63,7 +60,7 @@ function validateProductFields(
     }
   }
 
-  return {valid: true};
+  return { valid: true };
 }
 
 export function validateCreateProduct(body: unknown): ValidationResult {
@@ -84,4 +81,4 @@ export function validateUpdateProduct(body: unknown): ValidationResult {
 }
 
 // Re-export for convenience
-export {isNonNegativeNumber};
+export { isNonNegativeNumber };

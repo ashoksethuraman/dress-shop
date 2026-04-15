@@ -190,6 +190,7 @@ export default function AddProductForm({ onAdded }: Props) {
         uploadImages(imageFiles, category, title),
         sizeChartFile ? uploadSizeChart(sizeChartFile) : Promise.resolve(undefined),
       ]);
+      console.log('uploaded images  ::', uploadedImages, uploadedSizeChart)
       setLoadingLabel('Saving product…');
       const stockValue: StockStatus = stockMode;
       const savedTitle = title.trim();

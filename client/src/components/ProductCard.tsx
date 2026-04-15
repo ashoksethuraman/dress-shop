@@ -27,7 +27,7 @@ function stockLabel(p: { stock?: string; sizeInventory?: Record<string, number> 
 interface Props {
   product: Product & { id: string };
   isAdmin?: boolean;
-  onDelete?: (id: string, title: string) => void;
+  onDelete?: (id: string, title: string, images: string[] | undefined, sizeChart: string | undefined) => void;
 }
 
 export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
@@ -110,7 +110,7 @@ export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
       {/* Admin delete */}
       {isAdmin && onDelete && (
         <button
-          onClick={() => onDelete(p.id, p.title)}
+          onClick={() => onDelete(p.id, p.title, p.images ?? [], p.sizeChart)}
           className="absolute top-2 right-2 z-20 w-7 h-7 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
           title="Delete product"
         >

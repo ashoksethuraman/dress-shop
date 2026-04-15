@@ -15,6 +15,11 @@ export type Product = {
   sizeChart?: string;
 };
 
+export type DeletePayload = {
+  id: string;
+  images: string[];
+};
+
 export type CartItem = {
   productId: string;
   title: string;
