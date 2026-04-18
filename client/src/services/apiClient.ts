@@ -11,6 +11,8 @@ import {
   type CreateRazorpayOrderResponse,
   type RecordPaymentPayload,
   type RecordPaymentResponse,
+  type InitiateRefundPayload,
+  type InitiateRefundResponse,
   type StoredOrder,
   type TrackOrderResponse,
   type OrderStatus,
@@ -276,6 +278,12 @@ export const paymentsApi = {
   record: (payload: RecordPaymentPayload) =>
     apiClient.post<RecordPaymentResponse>(
       'payments/record',
+      payload
+    ),
+
+  initiateRefund: (payload: InitiateRefundPayload) =>
+    apiClient.post<InitiateRefundResponse>(
+      'payments/refund',
       payload
     ),
 };

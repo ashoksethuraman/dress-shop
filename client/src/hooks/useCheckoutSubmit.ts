@@ -14,16 +14,17 @@ import {
   type StockValidationIssue,
 } from '../utils/apiTypes';
 
-const USE_MOCK_PAYMENT = process.env.REACT_APP_USE_MOCK_PAYMENT !== 'false';
-
-type MockPayCtx = {
-  orderId: string;
-  orderData: any;
-  amount: number;
-  name: string;
-  email: string;
-  phone: string;
-};
+// ── Mock payment mode (commented out — real Razorpay is active) ──────────────
+// const USE_MOCK_PAYMENT = process.env.REACT_APP_USE_MOCK_PAYMENT !== 'false';
+//
+// type MockPayCtx = {
+//   orderId: string;
+//   orderData: any;
+//   amount: number;
+//   name: string;
+//   email: string;
+//   phone: string;
+// };
 
 type Params = {
   items: CartItem[];
@@ -45,7 +46,7 @@ export function useCheckoutSubmit({
 
   const [loading,      setLoading]      = useState(false);
   const [payError,     setPayError]     = useState<string | null>(null);
-  const [mockPayCtx,   setMockPayCtx]   = useState<MockPayCtx | null>(null);
+  // const [mockPayCtx,   setMockPayCtx]   = useState<MockPayCtx | null>(null);  // mock payment commented out
   const [stockIssues,  setStockIssues]  = useState<StockValidationIssue[] | null>(null);
 
   const clearOrderedItems = () => {
@@ -123,29 +124,40 @@ export function useCheckoutSubmit({
         return;
       }
 
-      // Mock payment mode
-      if (USE_MOCK_PAYMENT) {
-        setMockPayCtx({
-          orderId,
-          orderData: displayOrder,
-          amount: serverTotal,
-          name:  `${form.shippingAddress.firstName} ${form.shippingAddress.lastName}`,
-          email: form.email,
-          phone: form.shippingAddress.phone,
-        });
+      // ── Mock payment mode (commented out — real Razorpay is active) ──────
+      // if (USE_MOCK_PAYMENT) {
+      //   setMockPayCtx({
+      //     orderId,
+      //     orderData: displayOrder,
+      //     amount: serverTotal,
+      //     name:  `${form.shippingAddress.firstName} ${form.shippingAddress.lastName}`,
+      //     email: form.email,
+      //     phone: form.shippingAddress.phone,
+      //   });
+      //   setLoading(false);
+      //   return;
+      // }
+
+      // Step 2 — create Razorpay server order
+      // keyId is returned by the backend so it never needs to be hardcoded in the frontend
+      let razorpayOrderId: string | undefined;
+      let confirmedAmount = serverTotal;
+      let razorpayKeyId   = '';
+      try {
+        const rzpOrder = await paymentsApi.createRazorpayOrder({ orderId });
+        razorpayOrderId = rzpOrder.razorpayOrderId;
+        razorpayKeyId   = rzpOrder.keyId;
+        if (typeof rzpOrder.amount === 'number') confirmedAmount = rzpOrder.amount / 100;
+      } catch (err) {
+        setPayError(getErrorMessage(err, 'Payment setup failed. Please try again or contact support.'));
         setLoading(false);
         return;
       }
 
-      // Step 2 — create Razorpay server order
-      let razorpayOrderId: string | undefined;
-      let confirmedAmount = serverTotal;
-      try {
-        const rzpOrder = await paymentsApi.createRazorpayOrder({ orderId });
-        razorpayOrderId = rzpOrder.razorpayOrderId;
-        if (typeof rzpOrder.amount === 'number') confirmedAmount = rzpOrder.amount / 100;
-      } catch {
-        console.warn('Could not create Razorpay server order; continuing without HMAC verification.');
+      if (!razorpayKeyId) {
+        setPayError('Payment gateway is not configured. Please contact support.');
+        setLoading(false);
+        return;
       }
 
       // Step 3 — Razorpay checkout
@@ -155,6 +167,7 @@ export function useCheckoutSubmit({
         name:   `${form.shippingAddress.firstName} ${form.shippingAddress.lastName}`,
         email:  form.email,
         phone:  form.shippingAddress.phone,
+        keyId:  razorpayKeyId,
         razorpayOrderId,
 
         onSuccess: async (response: any) => {
@@ -218,64 +231,65 @@ export function useCheckoutSubmit({
     }
   };
 
-  const handleMockSuccess = async (response: any) => {
-    const ctx = mockPayCtx!;
-    setMockPayCtx(null);
-    setLoading(true);
-    try {
-      await paymentsApi.record({
-        paymentId:         response.razorpay_payment_id,
-        orderId:           ctx.orderId,
-        razorpayOrderId:   response.razorpay_order_id,
-        razorpaySignature: response.razorpay_signature,
-        transactionRef:    response.transactionRef ?? null,
-        utr:               response.utr ?? null,
-        currency:          'INR',
-        method:            'mock',
-        cardLast4:         response.cardLast4 ?? null,
-        cardNetwork:       response.cardNetwork ?? null,
-        customerName:      ctx.name,
-        customerEmail:     ctx.email,
-        isTest:            true,
-      });
-    } catch (err) {
-      console.warn('Could not record payment ledger entry:', err);
-    }
-    navigatedAway.current = true;
-    navigate('/order-success', {
-      state: {
-        order:         ctx.orderData,
-        paymentId:     response.razorpay_payment_id,
-        paymentMethod: response.cardNetwork ? `Mock · ${response.cardNetwork}` : 'Mock Payment',
-      },
-    });
-    clearOrderedItems();
-    setLoading(false);
-  };
-
-  const handleMockDismiss = async () => {
-    const ctx = mockPayCtx!;
-    setMockPayCtx(null);
-    try { await paymentsApi.failPayment({ orderId: ctx.orderId, reason: 'payment_dismissed' }); } catch { /* ignore */ }
-    navigatedAway.current = true;
-    navigate('/order-failure', {
-      state: { order: ctx.orderData, reason: 'payment_dismissed', description: 'Payment was cancelled by the user.' },
-    });
-  };
-
-  const handleMockFailed = (error: { description: string; reason: string }) => {
-    const ctx = mockPayCtx!;
-    setMockPayCtx(null);
-    paymentsApi.failPayment({ orderId: ctx.orderId, reason: 'payment_failed' }).catch(() => {});
-    navigatedAway.current = true;
-    navigate('/order-failure', {
-      state: { order: ctx.orderData, reason: 'payment_failed', description: error.description, errorCode: error.reason },
-    });
-  };
+  // ── Mock payment handlers (commented out — real Razorpay is active) ────────
+  // const handleMockSuccess = async (response: any) => {
+  //   const ctx = mockPayCtx!;
+  //   setMockPayCtx(null);
+  //   setLoading(true);
+  //   try {
+  //     await paymentsApi.record({
+  //       paymentId:         response.razorpay_payment_id,
+  //       orderId:           ctx.orderId,
+  //       razorpayOrderId:   response.razorpay_order_id,
+  //       razorpaySignature: response.razorpay_signature,
+  //       transactionRef:    response.transactionRef ?? null,
+  //       utr:               response.utr ?? null,
+  //       currency:          'INR',
+  //       method:            'mock',
+  //       cardLast4:         response.cardLast4 ?? null,
+  //       cardNetwork:       response.cardNetwork ?? null,
+  //       customerName:      ctx.name,
+  //       customerEmail:     ctx.email,
+  //       isTest:            true,
+  //     });
+  //   } catch (err) {
+  //     console.warn('Could not record payment ledger entry:', err);
+  //   }
+  //   navigatedAway.current = true;
+  //   navigate('/order-success', {
+  //     state: {
+  //       order:         ctx.orderData,
+  //       paymentId:     response.razorpay_payment_id,
+  //       paymentMethod: response.cardNetwork ? `Mock · ${response.cardNetwork}` : 'Mock Payment',
+  //     },
+  //   });
+  //   clearOrderedItems();
+  //   setLoading(false);
+  // };
+  //
+  // const handleMockDismiss = async () => {
+  //   const ctx = mockPayCtx!;
+  //   setMockPayCtx(null);
+  //   try { await paymentsApi.failPayment({ orderId: ctx.orderId, reason: 'payment_dismissed' }); } catch { /* ignore */ }
+  //   navigatedAway.current = true;
+  //   navigate('/order-failure', {
+  //     state: { order: ctx.orderData, reason: 'payment_dismissed', description: 'Payment was cancelled by the user.' },
+  //   });
+  // };
+  //
+  // const handleMockFailed = (error: { description: string; reason: string }) => {
+  //   const ctx = mockPayCtx!;
+  //   setMockPayCtx(null);
+  //   paymentsApi.failPayment({ orderId: ctx.orderId, reason: 'payment_failed' }).catch(() => {});
+  //   navigatedAway.current = true;
+  //   navigate('/order-failure', {
+  //     state: { order: ctx.orderData, reason: 'payment_failed', description: error.description, errorCode: error.reason },
+  //   });
+  // };
 
   return {
     loading, payError, setPayError,
-    mockPayCtx, stockIssues, setStockIssues,
-    onSubmit, handleMockSuccess, handleMockDismiss, handleMockFailed,
+    stockIssues, setStockIssues,
+    onSubmit,
   };
 }

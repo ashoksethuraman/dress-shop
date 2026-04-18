@@ -1,4 +1,4 @@
-import { OrderStatus, PaymentStatus } from '../../utils/apiTypes';
+import { OrderStatus, PaymentStatus, RefundStatus } from '../../utils/apiTypes';
 
 export const PAGE_SIZE = 10;
 
@@ -32,4 +32,15 @@ export function fmtDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString('en-IN', {
     day: '2-digit', month: 'short', year: 'numeric',
   });
+}
+
+export function refundStatusBadge(s: RefundStatus): string {
+  const map: Record<RefundStatus, string> = {
+    NONE:        'bg-gray-100 text-gray-500 border border-gray-200',
+    INITIATED:   'bg-amber-50 text-amber-700 border border-amber-200',
+    PROCESSING:  'bg-blue-50 text-blue-700 border border-blue-200',
+    COMPLETED:   'bg-purple-50 text-purple-700 border border-purple-200',
+    FAILED:      'bg-red-50 text-red-600 border border-red-200',
+  };
+  return map[s] ?? 'bg-gray-100 text-gray-600';
 }

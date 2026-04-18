@@ -10,7 +10,7 @@ import {
 
 import { productsRouter } from "./routes/products";
 import { ordersRouter } from "./routes/orders";
-import { paymentsRouter } from "./routes/payments";
+import { paymentsRouter, razorpayWebhookHandler } from "./routes/payments";
 import { imagesRouter } from "./routes/images";
 import { usersRouter } from "./routes/users";
 
@@ -21,6 +21,11 @@ app.set("trust proxy", 1);
 app.use(helmet());
 app.disable("x-powered-by");
 app.use(cookieParser());
+
+// Razorpay webhook needs the raw body for HMAC-SHA256 verification.
+// Mount it with express.raw() BEFORE express.json() so the Buffer is preserved.
+app.post("/payments/webhook", express.raw({type: "application/json"}), razorpayWebhookHandler);
+
 app.use(express.json({ limit: "1mb" }));
 
 // Security middleware

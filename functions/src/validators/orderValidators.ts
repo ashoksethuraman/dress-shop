@@ -77,3 +77,13 @@ export function validateRecordPayment(body: unknown): ValidationResult {
     {valid: true}
   );
 }
+
+export function validateRefundOrder(body: unknown): ValidationResult {
+  if (!isObject(body)) return fail("Request body is required.");
+  const e = requireStr(body, "orderId");
+  if (e) return e;
+  if (body.reason !== undefined && typeof body.reason !== "string") {
+    return fail("reason must be a string.", "reason");
+  }
+  return {valid: true};
+}

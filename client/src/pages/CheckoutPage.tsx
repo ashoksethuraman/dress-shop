@@ -13,13 +13,13 @@ import DeliverySection from '../components/checkout/DeliverySection';
 import ShippingMethodSection from '../components/checkout/ShippingMethodSection';
 import PaymentSection from '../components/checkout/PaymentSection';
 import MobileOrderSummaryBar from '../components/checkout/MobileOrderSummaryBar';
-import MockPaymentModal from '../components/MockPaymentModal';
+// import MockPaymentModal from '../components/MockPaymentModal';  // mock payment commented out
 import AlertModal from '../components/AlertModal';
 import { loadCheckoutForm, saveCheckoutForm } from '../services/guestSession';
 import { calcOrderTotals } from '../utils/priceLevel';
 import { useCheckoutSubmit } from '../hooks/useCheckoutSubmit';
 
-const USE_MOCK_PAYMENT = process.env.REACT_APP_USE_MOCK_PAYMENT !== 'false';
+// const USE_MOCK_PAYMENT = process.env.REACT_APP_USE_MOCK_PAYMENT !== 'false';  // mock payment commented out
 
 const EMPTY_ADDRESS = {
   firstName: '', lastName: '', company: '', address: '',
@@ -47,12 +47,13 @@ export default function CheckoutPage() {
     if (!navigatedAway.current && !isBuyNow && items.length === 0) navigate('/', { replace: true });
   }, [items.length, isBuyNow, navigate]);
 
-  useEffect(() => { if (!USE_MOCK_PAYMENT) preloadRazorpayScript(); }, []);
+  useEffect(() => { preloadRazorpayScript(); }, []);  // always preload (mock payment disabled)
 
   const {
     loading, payError, setPayError,
-    mockPayCtx, stockIssues, setStockIssues,
-    onSubmit, handleMockSuccess, handleMockDismiss, handleMockFailed,
+    stockIssues, setStockIssues,
+    onSubmit,
+    // mockPayCtx, handleMockSuccess, handleMockDismiss, handleMockFailed,  // mock payment commented out
   } = useCheckoutSubmit({ items, subtotal, taxAmount, shippingFee, total, isBuyNow, buyNowItem, navigatedAway });
 
   const savedForm = loadCheckoutForm() as LegacySavedCheckoutForm | null;
@@ -106,8 +107,8 @@ export default function CheckoutPage() {
         />
       )}
 
-      {/* Mock payment modal */}
-      {mockPayCtx && (
+      {/* Mock payment modal — commented out (real Razorpay is active) */}
+      {/* {mockPayCtx && (
         <MockPaymentModal
           orderId={mockPayCtx.orderId}
           amount={mockPayCtx.amount}
@@ -117,7 +118,7 @@ export default function CheckoutPage() {
           onDismiss={handleMockDismiss}
           onPaymentFailed={handleMockFailed}
         />
-      )}
+      )} */}
 
       {/* Mobile order summary bar */}
       <MobileOrderSummaryBar

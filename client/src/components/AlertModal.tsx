@@ -16,6 +16,15 @@ interface AlertModalProps {
   actionLabel?: string;
   /** Called when the primary CTA is clicked */
   onAction?: () => void;
+  /**
+   * Icon shown inside the action button.
+   * - undefined (default): shows FiShoppingCart (backward-compat)
+   * - null: no icon
+   * - ReactNode: custom icon
+   */
+  actionIcon?: React.ReactNode | null;
+  /** 'primary' = brand-dark (default) | 'danger' = red */
+  actionVariant?: 'primary' | 'danger';
 }
 
 const THEME: Record<AlertModalType, {
@@ -46,8 +55,18 @@ const THEME: Record<AlertModalType, {
 
 export default function AlertModal({
   title, messages, type = 'warning', onClose, actionLabel, onAction,
+  actionIcon, actionVariant = 'primary',
 }: AlertModalProps) {
   const { Icon, iconCls, titleCls, headerCls } = THEME[type];
+
+  // Resolve the icon node: undefined = legacy default (cart), null = none
+  const resolvedIcon: React.ReactNode =
+    actionIcon === undefined ? <FiShoppingCart size={14} /> : actionIcon ?? null;
+
+  const actionBtnCls =
+    actionVariant === 'danger'
+      ? 'bg-red-600 hover:bg-red-700'
+      : 'bg-brand-dark hover:bg-brand-hover';
 
   return (
     /* backdrop — click-outside closes */
@@ -102,9 +121,9 @@ export default function AlertModal({
             <button
               type="button"
               onClick={onAction}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-dark hover:bg-brand-hover text-white text-sm font-bold transition-colors shadow-sm"
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-bold transition-colors shadow-sm ${actionBtnCls}`}
             >
-              <FiShoppingCart size={14} />
+              {resolvedIcon}
               {actionLabel}
             </button>
           )}
@@ -113,3 +132,4 @@ export default function AlertModal({
     </div>
   );
 }
+

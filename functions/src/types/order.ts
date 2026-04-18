@@ -65,3 +65,8 @@ export interface UpdateOrderStatusBody {
   orderId: string;
   status: OrderStatus;
 }
+
+export interface RefundOrderBody {
+  orderId: string;
+  reason?: string;  // optional admin note
+}

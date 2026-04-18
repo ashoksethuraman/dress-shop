@@ -243,17 +243,84 @@ ordersRouter.get("/:id", authenticate, sanitizeParam("id"), async (req: Request,
   }
 });
 
+// ── Status-transition rules ───────────────────────────────────────────────────
+// Forward-only sequence. CANCELLED is a valid target from any non-terminal
+// status except SHIPPED and DELIVERED.
+const FORWARD_SEQUENCE: readonly OrderStatus[] = [
+  "PENDING", "PLACED", "CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED",
+] as const;
+
+const TERMINAL_STATUSES = new Set<OrderStatus>(["DELIVERED", "CANCELLED"]);
+
+/**
+ * Returns true when transitioning from → to is a legal forward move.
+ * PAYMENT_FAILED orders can only be set to CANCELLED.
+ */
+function isLegalTransition(from: OrderStatus, to: OrderStatus): boolean {
+  if (from === to) return false;
+  if (TERMINAL_STATUSES.has(from)) return false;
+  if (from === "PAYMENT_FAILED") return to === "CANCELLED";
+  if (to === "CANCELLED") {
+    // Cannot cancel after the order has already shipped
+    return from !== "SHIPPED" && from !== "DELIVERED";
+  }
+  const fi = FORWARD_SEQUENCE.indexOf(from);
+  const ti = FORWARD_SEQUENCE.indexOf(to);
+  return fi >= 0 && ti > fi;
+}
+
 ordersRouter.post(
   "/:id/status", authenticate, requireAdmin, sanitizeParam("id"), validate(validateUpdateOrderStatus),
   async (req: Request, res: Response) => {
     const {id} = req.params;
     const {status} = req.body as {status: OrderStatus};
     try {
+      // ── 1. Load the order ────────────────────────────────────────────────
+      const orderSnap = await db.doc(`orders/${id}`).get();
+      if (!orderSnap.exists) {
+        res.status(404).json({error: "Order not found."}); return;
+      }
+      const orderData = orderSnap.data()!;
+      const currentStatus = orderData.orderStatus as OrderStatus;
+
+      // ── 2. Ownership guard — admins cannot update their own orders ───────
+      if (orderData.userId && orderData.userId === req.user!.uid) {
+        res.status(403).json({error: "You cannot change the status of your own orders. Ask another admin."}); return;
+      }
+
+      // ── 3. Forward-only transition validation ────────────────────────────
+      if (!isLegalTransition(currentStatus, status)) {
+        res.status(422).json({
+          error: `Invalid transition: "${currentStatus}" → "${status}". Status can only move forward and cannot be reversed.`,
+        }); return;
+      }
+
+      // ── 4. Payment requirement for SHIPPED / DELIVERED ───────────────────
+      if (status === "SHIPPED" || status === "DELIVERED") {
+        const paymentStatus = orderData.paymentStatus as string;
+        let paymentOk = paymentStatus === "SUCCESS";
+        if (!paymentOk && orderData.paymentId) {
+          try {
+            const pSnap = await db.doc(`payments/${orderData.paymentId}`).get();
+            if (pSnap.exists) {
+              const method = (pSnap.data()?.method as string | null)?.toLowerCase() ?? "";
+              paymentOk = method === "cod" || method === "cash on delivery";
+            }
+          } catch {/* non-fatal — payment lookup failed, block by default */}
+        }
+        if (!paymentOk) {
+          res.status(422).json({
+            error: `Cannot mark order as ${status}: payment has not been completed (current payment status: ${paymentStatus}). Only orders with successful payment or Cash on Delivery can be shipped.`,
+          }); return;
+        }
+      }
+
+      // ── 5. Apply update ──────────────────────────────────────────────────
       await db.doc(`orders/${id}`).update({
         orderStatus: status, updatedAt: FieldValue.serverTimestamp(),
         timeline: FieldValue.arrayUnion({status, timestamp: new Date().toISOString()}),
       });
-      logger.info(`[POST /orders/:id/status] ${id} \u2192 ${status} by ${req.user!.uid}`);
+      logger.info(`[POST /orders/:id/status] ${id} → ${status} by ${req.user!.uid} (was: ${currentStatus})`);
       res.json({success: true});
     } catch (err) {
       logger.error("[POST /orders/:id/status] error", err);

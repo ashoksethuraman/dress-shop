@@ -1,5 +1,8 @@
-export const RAZORPAY_KEY_ID =
-  process.env.REACT_APP_RAZORPAY_KEY_ID || 'rzp_test_XXXXXXXXXXXXXXXX';
+// RAZORPAY_KEY_ID is no longer stored on the frontend.
+// The backend returns the public keyId in the /payments/razorpay-order response
+// and the secret NEVER leaves the server (functions/.env → RAZORPAY_KEY_SECRET).
+// export const RAZORPAY_KEY_ID =
+//   process.env.REACT_APP_RAZORPAY_KEY_ID || 'rzp_test_XXXXXXXXXXXXXXXX';
 
 declare global {
   interface Window {
@@ -13,6 +16,7 @@ export interface RazorpayPaymentOptions {
   name: string;
   email: string;
   phone: string;
+  keyId: string;           // received from backend — never hardcode here
   razorpayOrderId?: string;
   onSuccess: (response: any) => void;
   onDismiss: () => void;
@@ -48,7 +52,7 @@ export async function initRazorpayPayment(opts: RazorpayPaymentOptions): Promise
   const amountInPaise = Math.round(opts.amount * 100);
 
   const options = {
-    key:         RAZORPAY_KEY_ID,
+    key:         opts.keyId,
     amount:      amountInPaise,
     currency:    'INR',
     name:        'Dress Shop',
