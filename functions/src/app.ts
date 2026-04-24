@@ -62,4 +62,6 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ error: "Internal server error." });
 });
 
+console.log("KEY app.ts:", process.env.RAZORPAY_KEY_ID);
+
 export default app;

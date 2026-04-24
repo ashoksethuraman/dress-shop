@@ -55,7 +55,7 @@ export async function initRazorpayPayment(opts: RazorpayPaymentOptions): Promise
     key:         opts.keyId,
     amount:      amountInPaise,
     currency:    'INR',
-    name:        'Dress Shop',
+    name:        'Halley Comet',
     description: `Order #${opts.orderId}`,
     order_id:    opts.razorpayOrderId ?? undefined,
     prefill: {

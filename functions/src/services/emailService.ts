@@ -55,6 +55,7 @@ function isMailConfigured(): boolean {
 
 function getTransporter(): nodemailer.Transporter | null {
   if (!isMailConfigured()) return null;
+  logger.info('mail is configured');
   if (cachedTransporter) return cachedTransporter;
   cachedTransporter = nodemailer.createTransport({
     host: smtpHost,

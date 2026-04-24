@@ -7,7 +7,7 @@ type AdminTab = 'products' | 'orders';
 
 const TABS: Array<{ id: AdminTab; label: string; icon: React.ReactNode }> = [
   { id: 'products', label: 'Add Product', icon: <FiPackage size={15} /> },
-  { id: 'orders',   label: 'Orders',      icon: <FiShoppingBag size={15} /> },
+  // { id: 'orders',   label: 'Orders',      icon: <FiShoppingBag size={15} /> },
 ];
 
 export default function AdminPage() {
