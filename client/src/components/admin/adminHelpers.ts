@@ -34,6 +34,27 @@ export function fmtDate(iso: string | null): string {
   });
 }
 
+export function fmtDateTime(iso: string | null): string {
+  if (!iso) return '—';
+
+  const d = new Date(iso);
+
+  const date = d.toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+
+  const time = d.toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false, // 24-hour format
+  });
+
+  return `${date}, ${time}`;
+}
+
 export function refundStatusBadge(s: RefundStatus): string {
   const map: Record<RefundStatus, string> = {
     NONE:        'bg-gray-100 text-gray-500 border border-gray-200',

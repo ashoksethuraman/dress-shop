@@ -3,7 +3,6 @@ import type {Request, Response, NextFunction} from "express";
 import * as logger from "firebase-functions/logger";
 import * as jwt from "jsonwebtoken";
 import type {ValidationResult} from "./types";
-import console from "console";
 
 /** Authenticated user payload extracted from a verified HS256 JWT. */
 export interface AuthUserPayload {
@@ -259,7 +258,7 @@ export function optionalAuth(req: Request, res: Response, next: NextFunction): v
 
 export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   const user = req.user;
-  console.log('user:::::', user)
+  logger.info('req user :::', req.user);
   if (!user || user.role !== "admin") {
     res.status(403).json({error: "Admin access required."});
     return;

@@ -237,7 +237,7 @@ export const ordersApi = {
 
   getById: (id: string) =>
     apiClient.get<StoredOrder>(
-      `orders/${encodeURIComponent(id)}`
+      `orders/id/${encodeURIComponent(id)}`
     ),
 
   updateStatus: (orderId: string, status: OrderStatus) =>

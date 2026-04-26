@@ -10,7 +10,7 @@ import {
 
 import { productsRouter } from "./routes/products";
 import { ordersRouter } from "./routes/orders";
-import { paymentsRouter, razorpayWebhookHandler } from "./routes/payments";
+import paymentsRouter, { razorpayWebhookHandler } from "./routes/payments";
 import { imagesRouter } from "./routes/images";
 import { usersRouter } from "./routes/users";
 

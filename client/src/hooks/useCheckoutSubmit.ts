@@ -81,13 +81,13 @@ export function useCheckoutSubmit({
       const billingAddr = normalizeAddr(
         addressSame ? form.shippingAddress : form.billingAddress!
       );
-      const shippingAddr = addressSame ? undefined : normalizeAddr(form.shippingAddress);
+      const shippingAddress = addressSame ? undefined : normalizeAddr(form.shippingAddress);
 
       const orderPayload: CreateOrderPayload = {
         id: orderId,
         contactEmail: form.email,
         billingAddress: billingAddr,
-        ...(shippingAddr ? { shippingAddr } : {}),
+        ...(shippingAddress  ? { shippingAddress  } : {}),
         billingAndShippingSame: addressSame,
         items: items.map((i) => ({
           productId: i.productId,

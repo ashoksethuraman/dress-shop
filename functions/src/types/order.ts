@@ -25,6 +25,7 @@ export interface CreateOrderBody {
   shippingAddress?: AddressDto;
   billingAndShippingSame: boolean;
   items: OrderItemInput[];
+  paymentMethod?: string;
   totalAmount?: number; // optional — used only for tamper-detection, server always recomputes
 }
 

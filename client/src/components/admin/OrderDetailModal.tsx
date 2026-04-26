@@ -4,7 +4,7 @@ import { ordersApi, paymentsApi } from '../../services/apiClient'; // backend
 // import { firestoreOrdersApi as ordersApi } from '../../services/firestoreClient'; // direct firestore
 import { StoredOrder, OrderStatus, RefundStatus } from '../../utils/apiTypes';
 import { formatPrice } from '../../utils/format';
-import { orderStatusBadge, paymentStatusBadge, refundStatusBadge, fmtDate } from './adminHelpers';
+import { orderStatusBadge, paymentStatusBadge, refundStatusBadge, fmtDate, fmtDateTime } from './adminHelpers';
 
 // Statuses an admin can manually set (excludes system-only states)
 const ADMIN_STATUSES: { value: OrderStatus; label: string }[] = [
@@ -257,7 +257,7 @@ export default function OrderDetailModal({ order, onClose, onStatusUpdated }: Pr
                     <span className="absolute -left-[21px] w-2.5 h-2.5 rounded-full bg-brand-border border-2 border-white top-1" />
                     <p className="text-xs font-semibold text-primary">{t.status.replace(/_/g, ' ')}</p>
                     {t.note && <p className="text-xs text-muted">{t.note}</p>}
-                    <p className="text-xs text-muted">{fmtDate(t.timestamp)}</p>
+                    <p className="text-xs text-muted">{fmtDateTime(t.timestamp)}</p>
                   </div>
                 ))}
               </div>

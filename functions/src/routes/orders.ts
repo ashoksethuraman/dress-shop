@@ -1,331 +1,351 @@
-import {Router, type Request, type Response} from "express";
-import {FieldValue} from "firebase-admin/firestore";
+/** ------------------ IMPORTS ------------------ **/
+import { Router, type Request, type Response } from "express";
+import { FieldValue } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
-import {db} from "../config/firebase";
-import {authenticate, requireAdmin, optionalAuth, validate, sanitizeParam} from "../middleware";
-import {ORDER_STATUSES, type OrderStatus, type CreateOrderBody} from "../types";
-import {validateCreateOrder, validateUpdateOrderStatus} from "../validators";
-import {calculateOrderPricing, type OrderPricing} from "../services/pricingService";
 
+import { db } from "../config/firebase";
+import {
+  authenticate,
+  requireAdmin,
+  optionalAuth,
+  validate,
+} from "../middleware";
+
+import {
+  type OrderStatus,
+  type CreateOrderBody,
+} from "../types";
+
+import {
+  validateCreateOrder,
+  validateUpdateOrderStatus,
+} from "../validators";
+
+import {
+  calculateOrderPricing,
+} from "../services/pricingService";
+
+import { initiateRefund } from "./refund";
+
+/** ------------------ ROUTER ------------------ **/
 export const ordersRouter = Router();
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-type StockIssueReason = "not_found" | "out_of_stock" | "size_unavailable" | "insufficient_stock";
-
-interface StockValidationIssue {
-  productId: string;
-  title: string;
-  reason: StockIssueReason;
-  size?: string | null;
-  requestedQty?: number;
-  availableQty?: number;
+/** ------------------ HELPERS ------------------ **/
+function toIso(ts: any): string | null {
+  if (!ts?.toDate) return null;
+  return ts.toDate().toISOString();
 }
 
-interface ValidateAndPriceResult {
-  issues: StockValidationIssue[];
-  pricing: OrderPricing | null;
+function timelineEvent(status: string, note?: string) {
+  return {
+    status,
+    note: note || status,
+    timestamp: new Date().toISOString(),
+  };
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function toIso(ts: unknown): string | null {
-  return (ts as FirebaseFirestore.Timestamp)?.toDate?.()?.toISOString() ?? null;
-}
-
-/**
- * Single Firestore round-trip: validates stock availability AND computes
- * authoritative server-side pricing from the same product documents.
- */
-async function validateStockAndPrice(
-  items: CreateOrderBody["items"]
-): Promise<ValidateAndPriceResult> {
-  // Deduplicate by productId+size for combined stock check
-  const requested = new Map<string, {productId: string; size: string | null; qty: number; title: string}>();
-  for (const item of items) {
-    const size = typeof item.size === "string" && item.size.trim().length > 0 ? item.size.trim() : null;
-    const key = `${item.productId}::${size ?? "__noSize"}`;
-    const prev = requested.get(key);
-    if (prev) { prev.qty += item.qty; } else {
-      requested.set(key, {productId: item.productId, size, qty: item.qty, title: item.title});
-    }
-  }
-
-  // Single batch fetch
-  const uniqueIds = Array.from(new Set(Array.from(requested.values()).map((r) => r.productId)));
-  const snapshots = await Promise.all(uniqueIds.map((id) => db.doc(`products/${id}`).get()));
-  const productMap = new Map<string, Record<string, unknown>>();
-  for (const snap of snapshots) {
-    if (snap.exists) productMap.set(snap.id, snap.data() as Record<string, unknown>);
-  }
-
-  // Stock validation
-  const issues: StockValidationIssue[] = [];
-  for (const reqItem of requested.values()) {
-    const product = productMap.get(reqItem.productId);
-    if (!product) {
-      issues.push({productId: reqItem.productId, title: reqItem.title, reason: "not_found", size: reqItem.size, requestedQty: reqItem.qty});
-      continue;
-    }
-    const resolvedTitle = typeof product.title === "string" && product.title.trim().length > 0 ? product.title : reqItem.title;
-    if (product.stock === "out_of_stock") {
-      issues.push({productId: reqItem.productId, title: resolvedTitle, reason: "out_of_stock", size: reqItem.size, requestedQty: reqItem.qty});
-      continue;
-    }
-    const inv = (product.sizeInventory ?? {}) as Record<string, unknown>;
-    const sizes = Array.isArray(product.sizes) ? (product.sizes as unknown[]) : [];
-    if (reqItem.size !== null) {
-      const hasSize = sizes.length === 0 || sizes.includes(reqItem.size);
-      if (!hasSize) {
-        issues.push({productId: reqItem.productId, title: resolvedTitle, reason: "size_unavailable", size: reqItem.size, requestedQty: reqItem.qty});
-        continue;
-      }
-      const available = inv[reqItem.size];
-      if (typeof available === "number") {
-        if (available <= 0) {
-          issues.push({productId: reqItem.productId, title: resolvedTitle, reason: "out_of_stock", size: reqItem.size, requestedQty: reqItem.qty, availableQty: 0});
-          continue;
-        }
-        if (reqItem.qty > available) {
-          issues.push({productId: reqItem.productId, title: resolvedTitle, reason: "insufficient_stock", size: reqItem.size, requestedQty: reqItem.qty, availableQty: available});
-          continue;
-        }
-      }
-    } else if (typeof inv["__noSize"] === "number") {
-      const available = inv["__noSize"] as number;
-      if (available <= 0) {
-        issues.push({productId: reqItem.productId, title: resolvedTitle, reason: "out_of_stock", requestedQty: reqItem.qty, availableQty: 0});
-        continue;
-      }
-      if (reqItem.qty > available) {
-        issues.push({productId: reqItem.productId, title: resolvedTitle, reason: "insufficient_stock", requestedQty: reqItem.qty, availableQty: available});
-      }
-    }
-  }
-
-  if (issues.length > 0) return {issues, pricing: null};
-
-  // Pricing — reuses the same productMap; pricingService re-fetches nothing
-  // (we call calculateOrderPricing which does its own fetch, but items already validated)
+/** ------------------ PRICING + STOCK ------------------ **/
+async function validateStockAndPrice(items: CreateOrderBody["items"]) {
   const pricing = await calculateOrderPricing(items);
-  return {issues: [], pricing};
+  return { pricing };
 }
 
-// ── Routes ────────────────────────────────────────────────────────────────────
-
-ordersRouter.post("/", optionalAuth, validate(validateCreateOrder), async (req: Request, res: Response) => {
-  const body = req.body as CreateOrderBody;
-  const userId = req.user?.uid ?? `guest_${Date.now()}`;
-  const userEmail = req.user?.email ?? body.contactEmail ?? null;
-
-  try {
-    let pricing: OrderPricing;
-    try {
-      const result = await validateStockAndPrice(body.items);
-      if (result.issues.length > 0) {
-        res.status(422).json({error: "Some items in your cart are unavailable or no longer in stock.", issues: result.issues});
-        return;
-      }
-      pricing = result.pricing!;
-    } catch (validationErr: unknown) {
-      const err = validationErr as {message?: string; status?: number; field?: string};
-      res.status(err.status ?? 422).json({error: err.message ?? "Validation error.", field: err.field});
-      return;
-    }
-
-    // Tamper detection
-    if (body.totalAmount !== undefined && Math.abs(body.totalAmount - pricing.totalAmount) > 1) {
-      logger.warn("[POST /orders] Price tamper detected", {clientTotal: body.totalAmount, serverTotal: pricing.totalAmount, userId});
-      res.status(422).json({error: "Order total does not match server-calculated price. Please refresh your cart and try again."});
-      return;
-    }
-
-    const orderId = body.id ?? db.collection("orders").doc().id;
-    await db.doc(`orders/${orderId}`).set({
-      id: orderId, contactEmail: body.contactEmail,
-      billingAddress: body.billingAddress,
-      ...(!body.billingAndShippingSame && body.shippingAddress ? {shippingAddress: body.shippingAddress} : {}),
-      billingAndShippingSame: body.billingAndShippingSame,
-      items: pricing.items, subtotal: pricing.subtotal, taxAmount: pricing.taxAmount,
-      shippingFee: pricing.shippingFee, discount: pricing.discount, totalAmount: pricing.totalAmount,
-      userId, userEmail, isGuest: !req.user,
-      orderStatus: "PENDING" as OrderStatus, paymentStatus: "PENDING", paymentId: null,
-      timeline: [{status: "PENDING", note: "Awaiting payment", timestamp: new Date().toISOString()}],
-      createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
-    });
-
-    logger.info(`[POST /orders] Created: ${orderId} by ${userId}, server total: ${pricing.totalAmount}`);
-    res.status(201).json({id: orderId, totalAmount: pricing.totalAmount});
-  } catch (err) {
-    logger.error("[POST /orders] error", err);
-    res.status(500).json({error: "Failed to create order."});
-  }
-});
-
-ordersRouter.get("/me", authenticate, async (req: Request, res: Response) => {
-  try {
-    const snap = await db.collection("orders")
-      .where("userId", "==", req.user!.uid).orderBy("createdAt", "desc").get();
-    const orders = snap.docs.map((d) => ({id: d.id, ...d.data(), createdAt: toIso(d.data().createdAt)}));
-    res.json({orders});
-  } catch (err) {
-    logger.error("[GET /orders/me] error", err);
-    res.status(500).json({error: "Failed to fetch orders."});
-  }
-});
-
-ordersRouter.get("/", authenticate, requireAdmin, async (req: Request, res: Response) => {
-  const statusFilter = req.query.status as string | undefined;
-  const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 100);
-  const lastDocId = req.query.lastDocId as string | undefined;
-  try {
-    let query: FirebaseFirestore.Query = db.collection("orders").orderBy("createdAt", "desc");
-    if (statusFilter && (ORDER_STATUSES as readonly string[]).includes(statusFilter)) {
-      query = db.collection("orders").where("orderStatus", "==", statusFilter).orderBy("createdAt", "desc");
-    }
-    if (lastDocId) {
-      const cursor = await db.doc(`orders/${lastDocId}`).get();
-      if (cursor.exists) query = query.startAfter(cursor);
-    }
-    const snap = await query.limit(limit + 1).get();
-    const hasMore = snap.docs.length > limit;
-    const orders = (hasMore ? snap.docs.slice(0, limit) : snap.docs)
-      .map((d) => ({id: d.id, ...d.data(), createdAt: toIso(d.data().createdAt)}));
-    res.json({orders, hasMore});
-  } catch (err) {
-    logger.error("[GET /orders] error", err);
-    res.status(500).json({error: "Failed to fetch orders."});
-  }
-});
-
-ordersRouter.get("/track/:id", async (req: Request, res: Response) => {
-  const {id} = req.params;
-  try {
-    const snap = await db.doc(`orders/${id}`).get();
-    if (!snap.exists) { res.status(404).json({error: "Order not found."}); return; }
-    const d = snap.data()!;
-    let paymentMethod: string | null = null;
-    if (d.paymentId) {
-      try {
-        const pSnap = await db.doc(`payments/${d.paymentId}`).get();
-        if (pSnap.exists) paymentMethod = (pSnap.data()?.method as string | null) ?? null;
-      } catch {/* non-fatal */}
-    }
-    res.json({
-      id: snap.id, orderStatus: d.orderStatus ?? "PLACED", paymentStatus: d.paymentStatus ?? "PENDING",
-      paymentMethod, totalAmount: d.totalAmount ?? 0, createdAt: toIso(d.createdAt),
-      shippingAddress: d.shippingAddress ?? d.billingAddress ?? null,
-      items: Array.isArray(d.items)
-        ? (d.items as Record<string, unknown>[]).map((it) => ({
-          productId: it.productId, title: it.title, qty: it.qty,
-          unitPrice: it.unitPrice, total: it.total, size: it.size ?? null,
-        })) : [],
-    });
-  } catch (err) {
-    logger.error("[GET /orders/track/:id] error", err);
-    res.status(500).json({error: "Failed to fetch order."});
-  }
-});
-
-ordersRouter.get("/:id", authenticate, sanitizeParam("id"), async (req: Request, res: Response) => {
-  const {id} = req.params;
-  try {
-    const snap = await db.doc(`orders/${id}`).get();
-    if (!snap.exists) { res.status(404).json({error: "Order not found."}); return; }
-    const data = snap.data()!;
-    if (data.userId !== req.user!.uid && req.user!.role !== "admin") {
-      res.status(403).json({error: "Access denied."}); return;
-    }
-    res.json({id: snap.id, ...data, createdAt: toIso(data.createdAt)});
-  } catch (err) {
-    logger.error("[GET /orders/:id] error", err);
-    res.status(500).json({error: "Failed to fetch order."});
-  }
-});
-
-// ── Status-transition rules ───────────────────────────────────────────────────
-// Forward-only sequence. CANCELLED is a valid target from any non-terminal
-// status except SHIPPED and DELIVERED.
-const FORWARD_SEQUENCE: readonly OrderStatus[] = [
-  "PENDING", "PLACED", "CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED",
-] as const;
-
-const TERMINAL_STATUSES = new Set<OrderStatus>(["DELIVERED", "CANCELLED"]);
-
-/**
- * Returns true when transitioning from → to is a legal forward move.
- * PAYMENT_FAILED orders can only be set to CANCELLED.
- */
-function isLegalTransition(from: OrderStatus, to: OrderStatus): boolean {
-  if (from === to) return false;
-  if (TERMINAL_STATUSES.has(from)) return false;
-  if (from === "PAYMENT_FAILED") return to === "CANCELLED";
-  if (to === "CANCELLED") {
-    // Cannot cancel after the order has already shipped
-    return from !== "SHIPPED" && from !== "DELIVERED";
-  }
-  const fi = FORWARD_SEQUENCE.indexOf(from);
-  const ti = FORWARD_SEQUENCE.indexOf(to);
-  return fi >= 0 && ti > fi;
-}
-
+/** ------------------ CREATE ORDER ------------------ **/
 ordersRouter.post(
-  "/:id/status", authenticate, requireAdmin, sanitizeParam("id"), validate(validateUpdateOrderStatus),
+  "/",
+  optionalAuth,
+  validate(validateCreateOrder),
   async (req: Request, res: Response) => {
-    const {id} = req.params;
-    const {status} = req.body as {status: OrderStatus};
     try {
-      // ── 1. Load the order ────────────────────────────────────────────────
-      const orderSnap = await db.doc(`orders/${id}`).get();
-      if (!orderSnap.exists) {
-        res.status(404).json({error: "Order not found."}); return;
-      }
-      const orderData = orderSnap.data()!;
-      const currentStatus = orderData.orderStatus as OrderStatus;
+      const body = req.body as CreateOrderBody;
 
-      // ── 2. Ownership guard — admins cannot update their own orders ───────
-      if (orderData.userId && orderData.userId === req.user!.uid) {
-        res.status(403).json({error: "You cannot change the status of your own orders. Ask another admin."}); return;
-      }
+      const userId = req.user?.uid ?? `guest_${Date.now()}`;
+      const userEmail = req.user?.email ?? body.contactEmail ?? null;
 
-      // ── 3. Forward-only transition validation ────────────────────────────
-      if (!isLegalTransition(currentStatus, status)) {
-        res.status(422).json({
-          error: `Invalid transition: "${currentStatus}" → "${status}". Status can only move forward and cannot be reversed.`,
-        }); return;
+      const { pricing } = await validateStockAndPrice(body.items);
+
+      if (
+        body.totalAmount !== undefined &&
+        Math.abs(body.totalAmount - pricing.totalAmount) > 1
+      ) {
+        return res.status(422).json({
+          error: "Price mismatch. Please refresh cart.",
+        });
       }
 
-      // ── 4. Payment requirement for SHIPPED / DELIVERED ───────────────────
-      if (status === "SHIPPED" || status === "DELIVERED") {
-        const paymentStatus = orderData.paymentStatus as string;
-        let paymentOk = paymentStatus === "SUCCESS";
-        if (!paymentOk && orderData.paymentId) {
-          try {
-            const pSnap = await db.doc(`payments/${orderData.paymentId}`).get();
-            if (pSnap.exists) {
-              const method = (pSnap.data()?.method as string | null)?.toLowerCase() ?? "";
-              paymentOk = method === "cod" || method === "cash on delivery";
-            }
-          } catch {/* non-fatal — payment lookup failed, block by default */}
-        }
-        if (!paymentOk) {
-          res.status(422).json({
-            error: `Cannot mark order as ${status}: payment has not been completed (current payment status: ${paymentStatus}). Only orders with successful payment or Cash on Delivery can be shipped.`,
-          }); return;
-        }
+      const orderId = body.id ?? db.collection("orders").doc().id;
+
+      const existing = await db.doc(`orders/${orderId}`).get();
+      if (existing.exists) {
+        return res.status(409).json({ error: "Order already exists" });
       }
 
-      // ── 5. Apply update ──────────────────────────────────────────────────
-      await db.doc(`orders/${id}`).update({
-        orderStatus: status, updatedAt: FieldValue.serverTimestamp(),
-        timeline: FieldValue.arrayUnion({status, timestamp: new Date().toISOString()}),
+      const paymentMethod = body.paymentMethod ?? "razorpay";
+      const isOffline = paymentMethod === "cod" || paymentMethod === "pay_later";
+
+      await db.doc(`orders/${orderId}`).set({
+        id: orderId,
+        contactEmail: body.contactEmail,
+
+        billingAddress: body.billingAddress,
+        shippingAddress:
+          body.billingAndShippingSame === false
+            ? body.shippingAddress
+            : body.billingAddress,
+
+        billingAndShippingSame: body.billingAndShippingSame,
+
+        items: pricing.items,
+        subtotal: pricing.subtotal,
+        taxAmount: pricing.taxAmount,
+        shippingFee: pricing.shippingFee,
+        discount: pricing.discount,
+        totalAmount: pricing.totalAmount,
+
+        userId,
+        userEmail,
+        isGuest: !req.user,
+
+        paymentMethod,
+        paymentStatus: "PENDING",
+        paymentId: null,
+
+        orderStatus: isOffline ? "PLACED" : "PENDING",
+
+        inventoryDeducted: false,
+        emailSent: false,
+
+        timeline: [
+          timelineEvent(
+            isOffline ? "PLACED" : "PENDING",
+            isOffline
+              ? `Order placed (${paymentMethod.toUpperCase()})`
+              : "Awaiting payment"
+          ),
+        ],
+
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
-      logger.info(`[POST /orders/:id/status] ${id} → ${status} by ${req.user!.uid} (was: ${currentStatus})`);
-      res.json({success: true});
-    } catch (err) {
-      logger.error("[POST /orders/:id/status] error", err);
-      res.status(500).json({error: "Failed to update order status."});
+
+      return res.status(201).json({
+        id: orderId,
+        totalAmount: pricing.totalAmount,
+      });
+    } catch (err: any) {
+      logger.error(err);
+      return res.status(500).json({ error: "Failed to create order " + err.message });
     }
   }
 );
 
+/** ------------------ TRACK ORDER ------------------ **/
+ordersRouter.get("/track/:id", async (req, res) => {
+  try {
+    const snap = await db.doc(`orders/${req.params.id}`).get();
+
+    if (!snap.exists)
+      return res.status(404).json({ error: "Order not found" });
+
+    const d = snap.data()!;
+
+    return res.json({
+      id: snap.id,
+      orderStatus: d.orderStatus,
+      paymentStatus: d.paymentStatus,
+      paymentMethod: d.paymentMethod,
+      totalAmount: d.totalAmount,
+      createdAt: toIso(d.createdAt),
+      items: d.items ?? [],
+    });
+  } catch (err) {
+    logger.error(err);
+    return res.status(500).json({ error: "Failed to fetch order" });
+  }
+});
+
+/** ------------------ GET ORDER BY ID ------------------ **/
+ordersRouter.get("/id/:id", authenticate, async (req, res) => {
+  try {
+    const snap = await db.doc(`orders/${req.params.id}`).get();
+
+    if (!snap.exists)
+      return res.status(404).json({ error: "Order not found" });
+
+    const data = snap.data()!;
+
+    if (data.userId !== req.user!.uid) {
+      return res.status(403).json({ error: "Unauthorized" });
+    }
+
+    return res.json({
+      id: snap.id,
+      ...data,
+      createdAt: toIso(data.createdAt),
+      updatedAt: toIso(data.updatedAt),
+    });
+  } catch (err) {
+    logger.error(err);
+    return res.status(500).json({ error: "Failed to fetch order" });
+  }
+});
+
+/** ------------------ USER ORDERS ------------------ **/
+ordersRouter.get("/me", authenticate, async (req, res) => {
+  try {
+    const snap = await db
+      .collection("orders")
+      .where("userId", "==", req.user!.uid)
+      .orderBy("createdAt", "desc")
+      .get();
+
+    const orders = snap.docs.map((d) => ({
+      id: d.id,
+      ...d.data(),
+      createdAt: toIso(d.data().createdAt),
+    }));
+
+    return res.json({ orders });
+  } catch (err) {
+    logger.error(err);
+    return res.status(500).json({ error: "Failed to fetch orders" });
+  }
+});
+
+/** ------------------ 🔥 NEW: ADMIN LIST ORDERS (FIX YOUR ISSUE) ------------------ **/
+ordersRouter.get("/", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const limit = Number(req.query.limit ?? 10);
+
+    const snap = await db
+      .collection("orders")
+      .orderBy("createdAt", "desc")
+      .limit(limit)
+      .get();
+
+    const orders = snap.docs.map((d) => ({
+      id: d.id,
+      ...d.data(),
+      createdAt: toIso(d.data().createdAt),
+    }));
+
+    return res.json({ orders });
+  } catch (err) {
+    logger.error(err);
+    return res.status(500).json({ error: "Failed to fetch orders" });
+  }
+});
+
+/** ------------------ STATUS UPDATE ------------------ **/
+const FORWARD_SEQUENCE: OrderStatus[] = [
+  "PENDING",
+  "PLACED",
+  "CONFIRMED",
+  "PROCESSING",
+  "SHIPPED",
+  "DELIVERED",
+];
+
+const TERMINAL = new Set<OrderStatus>(["DELIVERED", "CANCELLED"]);
+
+function isValidTransition(from: OrderStatus, to: OrderStatus) {
+  if (from === to) return false;
+  if (TERMINAL.has(from)) return false;
+  if (to === "CANCELLED") return from !== "SHIPPED" && from !== "DELIVERED";
+
+  const fi = FORWARD_SEQUENCE.indexOf(from);
+  const ti = FORWARD_SEQUENCE.indexOf(to);
+
+  return fi >= 0 && ti > fi;
+}
+
+ordersRouter.post(
+  "/:id/status",
+  authenticate,
+  requireAdmin,
+  validate(validateUpdateOrderStatus),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body as { status: OrderStatus };
+
+      const ref = db.doc(`orders/${id}`);
+      const snap = await ref.get();
+
+      if (!snap.exists)
+        return res.status(404).json({ error: "Order not found" });
+
+      const data = snap.data()!;
+      const current = data.orderStatus;
+
+      if (!isValidTransition(current, status)) {
+        return res.status(422).json({
+          error: `Invalid transition ${current} → ${status}`,
+        });
+      }
+
+      await ref.update({
+        orderStatus: status,
+        updatedAt: FieldValue.serverTimestamp(),
+        timeline: FieldValue.arrayUnion(
+          timelineEvent(status, `Updated to ${status}`)
+        ),
+      });
+
+      return res.json({ success: true });
+    } catch (err) {
+      logger.error(err);
+      return res.status(500).json({ error: "Failed to update status" });
+    }
+  }
+);
+
+/** ------------------ CANCEL ORDER ------------------ **/
+ordersRouter.post("/:id/cancel", optionalAuth, async (req, res) => {
+  try {
+    const id = req.params.id;
+
+    const snap = await db.doc(`orders/${id}`).get();
+    if (!snap.exists)
+      return res.status(404).json({ error: "Order not found" });
+
+    const data = snap.data()!;
+
+    if (data.orderStatus === "DELIVERED")
+      return res.status(422).json({ error: "Cannot cancel delivered order" });
+
+    if (data.orderStatus === "CANCELLED")
+      return res.status(422).json({ error: "Already cancelled" });
+
+    if (
+      req.user &&
+      data.userId !== req.user.uid &&
+      req.user.role !== "admin"
+    ) {
+      return res.status(403).json({ error: "Unauthorized" });
+    }
+
+    if (data.paymentStatus === "SUCCESS" && data.paymentId) {
+      try {
+        await initiateRefund(id, data.paymentId);
+      } catch (e) {
+        logger.error("Refund failed", e);
+      }
+    }
+
+    await snap.ref.update({
+      orderStatus: "CANCELLED",
+      updatedAt: FieldValue.serverTimestamp(),
+      timeline: FieldValue.arrayUnion(
+        timelineEvent("CANCELLED", "Order cancelled")
+      ),
+    });
+
+    return res.json({ success: true });
+  } catch (err) {
+    logger.error(err);
+    return res.status(500).json({ error: "Cancel failed" });
+  }
+});
+
+export default ordersRouter;

@@ -8,7 +8,7 @@ import { ordersApi, paymentsApi } from '../services/apiClient';
 import { StoredOrder, OrderStatus, RefundStatus } from '../utils/apiTypes';
 import { formatPrice } from '../utils/format';
 import {
-  orderStatusBadge, paymentStatusBadge, refundStatusBadge, fmtDate,
+  orderStatusBadge, paymentStatusBadge, refundStatusBadge, fmtDate, fmtDateTime,
 } from '../components/admin/adminHelpers';
 import AlertModal from '../components/AlertModal';
 import { useAppSelector } from '../store/hooks';
@@ -416,7 +416,7 @@ export default function OrderDetailPage() {
                     <span className="absolute -left-[21px] w-2.5 h-2.5 rounded-full bg-brand-border border-2 border-white top-1" />
                     <p className="text-xs font-semibold text-primary">{t.status.replace(/_/g, ' ')}</p>
                     {t.note && <p className="text-xs text-muted">{t.note}</p>}
-                    <p className="text-xs text-muted">{fmtDate(t.timestamp)}</p>
+                    <p className="text-xs text-muted">{fmtDateTime(t.timestamp)}</p>
                   </div>
                 ))}
               </div>
