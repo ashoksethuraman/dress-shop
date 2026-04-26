@@ -125,8 +125,8 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction):
   }
 
   // Layer 2 — Double-submit cookie: header must match the XSRF-TOKEN cookie.
-  const csrfCookie  = (req.cookies as Record<string, string | undefined>)["XSRF-TOKEN"] ?? "";
-  const csrfHeader  = (req.headers["x-csrf-token"] as string | undefined) ?? "";
+  const csrfCookie = (req.cookies as Record<string, string | undefined>)["XSRF-TOKEN"] ?? "";
+  const csrfHeader = (req.headers["x-csrf-token"] as string | undefined) ?? "";
 
   if (!csrfCookie || !csrfHeader) {
     logger.warn("[CSRF] Blocked: Missing CSRF token", {
@@ -258,7 +258,7 @@ export function optionalAuth(req: Request, res: Response, next: NextFunction): v
 
 export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   const user = req.user;
-  logger.info('req user :::', req.user);
+  logger.info("req user :::", req.user);
   if (!user || user.role !== "admin") {
     res.status(403).json({error: "Admin access required."});
     return;
@@ -282,7 +282,7 @@ export function validate(
 /**
  * Rejects requests where any named route parameter looks malformed.
  * Accepts only alphanumeric chars, hyphens, underscores, and dots — max 128 chars.
- * Call as: router.get("/:id", sanitizeParam("id"), ...) 
+ * Call as: router.get("/:id", sanitizeParam("id"), ...)
  */
 export function sanitizeParam(...params: string[]) {
   return (req: Request, res: Response, next: NextFunction): void => {

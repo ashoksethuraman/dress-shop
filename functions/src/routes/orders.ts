@@ -1,9 +1,11 @@
+/* eslint-disable new-cap */
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 /** ------------------ IMPORTS ------------------ **/
-import { Router, type Request, type Response } from "express";
-import { FieldValue } from "firebase-admin/firestore";
+import {Router, type Request, type Response} from "express";
+import {FieldValue} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 
-import { db } from "../config/firebase";
+import {db} from "../config/firebase";
 import {
   authenticate,
   requireAdmin,
@@ -25,15 +27,22 @@ import {
   calculateOrderPricing,
 } from "../services/pricingService";
 
-import { initiateRefund } from "./refund";
+import {initiateRefund} from "./refund";
 
 /** ------------------ ROUTER ------------------ **/
 export const ordersRouter = Router();
 
 /** ------------------ HELPERS ------------------ **/
-function toIso(ts: any): string | null {
-  if (!ts?.toDate) return null;
-  return ts.toDate().toISOString();
+function toIso(ts: unknown): string | null {
+  if (!ts) return null;
+
+  // ensure object + has "toDate" method
+  if (typeof ts === "object" && ts !== null && "toDate" in ts) {
+    const value = ts as { toDate: () => Date };
+    return value.toDate().toISOString();
+  }
+
+  return null;
 }
 
 function timelineEvent(status: string, note?: string) {
@@ -47,7 +56,7 @@ function timelineEvent(status: string, note?: string) {
 /** ------------------ PRICING + STOCK ------------------ **/
 async function validateStockAndPrice(items: CreateOrderBody["items"]) {
   const pricing = await calculateOrderPricing(items);
-  return { pricing };
+  return {pricing};
 }
 
 /** ------------------ CREATE ORDER ------------------ **/
@@ -62,7 +71,7 @@ ordersRouter.post(
       const userId = req.user?.uid ?? `guest_${Date.now()}`;
       const userEmail = req.user?.email ?? body.contactEmail ?? null;
 
-      const { pricing } = await validateStockAndPrice(body.items);
+      const {pricing} = await validateStockAndPrice(body.items);
 
       if (
         body.totalAmount !== undefined &&
@@ -77,7 +86,7 @@ ordersRouter.post(
 
       const existing = await db.doc(`orders/${orderId}`).get();
       if (existing.exists) {
-        return res.status(409).json({ error: "Order already exists" });
+        return res.status(409).json({error: "Order already exists"});
       }
 
       const paymentMethod = body.paymentMethod ?? "razorpay";
@@ -89,9 +98,9 @@ ordersRouter.post(
 
         billingAddress: body.billingAddress,
         shippingAddress:
-          body.billingAndShippingSame === false
-            ? body.shippingAddress
-            : body.billingAddress,
+          body.billingAndShippingSame === false ?
+            body.shippingAddress :
+            body.billingAddress,
 
         billingAndShippingSame: body.billingAndShippingSame,
 
@@ -118,9 +127,9 @@ ordersRouter.post(
         timeline: [
           timelineEvent(
             isOffline ? "PLACED" : "PENDING",
-            isOffline
-              ? `Order placed (${paymentMethod.toUpperCase()})`
-              : "Awaiting payment"
+            isOffline ?
+              `Order placed (${paymentMethod.toUpperCase()})` :
+              "Awaiting payment"
           ),
         ],
 
@@ -132,9 +141,10 @@ ordersRouter.post(
         id: orderId,
         totalAmount: pricing.totalAmount,
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error(err);
-      return res.status(500).json({ error: "Failed to create order " + err.message });
+      const message = err instanceof Error ? err.message : "Unknown";
+      return res.status(500).json({error: "Failed to create order " + message});
     }
   }
 );
@@ -144,8 +154,9 @@ ordersRouter.get("/track/:id", async (req, res) => {
   try {
     const snap = await db.doc(`orders/${req.params.id}`).get();
 
-    if (!snap.exists)
-      return res.status(404).json({ error: "Order not found" });
+    if (!snap.exists) {
+      return res.status(404).json({error: "Order not found"});
+    }
 
     const d = snap.data()!;
 
@@ -160,7 +171,7 @@ ordersRouter.get("/track/:id", async (req, res) => {
     });
   } catch (err) {
     logger.error(err);
-    return res.status(500).json({ error: "Failed to fetch order" });
+    return res.status(500).json({error: "Failed to fetch order"});
   }
 });
 
@@ -169,13 +180,14 @@ ordersRouter.get("/id/:id", authenticate, async (req, res) => {
   try {
     const snap = await db.doc(`orders/${req.params.id}`).get();
 
-    if (!snap.exists)
-      return res.status(404).json({ error: "Order not found" });
+    if (!snap.exists) {
+      return res.status(404).json({error: "Order not found"});
+    }
 
     const data = snap.data()!;
 
     if (data.userId !== req.user!.uid) {
-      return res.status(403).json({ error: "Unauthorized" });
+      return res.status(403).json({error: "Unauthorized"});
     }
 
     return res.json({
@@ -186,7 +198,7 @@ ordersRouter.get("/id/:id", authenticate, async (req, res) => {
     });
   } catch (err) {
     logger.error(err);
-    return res.status(500).json({ error: "Failed to fetch order" });
+    return res.status(500).json({error: "Failed to fetch order"});
   }
 });
 
@@ -205,10 +217,10 @@ ordersRouter.get("/me", authenticate, async (req, res) => {
       createdAt: toIso(d.data().createdAt),
     }));
 
-    return res.json({ orders });
+    return res.json({orders});
   } catch (err) {
     logger.error(err);
-    return res.status(500).json({ error: "Failed to fetch orders" });
+    return res.status(500).json({error: "Failed to fetch orders"});
   }
 });
 
@@ -229,10 +241,10 @@ ordersRouter.get("/", authenticate, requireAdmin, async (req, res) => {
       createdAt: toIso(d.data().createdAt),
     }));
 
-    return res.json({ orders });
+    return res.json({orders});
   } catch (err) {
     logger.error(err);
-    return res.status(500).json({ error: "Failed to fetch orders" });
+    return res.status(500).json({error: "Failed to fetch orders"});
   }
 });
 
@@ -266,14 +278,15 @@ ordersRouter.post(
   validate(validateUpdateOrderStatus),
   async (req, res) => {
     try {
-      const { id } = req.params;
-      const { status } = req.body as { status: OrderStatus };
+      const {id} = req.params;
+      const {status} = req.body as { status: OrderStatus };
 
       const ref = db.doc(`orders/${id}`);
       const snap = await ref.get();
 
-      if (!snap.exists)
-        return res.status(404).json({ error: "Order not found" });
+      if (!snap.exists) {
+        return res.status(404).json({error: "Order not found"});
+      }
 
       const data = snap.data()!;
       const current = data.orderStatus;
@@ -292,10 +305,10 @@ ordersRouter.post(
         ),
       });
 
-      return res.json({ success: true });
+      return res.json({success: true});
     } catch (err) {
       logger.error(err);
-      return res.status(500).json({ error: "Failed to update status" });
+      return res.status(500).json({error: "Failed to update status"});
     }
   }
 );
@@ -306,23 +319,26 @@ ordersRouter.post("/:id/cancel", optionalAuth, async (req, res) => {
     const id = req.params.id;
 
     const snap = await db.doc(`orders/${id}`).get();
-    if (!snap.exists)
-      return res.status(404).json({ error: "Order not found" });
+    if (!snap.exists) {
+      return res.status(404).json({error: "Order not found"});
+    }
 
     const data = snap.data()!;
 
-    if (data.orderStatus === "DELIVERED")
-      return res.status(422).json({ error: "Cannot cancel delivered order" });
+    if (data.orderStatus === "DELIVERED") {
+      return res.status(422).json({error: "Cannot cancel delivered order"});
+    }
 
-    if (data.orderStatus === "CANCELLED")
-      return res.status(422).json({ error: "Already cancelled" });
+    if (data.orderStatus === "CANCELLED") {
+      return res.status(422).json({error: "Already cancelled"});
+    }
 
     if (
       req.user &&
       data.userId !== req.user.uid &&
       req.user.role !== "admin"
     ) {
-      return res.status(403).json({ error: "Unauthorized" });
+      return res.status(403).json({error: "Unauthorized"});
     }
 
     if (data.paymentStatus === "SUCCESS" && data.paymentId) {
@@ -341,10 +357,10 @@ ordersRouter.post("/:id/cancel", optionalAuth, async (req, res) => {
       ),
     });
 
-    return res.json({ success: true });
+    return res.json({success: true});
   } catch (err) {
     logger.error(err);
-    return res.status(500).json({ error: "Cancel failed" });
+    return res.status(500).json({error: "Cancel failed"});
   }
 });
 

@@ -1,11 +1,13 @@
+/* eslint-disable new-cap */
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import {Router, type Request, type Response} from "express";
 import {FieldValue} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
-import {db} from "../config/firebase";
+import {db, admin} from "../config/firebase";
 import {authenticate, requireAdmin, validate, sanitizeParam} from "../middleware";
 import {type CreateProductBody, type UpdateProductBody} from "../types";
 import {validateCreateProduct, validateUpdateProduct} from "../validators";
-import {admin} from "../config/firebase";
+
 
 export const productsRouter = Router();
 
@@ -83,7 +85,9 @@ productsRouter.get("/:id", sanitizeParam("id"), async (req: Request, res: Respon
   const {id} = req.params;
   try {
     const snap = await db.doc(`products/${id}`).get();
-    if (!snap.exists) { res.status(404).json({error: "Product not found."}); return; }
+    if (!snap.exists) {
+      res.status(404).json({error: "Product not found."}); return;
+    }
     res.json({id: snap.id, ...snap.data()});
   } catch (err) {
     logger.error("[GET /products/:id] error", err);
@@ -96,23 +100,23 @@ productsRouter.post("/", authenticate, requireAdmin, validate(validateCreateProd
   try {
     const ref = db.collection("products").doc();
     const images = body.images ?? [];
-    // hiding no need refrence 
+    // hiding no need refrence
     // const {imagePaths, imageNames} = deriveImageRefs(images);
     // const sizeChartRef = deriveSingleRef(body.sizeChart ?? null);
 
     await ref.set({
-      id: ref.id, 
-      title: body.title, 
+      id: ref.id,
+      title: body.title,
       description: body.description ?? "",
-      price: Number(body.price), 
+      price: Number(body.price),
       category: body.category ?? "women",
-      images, 
+      images,
       sizes: body.sizes ?? [],
-      // imagePaths, 
+      // imagePaths,
       // imageNames,
-      sizeInventory: body.sizeInventory ?? {}, 
+      sizeInventory: body.sizeInventory ?? {},
       // image: images[0] ?? "",
-      stock: body.stock ?? "available", 
+      stock: body.stock ?? "available",
       sizeChart: body.sizeChart ?? null,
       // sizeChartPath: sizeChartRef.path,
       // sizeChartName: sizeChartRef.name,
@@ -161,8 +165,8 @@ productsRouter.put("/:id", authenticate, requireAdmin, sanitizeParam("id"), vali
 });
 
 productsRouter.delete("/:id", authenticate, requireAdmin, sanitizeParam("id"), async (req: Request, res: Response) => {
-  const { id } = req.params;
-  const { images } = req.body as { images?: string[] };
+  const {id} = req.params;
+  const {images} = req.body as { images?: string[] };
   logger.info(`[Image] delete : ${images}`);
   try {
     await db.doc(`products/${id}`).delete();
@@ -178,10 +182,10 @@ productsRouter.delete("/:id", authenticate, requireAdmin, sanitizeParam("id"), a
       );
       await Promise.all(deleteOps);
     }
-    res.json({ success: true });
+    res.json({success: true});
   } catch (err) {
     logger.error("[DELETE /products/:id] error", err);
-    res.status(500).json({ error: "Failed to delete product." });
+    res.status(500).json({error: "Failed to delete product."});
   }
 });
 

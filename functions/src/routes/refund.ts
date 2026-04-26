@@ -1,7 +1,8 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import Razorpay from "razorpay";
-import { db } from "../config/firebase";
-import { FieldValue } from "firebase-admin/firestore";
-import { sendOrderEmail } from "../services/emailService";
+import {db} from "../config/firebase";
+import {FieldValue} from "firebase-admin/firestore";
+import {sendOrderEmail} from "../services/emailService";
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID!,

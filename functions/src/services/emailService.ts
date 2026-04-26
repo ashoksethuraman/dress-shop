@@ -66,8 +66,8 @@ function getTransporter() {
     secure: smtpSecure,
     auth: {
       user: smtpUser,
-      pass: smtpPass
-    }
+      pass: smtpPass,
+    },
   });
 
   return cachedTransporter;
@@ -76,24 +76,24 @@ function getTransporter() {
 // ----------------- Build Email -----------------
 function eventMeta(event: OrderEmailEvent) {
   switch (event) {
-    case "payment_success":
-      return {
-        subject: "Payment Successful",
-        heading: "Thank you for your order",
-        message: "Your payment was successful and your order is confirmed."
-      };
-    case "payment_cancelled":
-      return {
-        subject: "Payment Cancelled",
-        heading: "Payment was cancelled",
-        message: "We received your order request but payment was cancelled."
-      };
-    default:
-      return {
-        subject: "Payment Failed",
-        heading: "Payment failed",
-        message: "Your payment attempt failed."
-      };
+  case "payment_success":
+    return {
+      subject: "Payment Successful",
+      heading: "Thank you for your order",
+      message: "Your payment was successful and your order is confirmed.",
+    };
+  case "payment_cancelled":
+    return {
+      subject: "Payment Cancelled",
+      heading: "Payment was cancelled",
+      message: "We received your order request but payment was cancelled.",
+    };
+  default:
+    return {
+      subject: "Payment Failed",
+      heading: "Payment failed",
+      message: "Your payment attempt failed.",
+    };
   }
 }
 
@@ -101,7 +101,7 @@ function addrHtml(addr?: OrderEmailAddress) {
   if (!addr) return "-";
   return [addr.name, addr.line1, addr.line2, `${addr.city}, ${addr.state} ${addr.pincode}`, addr.country, addr.phone && `Phone: ${addr.phone}`]
     .filter(Boolean)
-    .map(v => `${v}`.trim())
+    .map((v) => `${v}`.trim())
     .join("<br/>");
 }
 
@@ -111,16 +111,16 @@ function itemsTable(items?: OrderEmailItem[]) {
   return `
     <table style="width:100%;border-collapse:collapse;margin-top:10px;">
       ${items
-        .map(
-          i => `
+    .map(
+      (i) => `
         <tr>
           <td style="padding:6px;border-bottom:1px solid #eee;">${i.title}${i.size ? ` (${i.size})` : ""}</td>
           <td style="padding:6px;text-align:center;border-bottom:1px solid #eee;">${i.qty}</td>
           <td style="padding:6px;text-align:right;border-bottom:1px solid #eee;">INR ${i.unitPrice?.toFixed(2)}</td>
           <td style="padding:6px;text-align:right;border-bottom:1px solid #eee;">INR ${(i.total ?? (i.qty ?? 0) * (i.unitPrice ?? 0)).toFixed(2)}</td>
         </tr>`
-        )
-        .join("")}
+    )
+    .join("")}
     </table>
   `;
 }
@@ -182,7 +182,7 @@ export async function sendOrderEmail(
     from: `"${mailFromName}" <${mailFromEmail}>`,
     to: recipient,
     subject: `${meta.subject} – ${order.orderId}`,
-    html
+    html,
   });
 
   logger.info("Email sent:", order.orderId);

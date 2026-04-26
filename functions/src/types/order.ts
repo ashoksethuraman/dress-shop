@@ -69,5 +69,5 @@ export interface UpdateOrderStatusBody {
 
 export interface RefundOrderBody {
   orderId: string;
-  reason?: string;  // optional admin note
+  reason?: string; // optional admin note
 }

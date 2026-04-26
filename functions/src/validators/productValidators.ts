@@ -1,9 +1,8 @@
-import type { ValidationResult } from "../types";
-import { PRODUCT_CATEGORIES, STOCK_STATUSES } from "../types";
-import type { UpdateProductBody } from "../types/product";
+import type {ValidationResult} from "../types";
+import {PRODUCT_CATEGORIES, STOCK_STATUSES} from "../types";
+import type {UpdateProductBody} from "../types/product";
 import {
-  isObject, isNonEmptyString, isNonNegativeNumber,
-  requireStr, requireNonNegNum, requireOneOf, optionalStringArray, fail,
+  isObject, isNonEmptyString, requireStr, requireNonNegNum, requireOneOf, optionalStringArray, fail,
 } from "./helpers";
 
 function validateProductFields(
@@ -60,7 +59,7 @@ function validateProductFields(
     }
   }
 
-  return { valid: true };
+  return {valid: true};
 }
 
 export function validateCreateProduct(body: unknown): ValidationResult {
@@ -81,4 +80,4 @@ export function validateUpdateProduct(body: unknown): ValidationResult {
 }
 
 // Re-export for convenience
-export { isNonNegativeNumber };
+// export {isNonNegativeNumber};

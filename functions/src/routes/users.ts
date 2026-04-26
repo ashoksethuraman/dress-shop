@@ -1,3 +1,5 @@
+/* eslint-disable new-cap */
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import {Router, type Request, type Response} from "express";
 import {FieldValue} from "firebase-admin/firestore";
 import * as bcrypt from "bcryptjs";
@@ -272,8 +274,8 @@ usersRouter.get("/all", authenticate, requireAdmin, async (_req: Request, res: R
         email: (d.email as string) ?? null,
         role: (d.role as string) ?? "user",
         isActive: d.isActive !== false,
-        createdAt: d.createdAt
-          ? (d.createdAt as {toDate: () => Date}).toDate().toISOString() : null,
+        createdAt: d.createdAt ?
+          (d.createdAt as {toDate: () => Date}).toDate().toISOString() : null,
       };
     });
     res.json({users});

@@ -28,9 +28,37 @@ import type { Product } from '../utils/types';
 export type { SignupPayload, AuthUserInfo, AuthResponse, UserProfile };
 export type { ApiError };
 
-export const API_BASE_URL =
-  process.env.REACT_APP_FUNCTIONS_BASE_URL ||
-  `https://asia-south1-${process.env.REACT_APP_FIREBASE_PROJECT_ID}.cloudfunctions.net/api`;
+/* =========================================================
+   API BASE CONFIG (FIXED - PRODUCTION SAFE)
+========================================================= */
+
+const projectId =
+  process.env.REACT_APP_FIREBASE_PROJECT_ID || 'halleycomet-7cd48';
+
+const region = 'asia-south1';
+
+const isDev = process.env.NODE_ENV === 'development';
+
+const useEmulator =
+  process.env.REACT_APP_USE_EMULATOR === 'true' && isDev;
+
+/**
+ * FINAL SAFE API BASE URL
+ * - Dev + Emulator → /api (proxy)
+ * - Prod → Firebase Functions URL
+ */
+export const API_BASE_URL = useEmulator
+  ? '/api'
+  : `https://${region}-${projectId}.cloudfunctions.net/api`;
+
+/* =========================================================
+   HELPER
+========================================================= */
+
+function buildUrl(path: string) {
+  if (path.startsWith('http')) return path;
+  return `${API_BASE_URL}/${path.replace(/^\/+/, '')}`;
+}
 
 /* =========================================================
    CSRF HANDLING
@@ -46,7 +74,7 @@ async function ensureCsrfToken(): Promise<void> {
       credentials: 'include',
     })
       .then(() => authService.markCsrfFetched())
-      .catch(() => { })
+      .catch(() => {})
       .finally(() => {
         _csrfRefreshPromise = null;
       });
@@ -82,9 +110,7 @@ async function request<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const url = path.startsWith('http')
-    ? path
-    : `${API_BASE_URL}/${path}`;
+  const url = buildUrl(path);
 
   const method = (options.method ?? 'GET').toUpperCase();
   const headers = await buildHeaders(method, options.headers as HeadersInit);
@@ -112,7 +138,7 @@ async function request<T>(
           field = json.field;
         }
         body = json;
-      } catch { }
+      } catch {}
 
       throw new ApiError(res.status, message, field, body);
     }
@@ -203,7 +229,7 @@ export const productsApi = {
   delete: (id: string, images: string[]) =>
     apiClient.delete<{ success: boolean }>(
       `products/${encodeURIComponent(id)}`,
-      { images } // ✅ correct body
+      { images }
     ),
 };
 
@@ -320,13 +346,7 @@ export const userApi = {
       }>;
     }>('users/cart'),
 
-  putCart: (
-    cart: Array<{
-      productId: string;
-      qty: number;
-      size?: string | null;
-    }>
-  ) =>
+  putCart: (cart: any[]) =>
     apiClient.put<{ success: boolean }>('users/cart', { cart }),
 
   getWishlist: () =>

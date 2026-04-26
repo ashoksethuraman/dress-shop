@@ -232,12 +232,12 @@ export default function MyOrdersPage() {
                     )}
 
                     {/* Track order */}
-                    <button
+                    {/* <button
                       onClick={() => navigate(`/order-success?orderId=${order.id}`)}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-brand-border text-xs font-semibold text-brand-dark hover:bg-brand transition-colors"
                     >
                       Track
-                    </button>
+                    </button> */}
 
                     {/* Cancel (only when eligible) */}
                     {canCancel(order) && (

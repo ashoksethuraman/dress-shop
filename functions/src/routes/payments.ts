@@ -1,18 +1,20 @@
+/* eslint-disable new-cap */
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 /** ------------------ IMPORTS ------------------ **/
-import { Router, type Request, type Response } from "express";
-import { FieldValue } from "firebase-admin/firestore";
+import {Router, type Request, type Response} from "express";
+import {FieldValue} from "firebase-admin/firestore";
 import * as crypto from "crypto";
 import * as logger from "firebase-functions/logger";
 import fetch from "node-fetch";
 
-import { db } from "../config/firebase";
-import { optionalAuth, validate } from "../middleware";
+import {db} from "../config/firebase";
+import {optionalAuth, validate} from "../middleware";
 
 import {
   sendOrderEmail,
   type OrderEmailPayload,
 } from "../services/emailService";
-import { deductInventory } from "../services/inventoryService";
+import {deductInventory} from "../services/inventoryService";
 
 import {
   type VerifyPaymentBody,
@@ -24,6 +26,7 @@ import {
   validateCreateRazorpayOrder,
 } from "../validators";
 
+import Razorpay from "razorpay";
 /** ------------------ TIMELINE ------------------ **/
 function timelineEvent(status: string, note?: string) {
   return {
@@ -89,7 +92,7 @@ async function validatePaymentFromRazorpay(
 
   const res = await fetch(
     `https://api.razorpay.com/v1/payments/${paymentId}`,
-    { headers: { Authorization: `Basic ${auth}` } }
+    {headers: {Authorization: `Basic ${auth}`}}
   );
 
   if (!res.ok) throw new Error("Razorpay API fetch failed");
@@ -122,7 +125,7 @@ async function confirmPayment({
     const orderData = orderSnap.data()!;
 
     if (paymentSnap.exists || orderData.paymentStatus === "SUCCESS") {
-      return { shouldProcess: false };
+      return {shouldProcess: false};
     }
 
     tx.update(orderRef, {
@@ -148,7 +151,7 @@ async function confirmPayment({
       createdAt: FieldValue.serverTimestamp(),
     });
 
-    return { shouldProcess: true };
+    return {shouldProcess: true};
   });
 }
 
@@ -160,19 +163,21 @@ paymentsRouter.post(
   validate(validateCreateRazorpayOrder),
   async (req, res) => {
     try {
-      const { orderId } = req.body as CreateRazorpayOrderBody;
+      const {orderId} = req.body as CreateRazorpayOrderBody;
 
       const ref = db.doc(`orders/${orderId}`);
       const snap = await ref.get();
 
-      if (!snap.exists)
-        return res.status(404).json({ error: "Order not found" });
+      if (!snap.exists) {
+        return res.status(404).json({error: "Order not found"});
+      }
 
       const data = snap.data()!;
       const amount = data.totalAmount;
 
-      if (!amount || amount <= 0)
-        return res.status(422).json({ error: "Invalid amount" });
+      if (!amount || amount <= 0) {
+        return res.status(422).json({error: "Invalid amount"});
+      }
 
       if (data.razorpayOrderId) {
         return res.json({
@@ -190,14 +195,14 @@ paymentsRouter.post(
       const r = await fetch("https://api.razorpay.com/v1/orders", {
         method: "POST",
         headers: {
-          Authorization: `Basic ${auth}`,
+          "Authorization": `Basic ${auth}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           amount: Math.round(amount * 100),
           currency: "INR",
           receipt: orderId,
-          notes: { orderId },
+          notes: {orderId},
         }),
       });
 
@@ -205,7 +210,7 @@ paymentsRouter.post(
 
       if (!r.ok) {
         logger.error("Razorpay order creation failed", json);
-        return res.status(500).json({ error: "Razorpay failed" });
+        return res.status(500).json({error: "Razorpay failed"});
       }
 
       await ref.update({
@@ -221,7 +226,7 @@ paymentsRouter.post(
       });
     } catch (err) {
       logger.error("razorpay-order error", err);
-      return res.status(500).json({ error: "Internal error" });
+      return res.status(500).json({error: "Internal error"});
     }
   }
 );
@@ -241,16 +246,18 @@ paymentsRouter.post(
           .update(`${body.razorpay_order_id}|${body.razorpay_payment_id}`)
           .digest("hex");
 
-        if (!safeEqual(expected, body.razorpay_signature))
-          return res.status(400).json({ error: "Invalid signature" });
+        if (!safeEqual(expected, body.razorpay_signature)) {
+          return res.status(400).json({error: "Invalid signature"});
+        }
       }
 
       const payment = await validatePaymentFromRazorpay(
         body.razorpay_payment_id
       );
 
-      if (payment.status !== "captured")
-        return res.status(400).json({ error: "Not captured" });
+      if (payment.status !== "captured") {
+        return res.status(400).json({error: "Not captured"});
+      }
 
       const result = await confirmPayment({
         orderId: body.orderId,
@@ -296,10 +303,11 @@ paymentsRouter.post(
         }
       }
 
-      return res.json({ success: true });
-    } catch (err: any) {
+      return res.json({success: true});
+    } catch (err: unknown) {
       logger.error("VERIFY FAILED", err);
-      return res.status(500).json({ error: "Verification failed" });
+      const message = err instanceof Error ? err.message : "Unknown";
+      return res.status(500).json({error: "Verification failed" +message});
     }
   }
 );
@@ -307,7 +315,7 @@ paymentsRouter.post(
 /* FAIL */
 paymentsRouter.post("/fail", optionalAuth, async (req, res) => {
   try {
-    const { orderId } = req.body;
+    const {orderId} = req.body;
 
     await db.doc(`orders/${orderId}`).update({
       paymentStatus: "FAILED",
@@ -318,34 +326,38 @@ paymentsRouter.post("/fail", optionalAuth, async (req, res) => {
       ),
     });
 
-    return res.json({ success: true });
+    return res.json({success: true});
   } catch (err) {
     logger.error(err);
-    return res.status(500).json({ error: "Failed" });
+    return res.status(500).json({error: "Failed"});
   }
 });
 
 /* REFUND (SAFE) */
 paymentsRouter.post("/refund", optionalAuth, async (req, res) => {
   try {
-    const { orderId } = req.body;
+    const {orderId} = req.body;
 
     const snap = await db.doc(`orders/${orderId}`).get();
-    if (!snap.exists)
-      return res.status(404).json({ error: "Order not found" });
+    if (!snap.exists) {
+      return res.status(404).json({error: "Order not found"});
+    }
 
     const data = snap.data()!;
 
-    if (data.paymentStatus !== "SUCCESS")
-      return res.status(400).json({ error: "No successful payment" });
+    if (data.paymentStatus !== "SUCCESS") {
+      return res.status(400).json({error: "No successful payment"});
+    }
 
-    if (["REFUND_INITIATED", "REFUNDED"].includes(data.paymentStatus))
-      return res.status(400).json({ error: "Already refunded" });
+    if (["REFUND_INITIATED", "REFUNDED"].includes(data.paymentStatus)) {
+      return res.status(400).json({error: "Already refunded"});
+    }
 
-    if (!data.paymentId)
-      return res.status(400).json({ error: "Missing paymentId" });
+    if (!data.paymentId) {
+      return res.status(400).json({error: "Missing paymentId"});
+    }
 
-    const Razorpay = require("razorpay");
+    // const Razorpay = require("razorpay");
     const razorpay = new Razorpay({
       key_id: RAZORPAY_KEY_ID,
       key_secret: RAZORPAY_KEY_SECRET,
@@ -353,7 +365,7 @@ paymentsRouter.post("/refund", optionalAuth, async (req, res) => {
 
     const refund = await razorpay.payments.refund(data.paymentId, {
       amount: data.totalAmount * 100,
-      notes: { orderId },
+      notes: {orderId},
     });
 
     await snap.ref.update({
@@ -365,10 +377,11 @@ paymentsRouter.post("/refund", optionalAuth, async (req, res) => {
       ),
     });
 
-    return res.json({ success: true, refundId: refund.id });
-  } catch (err: any) {
+    return res.json({success: true, refundId: refund.id});
+  } catch (err: unknown) {
     logger.error("Refund failed", err);
-    return res.status(500).json({ error: err.message });
+    const message = err instanceof Error ? err.message : "Unknown";
+    return res.status(500).json({error: message});
   }
 });
 
@@ -387,8 +400,9 @@ export async function razorpayWebhookHandler(
       .update(raw)
       .digest("hex");
 
-    if (!safeEqual(expected, signature))
-      return res.status(400).json({ error: "Invalid signature" });
+    if (!safeEqual(expected, signature)) {
+      return res.status(400).json({error: "Invalid signature"});
+    }
 
     const event = JSON.parse(raw.toString());
 
@@ -396,7 +410,7 @@ export async function razorpayWebhookHandler(
       const entity = event.payload.payment.entity;
       const orderId = entity.notes?.orderId;
 
-      if (!orderId) return res.json({ skip: true });
+      if (!orderId) return res.json({skip: true});
 
       const result = await confirmPayment({
         orderId,
@@ -435,10 +449,10 @@ export async function razorpayWebhookHandler(
       }
     }
 
-    return res.json({ received: true });
+    return res.json({received: true});
   } catch (err) {
     logger.error("Webhook failed", err);
-    return res.status(500).json({ error: "Webhook failed" });
+    return res.status(500).json({error: "Webhook failed"});
   }
 }
 
