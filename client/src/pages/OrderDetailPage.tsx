@@ -128,7 +128,6 @@ export default function OrderDetailPage() {
   const currentUser = useAppSelector(s => s.user.user);
 
   const [order,       setOrder]       = useState<StoredOrder | null>(null);
-  const [payMethod,   setPayMethod]   = useState<string | null>(null);
   const [loading,     setLoading]     = useState(true);
   const [pageError,   setPageError]   = useState<string | null>(null);
 
@@ -149,16 +148,12 @@ export default function OrderDetailPage() {
   useEffect(() => {
     if (!orderId) return;
     setLoading(true);
-    Promise.all([
-      ordersApi.getById(orderId),
-      ordersApi.track(orderId).catch(() => null),
-    ])
-      .then(([o, track]) => {
+    ordersApi.getById(orderId)
+      .then((o) => {
         setOrder(o);
         setLiveStatus(o.orderStatus);
         setSelStatus('');
         setLiveRefund(o.refundStatus ?? 'NONE');
-        if (track) setPayMethod(track.paymentMethod);
       })
       .catch(e => setPageError(e?.message ?? 'Failed to load order.'))
       .finally(() => setLoading(false));
@@ -198,9 +193,10 @@ export default function OrderDetailPage() {
     }
   };
 
+  const paymentMethod = order?.paymentMethod ?? null;
   const isCOD =
-    payMethod?.toLowerCase() === 'cod' ||
-    payMethod?.toLowerCase() === 'cash on delivery';
+    paymentMethod?.toLowerCase() === 'cod' ||
+    paymentMethod?.toLowerCase() === 'cash on delivery';
 
   // ── Status-machine derived values ──────────────────────────────────────────
   const isOwnOrder = !!(order?.userId && currentUser && order.userId === currentUser.id);
@@ -314,7 +310,7 @@ export default function OrderDetailPage() {
               <ReadField label="Email" value={order.contactEmail ?? '—'} />
               <ReadField
                 label="Payment Method"
-                value={payMethod === null ? 'Loading…' : (payMethod ?? 'N/A')}
+                value={paymentMethod === null ? 'Loading…' : (paymentMethod ?? 'N/A')}
               />
               {order.billingAddress && (
                 <>

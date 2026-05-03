@@ -173,6 +173,7 @@ export interface StoredOrder {
   discount:         number;
   totalAmount:      number;
   paymentId?:       string;
+  paymentMethod?:   string | null;
   timeline:         TimelineEntry[];
   createdAt:        string | null;
   updatedAt?:       string | null;

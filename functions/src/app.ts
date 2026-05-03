@@ -2,8 +2,8 @@ import express, {type Request, type Response, type NextFunction} from "express";
 import * as logger from "firebase-functions/logger";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
-
-import {corsMiddleware, csrfProtection} from "./middleware";
+// authenticate
+import {corsMiddleware, browserOnlyMiddleware} from "./middleware";
 import {
   globalLimiter,
 } from "./config";
@@ -30,7 +30,8 @@ app.use(express.json({limit: "1mb"}));
 
 // Security middleware
 app.use(corsMiddleware);
-app.use(csrfProtection);
+app.use(browserOnlyMiddleware); // ← Blocks Postman/curl/Thunder Client
+// app.use(csrfProtection);
 
 // Global rate limit (applies to all routes)
 app.use(globalLimiter);

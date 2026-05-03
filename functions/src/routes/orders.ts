@@ -186,7 +186,7 @@ ordersRouter.get("/id/:id", authenticate, async (req, res) => {
 
     const data = snap.data()!;
 
-    if (data.userId !== req.user!.uid) {
+    if (data.userId !== req.user!.uid && req.user!.role !== "admin") {
       return res.status(403).json({error: "Unauthorized"});
     }
 
@@ -203,7 +203,7 @@ ordersRouter.get("/id/:id", authenticate, async (req, res) => {
 });
 
 /** ------------------ USER ORDERS ------------------ **/
-ordersRouter.get("/me", authenticate, async (req, res) => {
+ordersRouter.get("/self", authenticate, async (req, res) => {
   try {
     const snap = await db
       .collection("orders")

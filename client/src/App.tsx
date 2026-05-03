@@ -49,13 +49,13 @@ function AppLayout() {
 
   // Bootstrap the CSRF cookie on mount — but only when the current token
   // is missing or older than 55 min (proactive refresh before 1 h expiry).
-  useEffect(() => {
-    if (!authService.isCsrfValid()) {
-      fetch(`${API_BASE_URL}/users/csrf-token`, { credentials: 'include' })
-        .then(() => authService.markCsrfFetched())
-        .catch(() => {/* non-fatal — apiClient will retry before next mutation */});
-    }
-  }, []);
+  // useEffect(() => {
+  //   if (!authService.isCsrfValid()) {
+  //     fetch(`${API_BASE_URL}/users/csrf-token`, { credentials: 'include' })
+  //       .then(() => authService.markCsrfFetched())
+  //       .catch(() => {/* non-fatal — apiClient will retry before next mutation */});
+  //   }
+  // }, []);
 
   useEffect(() => {
     if (cartCount > prevCount.current) {
