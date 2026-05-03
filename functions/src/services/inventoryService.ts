@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import * as logger from "firebase-functions/logger";
 import {db} from "../config/firebase";
 import {FieldValue} from "firebase-admin/firestore";

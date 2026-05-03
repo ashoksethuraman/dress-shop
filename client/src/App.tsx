@@ -32,6 +32,8 @@ const AdminPage         = lazy(() => import('./pages/AdminPage'));
 const ProfilePage       = lazy(() => import('./pages/ProfilePage'));
 const WishlistPage      = lazy(() => import('./pages/WishlistPage'));
 const ManageUsersPage   = lazy(() => import('./pages/ManageUsersPage'));
+const MyOrdersPage      = lazy(() => import('./pages/MyOrdersPage'));
+const OrderDetailPage   = lazy(() => import('./pages/OrderDetailPage'));
 
 const PageFallback = () => <Loader fullPage label="Loading…" />;
 
@@ -109,6 +111,15 @@ function AppLayout() {
               element={
                 <AdminRoute>
                   <ManageUsersPage />
+                </AdminRoute>
+              }
+            />
+            <Route path="/orders" element={<MyOrdersPage />} />
+            <Route
+              path="/admin/orders/:orderId"
+              element={
+                <AdminRoute>
+                  <OrderDetailPage />
                 </AdminRoute>
               }
             />

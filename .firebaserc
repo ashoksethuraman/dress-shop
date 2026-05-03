@@ -1,5 +1,15 @@
 {
   "projects": {
     "default": "halleycomet-7cd48"
-  }
+  },
+  "targets": {
+    "halleycomet-7cd48": {
+      "hosting": {
+        "app": [
+          "halleycomet-7cd48"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

@@ -9,6 +9,11 @@ export const PAYMENT_STATUSES = [
 ] as const;
 export type PaymentStatus = typeof PAYMENT_STATUSES[number];
 
+export const REFUND_STATUSES = [
+  "NONE", "INITIATED", "PROCESSING", "COMPLETED", "FAILED",
+] as const;
+export type RefundStatus = typeof REFUND_STATUSES[number];
+
 export const FAIL_REASONS = ["payment_dismissed", "payment_failed"] as const;
 export type FailReason = typeof FAIL_REASONS[number];
 

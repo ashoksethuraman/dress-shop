@@ -25,6 +25,7 @@ export interface CreateOrderBody {
   shippingAddress?: AddressDto;
   billingAndShippingSame: boolean;
   items: OrderItemInput[];
+  paymentMethod?: string;
   totalAmount?: number; // optional — used only for tamper-detection, server always recomputes
 }
 
@@ -64,4 +65,9 @@ export interface RecordPaymentBody {
 export interface UpdateOrderStatusBody {
   orderId: string;
   status: OrderStatus;
+}
+
+export interface RefundOrderBody {
+  orderId: string;
+  reason?: string; // optional admin note
 }

@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FiX, FiLoader, FiCheckCircle, FiAlertCircle, FiMapPin, FiMail, FiPackage, FiClock } from 'react-icons/fi';
-import { ordersApi } from '../../services/apiClient'; // backend
+import { FiX, FiLoader, FiCheckCircle, FiAlertCircle, FiMapPin, FiMail, FiPackage, FiClock, FiRefreshCw } from 'react-icons/fi';
+import { ordersApi, paymentsApi } from '../../services/apiClient'; // backend
 // import { firestoreOrdersApi as ordersApi } from '../../services/firestoreClient'; // direct firestore
-import { StoredOrder, OrderStatus } from '../../utils/apiTypes';
+import { StoredOrder, OrderStatus, RefundStatus } from '../../utils/apiTypes';
 import { formatPrice } from '../../utils/format';
-import { orderStatusBadge, paymentStatusBadge, fmtDate } from './adminHelpers';
+import { orderStatusBadge, paymentStatusBadge, refundStatusBadge, fmtDate, fmtDateTime } from './adminHelpers';
 
 // Statuses an admin can manually set (excludes system-only states)
 const ADMIN_STATUSES: { value: OrderStatus; label: string }[] = [
@@ -32,6 +32,14 @@ export default function OrderDetailModal({ order, onClose, onStatusUpdated }: Pr
   const [updateSuccess, setUpdateSuccess] = useState(false);
   const [liveStatus,    setLiveStatus]    = useState<OrderStatus>(order.orderStatus);
   const backdropRef = useRef<HTMLDivElement>(null);
+
+  // ── Refund state ──────────────────────────────────────────────────────────
+  const [liveRefundStatus, setLiveRefundStatus] = useState<RefundStatus>(order.refundStatus ?? 'NONE');
+  const [refundConfirm,    setRefundConfirm]    = useState(false);   // confirmation step shown
+  const [refundReason,     setRefundReason]     = useState('');
+  const [refundLoading,    setRefundLoading]    = useState(false);
+  const [refundError,      setRefundError]      = useState<string | null>(null);
+  const [refundSuccess,    setRefundSuccess]    = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,6 +78,35 @@ export default function OrderDetailModal({ order, onClose, onStatusUpdated }: Pr
     return () => window.removeEventListener('keydown', handler);
   }, [onClose]);
 
+  // Refund is available when:
+  //   • paymentStatus is SUCCESS  (guards COD — COD never reaches SUCCESS via Razorpay)
+  //   • refundStatus is NONE      (not yet initiated)
+  //   • order is not shipped/delivered
+  const isCOD = paymentMethod?.toLowerCase() === 'cod' || paymentMethod?.toLowerCase() === 'cash on delivery';
+  const isRefundEligible =
+    order.paymentStatus === 'SUCCESS' &&
+    !isCOD &&
+    liveRefundStatus === 'NONE' &&
+    !['SHIPPED', 'DELIVERED'].includes(liveStatus);
+
+  const handleRefund = async () => {
+    setRefundLoading(true);
+    setRefundError(null);
+    try {
+      await paymentsApi.initiateRefund({
+        orderId: order.id,
+        reason: refundReason.trim() || undefined,
+      });
+      setLiveRefundStatus('PROCESSING');
+      setRefundSuccess(true);
+      setRefundConfirm(false);
+    } catch (err: any) {
+      setRefundError(err?.message ?? 'Failed to initiate refund. Please try again.');
+    } finally {
+      setRefundLoading(false);
+    }
+  };
+
   const addr = order.shippingAddress;
 
   return (
@@ -94,6 +131,11 @@ export default function OrderDetailModal({ order, onClose, onStatusUpdated }: Pr
                 <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${paymentStatusBadge(order.paymentStatus)}`}>
                   Payment: {order.paymentStatus}
                 </span>
+                {liveRefundStatus !== 'NONE' && (
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${refundStatusBadge(liveRefundStatus)}`}>
+                    Refund: {liveRefundStatus}
+                  </span>
+                )}
               </div>
             </div>
             <button
@@ -215,10 +257,112 @@ export default function OrderDetailModal({ order, onClose, onStatusUpdated }: Pr
                     <span className="absolute -left-[21px] w-2.5 h-2.5 rounded-full bg-brand-border border-2 border-white top-1" />
                     <p className="text-xs font-semibold text-primary">{t.status.replace(/_/g, ' ')}</p>
                     {t.note && <p className="text-xs text-muted">{t.note}</p>}
-                    <p className="text-xs text-muted">{fmtDate(t.timestamp)}</p>
+                    <p className="text-xs text-muted">{fmtDateTime(t.timestamp)}</p>
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* ── Refund section (admin-only, Razorpay orders only) ── */}
+          {/* Shows only when paymentStatus is SUCCESS and not COD */}
+          {order.paymentStatus === 'SUCCESS' && !isCOD && (
+            <div className="border border-dashed border-red-200 rounded-xl px-4 py-4 bg-red-50/50">
+              <p className="flex items-center gap-1.5 text-xs font-bold text-red-700 uppercase tracking-wide mb-3">
+                <FiRefreshCw size={13} /> Refund
+              </p>
+
+              {/* Already processed / in progress badge */}
+              {liveRefundStatus !== 'NONE' && (
+                <div className="mb-3">
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${refundStatusBadge(liveRefundStatus)}`}>
+                    Refund status: {liveRefundStatus}
+                  </span>
+                  {liveRefundStatus === 'PROCESSING' && (
+                    <p className="mt-1 text-xs text-muted">Razorpay is processing the refund. The status will update automatically via webhook when complete.</p>
+                  )}
+                  {liveRefundStatus === 'COMPLETED' && (
+                    <p className="mt-1 text-xs text-muted">Refund of {formatPrice(order.totalAmount)} has been successfully returned to the customer.</p>
+                  )}
+                  {liveRefundStatus === 'FAILED' && (
+                    <p className="mt-1 text-xs text-red-600">Refund failed. Please retry or contact Razorpay support.</p>
+                  )}
+                </div>
+              )}
+
+              {/* Success confirmation message */}
+              {refundSuccess && (
+                <div className="mb-3 flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl px-3 py-2.5">
+                  <FiCheckCircle size={15} className="flex-shrink-0" />
+                  Refund of <strong>{formatPrice(order.totalAmount)}</strong> initiated successfully. Razorpay is processing it.
+                </div>
+              )}
+
+              {/* Initiate button — only when eligible */}
+              {isRefundEligible && !refundConfirm && !refundSuccess && (
+                <div>
+                  {liveStatus === 'SHIPPED' || liveStatus === 'DELIVERED' ? (
+                    <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                      Refund is blocked for orders that are already <strong>{liveStatus}</strong>.
+                    </p>
+                  ) : (
+                    <button
+                      onClick={() => { setRefundConfirm(true); setRefundError(null); }}
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-sm transition-colors"
+                    >
+                      <FiRefreshCw size={14} /> Initiate Refund ({formatPrice(order.totalAmount)})
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Shipped/Delivered guard message */}
+              {order.paymentStatus === 'SUCCESS' && !isCOD && liveRefundStatus === 'NONE' &&
+                (liveStatus === 'SHIPPED' || liveStatus === 'DELIVERED') && (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                  Refund is blocked for orders that are <strong>{liveStatus}</strong>. Cancel the order first if needed.
+                </p>
+              )}
+
+              {/* Confirmation form */}
+              {isRefundEligible && refundConfirm && !refundSuccess && (
+                <div className="flex flex-col gap-3">
+                  <div className="bg-white border border-red-200 rounded-xl px-3 py-3 text-sm text-red-800">
+                    <strong>Are you sure?</strong> This will initiate a full refund of&nbsp;
+                    <strong>{formatPrice(order.totalAmount)}</strong> via Razorpay. This action cannot be undone.
+                  </div>
+                  <textarea
+                    value={refundReason}
+                    onChange={e => setRefundReason(e.target.value)}
+                    placeholder="Optional: reason for refund (stored in order timeline)"
+                    rows={2}
+                    className="w-full border border-red-200 rounded-xl px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:border-red-400 focus:ring-red-200 resize-none"
+                  />
+                  {refundError && (
+                    <p className="flex items-center gap-1.5 text-xs text-red-600">
+                      <FiAlertCircle size={13} /> {refundError}
+                    </p>
+                  )}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleRefund}
+                      disabled={refundLoading}
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm transition-colors"
+                    >
+                      {refundLoading
+                        ? <><FiLoader size={13} className="animate-spin" /> Processing…</>
+                        : <><FiRefreshCw size={13} /> Confirm Refund</>}
+                    </button>
+                    <button
+                      onClick={() => { setRefundConfirm(false); setRefundError(null); setRefundReason(''); }}
+                      disabled={refundLoading}
+                      className="px-4 py-2 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 font-semibold text-sm transition-colors disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -227,4 +371,3 @@ export default function OrderDetailModal({ order, onClose, onStatusUpdated }: Pr
     </div>
   );
 }
-

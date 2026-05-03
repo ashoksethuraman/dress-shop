@@ -113,17 +113,21 @@ export default function ProductDetailsPage() {
   const prevImg = () => setActiveImg((i) => (i - 1 + images.length) % images.length);
   const nextImg = () => setActiveImg((i) => (i + 1) % images.length);
 
-  /** Returns an error string or null if stock is fine */
-  const stockCheck = (): string | null => {
+  /** Returns an error string or null if stock is fine.
+   *  forBuyNow=true skips the alreadyInCart check so Buy Now always
+   *  proceeds based purely on what the user wants to buy right now. */
+  const stockCheck = (forBuyNow = false): string | null => {
     const hasSizes = product.sizes && product.sizes.length > 0;
     if (hasSizes && !selectedSize) return '__size';
     if (selectedSize && product.sizeInventory) {
       const available = product.sizeInventory[selectedSize];
       if (available !== undefined) {
         if (available === 0) return `Size ${selectedSize} is currently out of stock.`;
-        const alreadyInCart = cartItems.find(
-          (i) => i.productId === product.id && i.size === selectedSize
-        )?.qty ?? 0;
+        const alreadyInCart = forBuyNow
+          ? 0
+          : (cartItems.find(
+              (i) => i.productId === product.id && i.size === selectedSize
+            )?.qty ?? 0);
         if (alreadyInCart + qty > available)
           return `Only ${available} unit${available !== 1 ? 's' : ''} available in size ${selectedSize}.`;
       }
@@ -154,7 +158,8 @@ export default function ProductDetailsPage() {
   };
 
   const handleBuyNow = () => {
-    const err = stockCheck();
+    // forBuyNow=true: ignore how many units are already sitting in cart
+    const err = stockCheck(true);
     if (err === '__size') { setSizeError(true); return; }
     if (err) { setCartError(err); return; }
     setCartError(null);
@@ -175,6 +180,15 @@ export default function ProductDetailsPage() {
   };
 
   const sizeChartUrl = product.sizeChart ? resolveImageUrl(product.sizeChart) : null;
+
+  // Derive overall OOS from sizeInventory (more accurate than product.stock field)
+  const totalStockVal = totalStock(product.sizeInventory);
+  const isProductOos  = totalStockVal === 0 || (totalStockVal === null && product.stock === 'out_of_stock');
+
+  // Per-selected-size stock for inline warning
+  const selectedSizeStock: number | undefined =
+    selectedSize && product.sizeInventory ? product.sizeInventory[selectedSize] : undefined;
+  const selectedSizeFew = selectedSizeStock !== undefined && selectedSizeStock > 0 && selectedSizeStock < 3;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -348,6 +362,19 @@ export default function ProductDetailsPage() {
               {sizeError && (
                 <p className="text-xs text-red-500 font-medium mt-1.5">Please select a size before adding to bag.</p>
               )}
+              {/* Per-size stock warnings */}
+              {!sizeError && selectedSizeFew && selectedSizeStock !== undefined && (
+                <p className="flex items-center gap-1.5 text-xs text-orange-600 font-semibold mt-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-orange-500 shrink-0 animate-pulse" />
+                  Only {selectedSizeStock} item{selectedSizeStock !== 1 ? 's' : ''} left in size {selectedSize}!
+                </p>
+              )}
+              {!sizeError && selectedSizeStock === 0 && selectedSize && (
+                <p className="flex items-center gap-1.5 text-xs text-red-600 font-semibold mt-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                  Size {selectedSize} is out of stock.
+                </p>
+              )}
             </div>
           )}
 
@@ -379,7 +406,7 @@ export default function ProductDetailsPage() {
           })()}
 
           {/* Quantity + Add to cart — same row */}
-          {product.stock !== 'out_of_stock' && (
+          {!isProductOos && (
             <div className="flex items-center gap-3">
               <div className="flex items-center border-2 border-gray-200 rounded-xl overflow-hidden shrink-0">
                 <button
@@ -440,9 +467,9 @@ export default function ProductDetailsPage() {
             <button
               type="button"
               onClick={handleBuyNow}
-              disabled={product.stock === 'out_of_stock'}
+              disabled={isProductOos}
               className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all duration-200 ${
-                product.stock === 'out_of_stock'
+                isProductOos
                   ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
                   : 'bg-brand-dark hover:bg-brand-hover text-white hover:shadow-lg'
               }`}

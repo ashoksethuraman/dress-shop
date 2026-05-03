@@ -1,11 +1,15 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { FiRefreshCw, FiShoppingBag, FiChevronLeft, FiChevronRight, FiLoader, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
-import { ordersApi } from '../../services/apiClient'; // backend
-// import { firestoreOrdersApi as ordersApi } from '../../services/firestoreClient'; // direct firestore
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { FiRefreshCw, FiShoppingBag, FiChevronLeft, FiChevronRight, FiLoader, FiCheckCircle, FiAlertCircle, FiExternalLink, FiInfo } from 'react-icons/fi';
+import { ordersApi } from '../../services/apiClient';
 import { StoredOrder, OrderStatus } from '../../utils/apiTypes';
 import { formatPrice } from '../../utils/format';
-import { PAGE_SIZE, orderStatusBadge, paymentStatusBadge, fmtDate } from './adminHelpers';
-import OrderDetailModal from './OrderDetailModal';
+import { PAGE_SIZE, orderStatusBadge, paymentStatusBadge, refundStatusBadge, fmtDate } from './adminHelpers';
+import {
+  ORDER_STATUS_LABELS, ORDER_FORWARD_SEQUENCE, TERMINAL_STATUSES,
+  getAllowedTransitions, partitionBulkUpdate,
+} from '../../utils/orderStatusMachine';
+import { useAppSelector } from '../../store/hooks';
 
 const STATUS_OPTIONS = [
   { value: 'all',            label: 'All' },
@@ -19,12 +23,10 @@ const STATUS_OPTIONS = [
   { value: 'PAYMENT_FAILED', label: 'Pay Failed' },
 ];
 
-const BULK_STATUSES: { value: OrderStatus; label: string }[] = [
-  { value: 'CONFIRMED',  label: 'Confirmed'  },
-  { value: 'PROCESSING', label: 'Processing' },
-  { value: 'SHIPPED',    label: 'Shipped'    },
-  { value: 'DELIVERED',  label: 'Delivered'  },
-  { value: 'CANCELLED',  label: 'Cancelled'  },
+// All non-terminal forward statuses + CANCELLED as possible bulk targets
+const BULK_TARGET_STATUSES: OrderStatus[] = [
+  ...ORDER_FORWARD_SEQUENCE.filter(s => !TERMINAL_STATUSES.has(s)),
+  'CANCELLED',
 ];
 
 type PageCache    = Record<number, StoredOrder[]>;
@@ -32,6 +34,9 @@ type CursorCache  = Record<number, string>;
 type HasMoreCache = Record<number, boolean>;
 
 export default function OrdersTab() {
+  const navigate    = useNavigate();
+  const currentUser = useAppSelector(s => s.user.user);
+
   const [pagesCache,    setPagesCache]    = useState<PageCache>({});
   const [cursorsCache,  setCursorsCache]  = useState<CursorCache>({});
   const [hasMoreCache,  setHasMoreCache]  = useState<HasMoreCache>({});
@@ -39,7 +44,6 @@ export default function OrdersTab() {
   const [loading,       setLoading]       = useState(false);
   const [error,         setError]         = useState<string | null>(null);
   const [statusFilter,  setStatusFilter]  = useState('all');
-  const [selectedOrder, setSelectedOrder] = useState<StoredOrder | null>(null);
 
   // Bulk selection state
   const [selectedIds,   setSelectedIds]   = useState<Set<string>>(new Set());
@@ -111,15 +115,20 @@ export default function OrdersTab() {
   const canNext = Boolean(pagesCache[currentPage + 1]) || Boolean(hasMoreCache[currentPage]);
   const canPrev = currentPage > 1;
 
-  // Checkbox helpers
-  const allSelected = orders.length > 0 && orders.every(o => selectedIds.has(o.id));
+  // ── Checkbox helpers ───────────────────────────────────────────────────────
+  // Exclude admin's own orders from selection (ownership guard)
+  const isOwnOrder = (o: StoredOrder) =>
+    !!(currentUser && o.userId && o.userId === currentUser.id);
+
+  const selectableOrders = orders.filter(o => !isOwnOrder(o));
+  const allSelected  = selectableOrders.length > 0 && selectableOrders.every(o => selectedIds.has(o.id));
   const someSelected = orders.some(o => selectedIds.has(o.id));
 
   const toggleAll = () => {
     if (allSelected) {
-      setSelectedIds(prev => { const next = new Set(prev); orders.forEach(o => next.delete(o.id)); return next; });
+      setSelectedIds(prev => { const next = new Set(prev); selectableOrders.forEach(o => next.delete(o.id)); return next; });
     } else {
-      setSelectedIds(prev => { const next = new Set(prev); orders.forEach(o => next.add(o.id)); return next; });
+      setSelectedIds(prev => { const next = new Set(prev); selectableOrders.forEach(o => next.add(o.id)); return next; });
     }
   };
 
@@ -131,26 +140,69 @@ export default function OrdersTab() {
     });
   };
 
+  // ── Bulk partition (re-computed whenever selection or target status changes) ─
+  // Build a fast lookup across ALL cached pages
+  const allCachedOrders = useMemo(() => {
+    const map = new Map<string, StoredOrder>();
+    for (const page of Object.values(pagesCache)) {
+      for (const o of page) map.set(o.id, o);
+    }
+    return map;
+  }, [pagesCache]);
+
+  const bulkPartition = useMemo(() => {
+    return partitionBulkUpdate(
+      Array.from(selectedIds),
+      bulkStatus,
+      (id) => {
+        const o = allCachedOrders.get(id);
+        if (!o) return undefined;
+        const isCOD = false; // COD method info is in payments collection — default false (conservative)
+        return { orderStatus: o.orderStatus, paymentStatus: o.paymentStatus, isCOD };
+      },
+    );
+  }, [selectedIds, bulkStatus, allCachedOrders]);
+
   const handleBulkUpdate = async () => {
-    if (selectedIds.size === 0) return;
+    const { eligible, blocked } = bulkPartition;
+    if (eligible.length === 0) return;
     setBulkUpdating(true);
     setBulkError(null);
     setBulkSuccess(false);
     try {
-      await Promise.all(Array.from(selectedIds).map(id => ordersApi.updateStatus(id, bulkStatus)));
-      // Update cache
+      const results = await Promise.allSettled(
+        eligible.map(id => ordersApi.updateStatus(id, bulkStatus))
+      );
+      const failed = results
+        .map((r, i) => ({ r, id: eligible[i] }))
+        .filter(({ r }) => r.status === 'rejected');
+
+      // Update cache for succeeded orders
+      const succeededIds = new Set(
+        eligible.filter((_, i) => results[i].status === 'fulfilled')
+      );
       setPagesCache(prev => {
         const next = { ...prev };
         for (const page of Object.keys(next)) {
           next[+page] = next[+page].map(o =>
-            selectedIds.has(o.id) ? { ...o, orderStatus: bulkStatus } : o
+            succeededIds.has(o.id) ? { ...o, orderStatus: bulkStatus } : o
           );
         }
         return next;
       });
-      setBulkSuccess(true);
+
       setSelectedIds(new Set());
-      setTimeout(() => setBulkSuccess(false), 3000);
+
+      if (failed.length > 0) {
+        const firstErr = (failed[0].r as PromiseRejectedResult).reason;
+        setBulkError(`${failed.length} order(s) failed: ${firstErr?.message ?? 'Unknown error'}`);
+      } else if (blocked.length > 0) {
+        setBulkError(`${blocked.length} order(s) skipped — payment not completed.`);
+        setBulkSuccess(true);
+      } else {
+        setBulkSuccess(true);
+        setTimeout(() => setBulkSuccess(false), 3000);
+      }
     } catch (err: any) {
       setBulkError(err?.message ?? 'Bulk update failed.');
     } finally {
@@ -194,30 +246,52 @@ export default function OrdersTab() {
           <div className="flex-1 flex flex-wrap items-center gap-2">
             <select
               value={bulkStatus}
-              onChange={(e) => setBulkStatus(e.target.value as OrderStatus)}
+              onChange={(e) => { setBulkStatus(e.target.value as OrderStatus); setBulkError(null); setBulkSuccess(false); }}
               disabled={bulkUpdating}
               className="border border-brand-border rounded-xl px-3 py-1.5 text-sm bg-white text-primary focus:outline-none focus:ring-2 focus:ring-brand transition-all disabled:opacity-60"
             >
-              {BULK_STATUSES.map(({ value, label }) => (
-                <option key={value} value={value}>{label}</option>
+              {BULK_TARGET_STATUSES.map(s => (
+                <option key={s} value={s}>{ORDER_STATUS_LABELS[s]}</option>
               ))}
             </select>
             <button
               onClick={handleBulkUpdate}
-              disabled={bulkUpdating}
+              disabled={bulkUpdating || bulkPartition.eligible.length === 0}
               className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-brand-dark hover:bg-brand-hover disabled:opacity-50 text-white font-bold text-sm transition-colors"
             >
-              {bulkUpdating ? <><FiLoader size={13} className="animate-spin" /> Updating…</> : 'Update Status'}
+              {bulkUpdating
+                ? <><FiLoader size={13} className="animate-spin" /> Updating…</>
+                : `Update ${bulkPartition.eligible.length > 0 ? `(${bulkPartition.eligible.length})` : ''}`}
             </button>
             <button
-              onClick={() => setSelectedIds(new Set())}
+              onClick={() => { setSelectedIds(new Set()); setBulkError(null); setBulkSuccess(false); }}
               className="px-3 py-1.5 rounded-xl border border-gray-300 text-sm text-gray-500 hover:bg-gray-50 transition-colors"
             >
               Clear
             </button>
           </div>
+
+          {/* Live validation summary */}
+          <div className="w-full flex flex-wrap gap-2 text-xs">
+            {bulkPartition.eligible.length > 0 && (
+              <span className="flex items-center gap-1 text-green-700 bg-green-50 border border-green-200 rounded-lg px-2.5 py-1">
+                <FiCheckCircle size={11} /> {bulkPartition.eligible.length} eligible
+              </span>
+            )}
+            {bulkPartition.skipped.length > 0 && (
+              <span className="flex items-center gap-1 text-gray-500 bg-gray-100 border border-gray-200 rounded-lg px-2.5 py-1">
+                <FiInfo size={11} /> {bulkPartition.skipped.length} will be skipped (invalid transition)
+              </span>
+            )}
+            {bulkPartition.blocked.length > 0 && (
+              <span className="flex items-center gap-1 text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1">
+                <FiAlertCircle size={11} /> {bulkPartition.blocked.length} blocked (payment not completed)
+              </span>
+            )}
+          </div>
+
           {bulkSuccess && (
-            <p className="text-xs text-brand-border font-semibold flex items-center gap-1">
+            <p className="text-xs text-green-700 font-semibold flex items-center gap-1">
               <FiCheckCircle size={13} /> Updated successfully
             </p>
           )}
@@ -268,7 +342,7 @@ export default function OrdersTab() {
                     className="w-4 h-4 accent-brand-dark rounded cursor-pointer"
                   />
                 </th>
-                {['Order ID', 'Customer', 'Date', 'Items', 'Total', 'Order Status', 'Payment'].map((h) => (
+                {['Order ID', 'Customer', 'Date', 'Items', 'Total', 'Order Status', 'Payment', 'Refund'].map((h) => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-bold text-brand-border uppercase tracking-wide whitespace-nowrap">
                     {h}
                   </th>
@@ -289,36 +363,47 @@ export default function OrdersTab() {
                       type="checkbox"
                       checked={selectedIds.has(order.id)}
                       onChange={() => toggleOne(order.id)}
-                      className="w-4 h-4 accent-brand-dark rounded cursor-pointer"
+                      disabled={isOwnOrder(order)}
+                      title={isOwnOrder(order) ? 'You cannot manage your own orders' : undefined}
+                      className="w-4 h-4 accent-brand-dark rounded cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                     />
                   </td>
                   <td
                     className="px-4 py-3 font-mono text-xs text-gray-500 max-w-[180px] truncate cursor-pointer"
                     title={order.id}
-                    onClick={() => setSelectedOrder(order)}
+                    onClick={() => navigate(`/admin/orders/${order.id}`)}
                   >
                     {order.id}
                   </td>
-                  <td className="px-4 py-3 max-w-[180px] cursor-pointer" onClick={() => setSelectedOrder(order)}>
+                  <td className="px-4 py-3 max-w-[180px] cursor-pointer" onClick={() => navigate(`/admin/orders/${order.id}`)}>
                     {order.billingAddress?.name && (
                       <p className="text-primary font-semibold text-xs truncate">{order.billingAddress.name}</p>
                     )}
                     <p className="text-muted text-xs truncate">{order.contactEmail || '—'}</p>
                   </td>
-                  <td className="px-4 py-3 text-muted whitespace-nowrap cursor-pointer" onClick={() => setSelectedOrder(order)}>{fmtDate(order.createdAt)}</td>
-                  <td className="px-4 py-3 text-center text-muted cursor-pointer" onClick={() => setSelectedOrder(order)}>{order.items.length}</td>
-                  <td className="px-4 py-3 font-bold text-accent whitespace-nowrap cursor-pointer" onClick={() => setSelectedOrder(order)}>
+                  <td className="px-4 py-3 text-muted whitespace-nowrap cursor-pointer" onClick={() => navigate(`/admin/orders/${order.id}`)}>{fmtDate(order.createdAt)}</td>
+                  <td className="px-4 py-3 text-center text-muted cursor-pointer" onClick={() => navigate(`/admin/orders/${order.id}`)}>{order.items.length}</td>
+                  <td className="px-4 py-3 font-bold text-accent whitespace-nowrap cursor-pointer" onClick={() => navigate(`/admin/orders/${order.id}`)}>
                     {formatPrice(order.totalAmount)}
                   </td>
-                  <td className="px-4 py-3 cursor-pointer" onClick={() => setSelectedOrder(order)}>
+                  <td className="px-4 py-3 cursor-pointer" onClick={() => navigate(`/admin/orders/${order.id}`)}>
                     <span className={`text-xs px-2.5 py-1 rounded-full font-semibold whitespace-nowrap ${orderStatusBadge(order.orderStatus)}`}>
                       {order.orderStatus.replace(/_/g, ' ')}
                     </span>
                   </td>
-                  <td className="px-4 py-3 cursor-pointer" onClick={() => setSelectedOrder(order)}>
+                  <td className="px-4 py-3 cursor-pointer" onClick={() => navigate(`/admin/orders/${order.id}`)}>
                     <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${paymentStatusBadge(order.paymentStatus)}`}>
                       {order.paymentStatus}
                     </span>
+                  </td>
+                  <td className="px-4 py-3 cursor-pointer" onClick={() => navigate(`/admin/orders/${order.id}`)}>
+                    {order.refundStatus && order.refundStatus !== 'NONE' ? (
+                      <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${refundStatusBadge(order.refundStatus)}`}>
+                        {order.refundStatus}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -353,24 +438,6 @@ export default function OrdersTab() {
         </div>
       )}
 
-      {selectedOrder && (
-        <OrderDetailModal
-          order={selectedOrder}
-          onClose={() => setSelectedOrder(null)}
-          onStatusUpdated={(orderId, newStatus: OrderStatus) => {
-            setPagesCache(prev => {
-              const next = { ...prev };
-              for (const page of Object.keys(next)) {
-                next[+page] = next[+page].map(o =>
-                  o.id === orderId ? { ...o, orderStatus: newStatus } : o
-                );
-              }
-              return next;
-            });
-            setSelectedOrder(prev => prev && prev.id === orderId ? { ...prev, orderStatus: newStatus } : prev);
-          }}
-        />
-      )}
     </div>
   );
 }

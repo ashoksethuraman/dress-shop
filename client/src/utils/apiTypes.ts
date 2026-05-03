@@ -10,6 +10,11 @@ export const PAYMENT_STATUSES = [
 ] as const;
 export type PaymentStatus = typeof PAYMENT_STATUSES[number];
 
+export const REFUND_STATUSES = [
+  "NONE", "INITIATED", "PROCESSING", "COMPLETED", "FAILED",
+] as const;
+export type RefundStatus = typeof REFUND_STATUSES[number];
+
 export type FailReason = "payment_dismissed" | "payment_failed";
 
 export interface AddressPayload {
@@ -78,6 +83,7 @@ export interface CreateRazorpayOrderResponse {
   razorpayOrderId: string;
   amount:          number;
   currency:        string;
+  keyId:           string;  // public key returned from backend — never hardcode in frontend
 }
 
 
@@ -102,6 +108,18 @@ export interface RecordPaymentPayload {
 export interface RecordPaymentResponse {
   success:   boolean;
   paymentId: string;
+}
+
+
+export interface InitiateRefundPayload {
+  orderId: string;
+  reason?: string;  // optional admin note
+}
+
+export interface InitiateRefundResponse {
+  success:  boolean;
+  refundId: string;
+  status:   string;  // Razorpay refund status: created | processed | failed
 }
 
 
@@ -139,8 +157,11 @@ export interface TimelineEntry {
 
 export interface StoredOrder {
   id:                     string;
+  userId?:                string;
   orderStatus:            OrderStatus;
   paymentStatus:          PaymentStatus;
+  refundStatus?:          RefundStatus;
+  refundId?:              string;
   billingAndShippingSame: boolean;
   contactEmail?:          string;
   billingAddress?:        StoredAddress;

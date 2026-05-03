@@ -1,244 +1,459 @@
+/* eslint-disable new-cap */
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
+/** ------------------ IMPORTS ------------------ **/
 import {Router, type Request, type Response} from "express";
 import {FieldValue} from "firebase-admin/firestore";
 import * as crypto from "crypto";
 import * as logger from "firebase-functions/logger";
+import fetch from "node-fetch";
+
 import {db} from "../config/firebase";
 import {optionalAuth, validate} from "../middleware";
-import {sendOrderEmail, type OrderEmailPayload} from "../services/emailService";
+
+import {
+  sendOrderEmail,
+  type OrderEmailPayload,
+} from "../services/emailService";
 import {deductInventory} from "../services/inventoryService";
+
 import {
-  type VerifyPaymentBody, type FailPaymentBody,
-  type CreateRazorpayOrderBody, type RecordPaymentBody,
+  type VerifyPaymentBody,
+  type CreateRazorpayOrderBody,
 } from "../types";
+
 import {
-  validateVerifyPayment, validateFailPayment,
-  validateCreateRazorpayOrder, validateRecordPayment,
+  validateVerifyPayment,
+  validateCreateRazorpayOrder,
 } from "../validators";
 
-export const paymentsRouter = Router();
-
-const enforceRazorpaySignature = (process.env.ENFORCE_RAZORPAY_SIGNATURE ?? "true").toLowerCase() === "true";
-const allowMockPayments = (
-  process.env.ALLOW_MOCK_PAYMENTS ??
-  (process.env.NODE_ENV === "production" ? "false" : "true")
-).toLowerCase() === "true";
-
-function toOrderEmailPayload(
-  orderId: string,
-  orderData: Record<string, unknown>,
-  paymentId?: string | null
-): OrderEmailPayload {
+import Razorpay from "razorpay";
+/** ------------------ TIMELINE ------------------ **/
+function timelineEvent(status: string, note?: string) {
   return {
-    orderId,
-    isGuest: (orderData.isGuest as boolean | undefined) ?? false,
-    contactEmail: (orderData.contactEmail as string | undefined) ?? null,
-    userEmail: (orderData.userEmail as string | undefined) ?? null,
-    totalAmount: (orderData.totalAmount as number | undefined) ?? 0,
-    paymentId: paymentId ?? (orderData.paymentId as string | undefined) ?? null,
-    paymentStatus: (orderData.paymentStatus as string | undefined) ?? null,
-    orderStatus: (orderData.orderStatus as string | undefined) ?? null,
-    items: (orderData.items as Array<Record<string, unknown>> | undefined)?.map((it) => ({
-      title: (it.title as string | undefined) ?? "Item",
-      qty: (it.qty as number | undefined) ?? 0,
-      unitPrice: (it.unitPrice as number | undefined) ?? 0,
-      total: (it.total as number | undefined) ?? 0,
-      size: (it.size as string | null | undefined) ?? null,
-    })) ?? [],
-    billingAddress: (orderData.billingAddress as Record<string, unknown> | undefined),
-    shippingAddress: (orderData.shippingAddress as Record<string, unknown> | undefined),
+    status,
+    note: note || status,
+    timestamp: new Date().toISOString(),
   };
 }
 
-// ── Routes ────────────────────────────────────────────────────────────────────
+/** ------------------ ROUTER ------------------ **/
+export const paymentsRouter = Router();
 
-paymentsRouter.post("/razorpay-order", validate(validateCreateRazorpayOrder), async (req: Request, res: Response) => {
-  const {orderId} = req.body as CreateRazorpayOrderBody;
-  const keyId = process.env.RAZORPAY_KEY_ID ?? "";
-  const keySecret = process.env.RAZORPAY_KEY_SECRET ?? "";
-  if (!keyId || !keySecret) {
-    res.status(503).json({error: "Razorpay is not configured on the server."});
-    return;
-  }
-  try {
-    const orderSnap = await db.doc(`orders/${orderId}`).get();
-    if (!orderSnap.exists) { res.status(404).json({error: "Order not found."}); return; }
-    const serverAmount = orderSnap.data()?.totalAmount as number | undefined;
-    if (typeof serverAmount !== "number" || serverAmount <= 0) {
-      res.status(422).json({error: "Order has an invalid total amount."}); return;
-    }
-    const credentials = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
-    const rzpRes = await fetch("https://api.razorpay.com/v1/orders", {
-      method: "POST",
-      headers: {"Content-Type": "application/json", "Authorization": `Basic ${credentials}`},
-      body: JSON.stringify({amount: Math.round(serverAmount * 100), currency: "INR", receipt: orderId, notes: {orderId}}),
-    });
-    if (!rzpRes.ok) {
-      const errBody = await rzpRes.text();
-      logger.error("[POST /payments/razorpay-order] Razorpay error", {errBody});
-      res.status(rzpRes.status).json({error: "Razorpay order creation failed.", detail: errBody});
-      return;
-    }
-    const rzpOrder = await rzpRes.json() as Record<string, unknown>;
-    logger.info(`[POST /payments/razorpay-order] Created Razorpay order ${rzpOrder.id} for ${orderId}`);
-    res.json({razorpayOrderId: rzpOrder.id, amount: rzpOrder.amount, currency: rzpOrder.currency});
-  } catch (err) {
-    logger.error("[POST /payments/razorpay-order] error", err);
-    res.status(500).json({error: "Failed to create Razorpay order."});
-  }
-});
+/** ------------------ ENV ------------------ **/
+const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID ?? "";
+const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET ?? "";
+const WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET ?? "";
+const enforceSignature = process.env.ENFORCE_RAZORPAY_SIGNATURE !== "false";
 
-paymentsRouter.post("/verify", optionalAuth, validate(validateVerifyPayment), async (req: Request, res: Response) => {
-  const {razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId} = req.body as VerifyPaymentBody;
-  const keySecret = process.env.RAZORPAY_KEY_SECRET ?? "";
+/** ------------------ TYPES ------------------ **/
+interface RazorpayPayment {
+  id: string;
+  order_id: string;
+  status: string;
+  amount: number;
+  currency: string;
+  method?: string;
+}
 
-  if (enforceRazorpaySignature && !keySecret) {
-    res.status(503).json({error: "RAZORPAY_KEY_SECRET is required for payment verification."}); return;
-  }
-  if (enforceRazorpaySignature && !razorpay_order_id) {
-    res.status(400).json({error: "razorpay_order_id is required for signature verification."}); return;
-  }
+/** ------------------ HELPERS ------------------ **/
+function safeEqual(a: string, b: string) {
+  if (!a || !b || a.length !== b.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
 
-  if (razorpay_order_id && keySecret) {
-    const expected = crypto.createHmac("sha256", keySecret)
-      .update(`${razorpay_order_id}|${razorpay_payment_id}`).digest("hex");
-    if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(razorpay_signature))) {
-      logger.warn("[POST /payments/verify] Signature mismatch", {orderId, uid: req.user?.uid ?? "guest"});
-      res.status(400).json({error: "Payment verification failed: invalid signature."}); return;
-    }
-  } else {
-    logger.warn("[POST /payments/verify] Signature check skipped");
-  }
+function toEmailPayload(
+  orderId: string,
+  data: any,
+  paymentId?: string
+): OrderEmailPayload {
+  return {
+    orderId,
+    isGuest: data?.isGuest ?? false,
+    contactEmail: data?.contactEmail ?? data?.email ?? null,
+    userEmail: data?.userEmail ?? null,
+    totalAmount: data?.totalAmount ?? data?.amount ?? 0,
+    amount: data?.totalAmount ?? data?.amount ?? 0,
+    paymentId: paymentId ?? data?.paymentId ?? null,
+    paymentStatus: data?.paymentStatus ?? null,
+    orderStatus: data?.orderStatus ?? null,
+    items: data?.items ?? [],
+    billingAddress: data?.billingAddress,
+    shippingAddress: data?.shippingAddress,
+  };
+}
 
-  try {
-    const orderSnap = await db.doc(`orders/${orderId}`).get();
-    if (!orderSnap.exists) { res.status(404).json({error: "Order not found."}); return; }
+/** ------------------ RAZORPAY FETCH ------------------ **/
+async function validatePaymentFromRazorpay(
+  paymentId: string
+): Promise<RazorpayPayment> {
+  const auth = Buffer.from(
+    `${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`
+  ).toString("base64");
+
+  const res = await fetch(
+    `https://api.razorpay.com/v1/payments/${paymentId}`,
+    {headers: {Authorization: `Basic ${auth}`}}
+  );
+
+  if (!res.ok) throw new Error("Razorpay API fetch failed");
+  return (await res.json()) as RazorpayPayment;
+}
+
+/** ------------------ CONFIRM PAYMENT ------------------ **/
+async function confirmPayment({
+  orderId,
+  paymentId,
+  razorpayOrderId,
+  paymentMethod,
+  paymentMeta,
+}: {
+  orderId: string;
+  paymentId: string;
+  razorpayOrderId?: string;
+  paymentMethod?: string;
+  paymentMeta?: any;
+}) {
+  return db.runTransaction(async (tx) => {
+    const orderRef = db.doc(`orders/${orderId}`);
+    const paymentRef = db.doc(`payments/${paymentId}`);
+
+    const orderSnap = await tx.get(orderRef);
+    const paymentSnap = await tx.get(paymentRef);
+
+    if (!orderSnap.exists) throw new Error("NOT_FOUND");
+
     const orderData = orderSnap.data()!;
-    if (req.user && orderData.userId !== req.user.uid && req.user.role !== "admin") {
-      res.status(403).json({error: "Access denied."}); return;
-    }
-    if (orderData.paymentStatus === "SUCCESS") {
-      res.json({success: true, paymentId: orderData.paymentId ?? razorpay_payment_id}); return;
+
+    if (paymentSnap.exists || orderData.paymentStatus === "SUCCESS") {
+      return {shouldProcess: false};
     }
 
-    const batch = db.batch();
-    batch.update(db.doc(`orders/${orderId}`), {
-      orderStatus: "PLACED", paymentStatus: "SUCCESS", paymentId: razorpay_payment_id,
+    tx.update(orderRef, {
+      paymentStatus: "SUCCESS",
+      orderStatus: "PLACED",
+      paymentId,
+      paymentMethod: paymentMethod ?? "online",
       updatedAt: FieldValue.serverTimestamp(),
-      timeline: FieldValue.arrayUnion({status: "PLACED", note: "Payment verified", timestamp: new Date().toISOString()}),
+
+      timeline: FieldValue.arrayUnion(
+        timelineEvent("PAYMENT_SUCCESS"),
+        timelineEvent("ORDER_PLACED")
+      ),
     });
-    batch.set(db.doc(`payments/${razorpay_payment_id}`), {
-      orderId, provider: "razorpay", providerOrderId: razorpay_order_id ?? null,
-      providerPaymentId: razorpay_payment_id, razorpaySignature: razorpay_signature ?? null,
-      amount: orderData.totalAmount ?? 0, currency: "INR", status: "SUCCESS", method: null, metadata: {},
-      customerName: orderData.shippingAddress?.name ?? orderData.billingAddress?.name ?? null,
-      customerEmail: orderData.contactEmail ?? orderData.userEmail ?? null,
-      userId: req.user?.uid ?? orderData.userId ?? null, isTest: false,
-      paidAt: FieldValue.serverTimestamp(), refundedAt: null,
-      createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
-    }, {merge: false});
-    await batch.commit();
 
-    deductInventory(orderId, orderData.items ?? []).catch(() => {/* already logged */});
-    sendOrderEmail("payment_success", {
-      ...toOrderEmailPayload(orderId, orderData, razorpay_payment_id),
-      paymentStatus: "SUCCESS", orderStatus: "PLACED",
-    }).catch((mailErr) => logger.error("[mail] payment_success failed", {orderId, error: mailErr}));
+    tx.set(paymentRef, {
+      orderId,
+      providerPaymentId: paymentId,
+      providerOrderId: razorpayOrderId ?? null,
+      status: "SUCCESS",
+      paymentMethod,
+      paymentMeta,
+      createdAt: FieldValue.serverTimestamp(),
+    });
 
-    logger.info(`[POST /payments/verify] Confirmed: order ${orderId}, payment ${razorpay_payment_id}`);
-    res.json({success: true, paymentId: razorpay_payment_id});
-  } catch (err) {
-    logger.error("[POST /payments/verify] error", err);
-    res.status(500).json({error: "Failed to update order after payment."});
+    return {shouldProcess: true};
+  });
+}
+
+/** ------------------ ROUTES ------------------ **/
+
+/* CREATE RAZORPAY ORDER (RESTORED) */
+paymentsRouter.post(
+  "/razorpay-order",
+  validate(validateCreateRazorpayOrder),
+  async (req, res) => {
+    try {
+      const {orderId} = req.body as CreateRazorpayOrderBody;
+
+      const ref = db.doc(`orders/${orderId}`);
+      const snap = await ref.get();
+
+      if (!snap.exists) {
+        return res.status(404).json({error: "Order not found"});
+      }
+
+      const data = snap.data()!;
+      const amount = data.totalAmount;
+
+      if (!amount || amount <= 0) {
+        return res.status(422).json({error: "Invalid amount"});
+      }
+
+      if (data.razorpayOrderId) {
+        return res.json({
+          razorpayOrderId: data.razorpayOrderId,
+          amount: Math.round(amount * 100),
+          currency: "INR",
+          keyId: RAZORPAY_KEY_ID,
+        });
+      }
+
+      const auth = Buffer.from(
+        `${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`
+      ).toString("base64");
+
+      const r = await fetch("https://api.razorpay.com/v1/orders", {
+        method: "POST",
+        headers: {
+          "Authorization": `Basic ${auth}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          amount: Math.round(amount * 100),
+          currency: "INR",
+          receipt: orderId,
+          notes: {orderId},
+        }),
+      });
+
+      const json: any = await r.json();
+
+      if (!r.ok) {
+        logger.error("Razorpay order creation failed", json);
+        return res.status(500).json({error: "Razorpay failed"});
+      }
+
+      await ref.update({
+        razorpayOrderId: json.id,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      return res.json({
+        razorpayOrderId: json.id,
+        amount: json.amount,
+        currency: json.currency,
+        keyId: RAZORPAY_KEY_ID,
+      });
+    } catch (err) {
+      logger.error("razorpay-order error", err);
+      return res.status(500).json({error: "Internal error"});
+    }
   }
-});
+);
 
-paymentsRouter.post("/fail", optionalAuth, validate(validateFailPayment), async (req: Request, res: Response) => {
-  const {orderId, reason = "payment_dismissed"} = req.body as FailPaymentBody;
+/* VERIFY PAYMENT */
+paymentsRouter.post(
+  "/verify",
+  optionalAuth,
+  validate(validateVerifyPayment),
+  async (req, res) => {
+    try {
+      const body = req.body as VerifyPaymentBody;
+
+      if (enforceSignature) {
+        const expected = crypto
+          .createHmac("sha256", RAZORPAY_KEY_SECRET)
+          .update(`${body.razorpay_order_id}|${body.razorpay_payment_id}`)
+          .digest("hex");
+
+        if (!safeEqual(expected, body.razorpay_signature)) {
+          return res.status(400).json({error: "Invalid signature"});
+        }
+      }
+
+      const payment = await validatePaymentFromRazorpay(
+        body.razorpay_payment_id
+      );
+
+      if (payment.status !== "captured") {
+        return res.status(400).json({error: "Not captured"});
+      }
+
+      const result = await confirmPayment({
+        orderId: body.orderId,
+        paymentId: body.razorpay_payment_id,
+        razorpayOrderId: body.razorpay_order_id,
+        paymentMethod: payment.method,
+        paymentMeta: payment,
+      });
+
+      const updated = await db.doc(`orders/${body.orderId}`).get();
+      const data = updated.data()!;
+
+      if (result.shouldProcess) {
+        try {
+          if (!data.inventoryDeducted) {
+            await deductInventory(body.orderId, data.items || []);
+            await updated.ref.update({
+              inventoryDeducted: true,
+              timeline: FieldValue.arrayUnion(
+                timelineEvent("INVENTORY_DEDUCTED")
+              ),
+            });
+          }
+        } catch (e) {
+          logger.error("Inventory failed", e);
+        }
+
+        try {
+          if (!data.emailSent) {
+            await sendOrderEmail(
+              "payment_success",
+              toEmailPayload(body.orderId, data, body.razorpay_payment_id)
+            );
+            await updated.ref.update({
+              emailSent: true,
+              timeline: FieldValue.arrayUnion(
+                timelineEvent("EMAIL_SENT")
+              ),
+            });
+          }
+        } catch (e) {
+          logger.error("Email failed", e);
+        }
+      }
+
+      return res.json({success: true});
+    } catch (err: unknown) {
+      logger.error("VERIFY FAILED", err);
+      const message = err instanceof Error ? err.message : "Unknown";
+      return res.status(500).json({error: "Verification failed" +message});
+    }
+  }
+);
+
+/* FAIL */
+paymentsRouter.post("/fail", optionalAuth, async (req, res) => {
   try {
-    const orderSnap = await db.doc(`orders/${orderId}`).get();
-    if (!orderSnap.exists) { res.status(404).json({error: "Order not found."}); return; }
-    const orderData = orderSnap.data()!;
-    if (req.user && orderData.userId !== req.user.uid && req.user.role !== "admin") {
-      res.status(403).json({error: "Access denied."}); return;
-    }
-    if (orderData.orderStatus === "CANCELLED" || orderData.paymentStatus === "FAILED") {
-      res.json({success: true}); return;
-    }
-    if (orderData.paymentStatus === "SUCCESS") {
-      res.status(409).json({error: "Cannot cancel a confirmed (paid) order via this endpoint."}); return;
-    }
+    const {orderId} = req.body;
 
-    const newOrderStatus = reason === "payment_failed" ? "PAYMENT_FAILED" : "CANCELLED";
-    const newPaymentStatus = reason === "payment_failed" ? "FAILED" : "CANCELLED";
     await db.doc(`orders/${orderId}`).update({
-      orderStatus: newOrderStatus, paymentStatus: newPaymentStatus,
+      paymentStatus: "FAILED",
+      orderStatus: "PAYMENT_FAILED",
       updatedAt: FieldValue.serverTimestamp(),
-      timeline: FieldValue.arrayUnion({status: newOrderStatus, note: reason, timestamp: new Date().toISOString()}),
+      timeline: FieldValue.arrayUnion(
+        timelineEvent("PAYMENT_FAILED")
+      ),
     });
-    sendOrderEmail(
-      reason === "payment_failed" ? "payment_failed" : "payment_cancelled",
-      {...toOrderEmailPayload(orderId, orderData), paymentStatus: newPaymentStatus, orderStatus: newOrderStatus}
-    ).catch((mailErr) => logger.error("[mail] payment_fail/cancel failed", {orderId, error: mailErr}));
 
-    logger.info(`[POST /payments/fail] Order ${orderId} \u2192 ${newOrderStatus} (reason: ${reason})`);
-    res.json({success: true});
+    return res.json({success: true});
   } catch (err) {
-    logger.error("[POST /payments/fail] error", err);
-    res.status(500).json({error: "Failed to cancel order."});
+    logger.error(err);
+    return res.status(500).json({error: "Failed"});
   }
 });
 
-paymentsRouter.post("/record", optionalAuth, validate(validateRecordPayment), async (req: Request, res: Response) => {
-  if (!allowMockPayments) {
-    res.status(403).json({error: "Mock payment recording is disabled in this environment."}); return;
-  }
-  const body = req.body as RecordPaymentBody;
+/* REFUND (SAFE) */
+paymentsRouter.post("/refund", optionalAuth, async (req, res) => {
   try {
-    const orderSnap = await db.doc(`orders/${body.orderId}`).get();
-    if (!orderSnap.exists) { res.status(404).json({error: "Order not found."}); return; }
-    const orderData = orderSnap.data()!;
-    if (req.user && orderData.userId !== req.user.uid && req.user.role !== "admin") {
-      res.status(403).json({error: "Access denied."}); return;
-    }
-    const serverAmount = orderData.totalAmount as number | undefined;
-    if (typeof serverAmount !== "number" || serverAmount <= 0) {
-      res.status(422).json({error: "Order has an invalid total amount."}); return;
-    }
-    const paymentRef = db.doc(`payments/${body.paymentId}`);
-    if ((await paymentRef.get()).exists) {
-      res.json({success: true, paymentId: body.paymentId}); return;
+    const {orderId} = req.body;
+
+    const snap = await db.doc(`orders/${orderId}`).get();
+    if (!snap.exists) {
+      return res.status(404).json({error: "Order not found"});
     }
 
-    const batch = db.batch();
-    batch.set(paymentRef, {
-      orderId: body.orderId, provider: body.provider ?? "mock",
-      providerOrderId: body.razorpayOrderId ?? null, providerPaymentId: body.paymentId,
-      razorpaySignature: body.razorpaySignature ?? null,
-      amount: serverAmount, currency: body.currency ?? "INR",
-      status: "SUCCESS", method: body.method ?? null, metadata: {},
-      customerName: body.customerName ?? null, customerEmail: body.customerEmail ?? null,
-      userId: req.user?.uid ?? orderData.userId ?? null, isTest: body.isTest ?? true,
-      paidAt: FieldValue.serverTimestamp(), refundedAt: null,
-      createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+    const data = snap.data()!;
+
+    if (data.paymentStatus !== "SUCCESS") {
+      return res.status(400).json({error: "No successful payment"});
+    }
+
+    if (["REFUND_INITIATED", "REFUNDED"].includes(data.paymentStatus)) {
+      return res.status(400).json({error: "Already refunded"});
+    }
+
+    if (!data.paymentId) {
+      return res.status(400).json({error: "Missing paymentId"});
+    }
+
+    // const Razorpay = require("razorpay");
+    const razorpay = new Razorpay({
+      key_id: RAZORPAY_KEY_ID,
+      key_secret: RAZORPAY_KEY_SECRET,
     });
-    batch.update(db.doc(`orders/${body.orderId}`), {
-      orderStatus: "PLACED", paymentStatus: "SUCCESS", paymentId: body.paymentId,
-      updatedAt: FieldValue.serverTimestamp(),
-      timeline: FieldValue.arrayUnion({status: "PLACED", note: "Payment confirmed", timestamp: new Date().toISOString()}),
+
+    const refund = await razorpay.payments.refund(data.paymentId, {
+      amount: data.totalAmount * 100,
+      notes: {orderId},
     });
-    await batch.commit();
 
-    deductInventory(body.orderId, orderData.items ?? []).catch(() => {/* already logged */});
-    sendOrderEmail("payment_success", {
-      ...toOrderEmailPayload(body.orderId, orderData, body.paymentId),
-      paymentStatus: "SUCCESS", orderStatus: "PLACED",
-    }).catch((mailErr) => logger.error("[mail] payment_success(record) failed", {orderId: body.orderId, error: mailErr}));
+    await snap.ref.update({
+      paymentStatus: "REFUND_INITIATED",
+      orderStatus: "REFUND_INITIATED",
+      timeline: FieldValue.arrayUnion(
+        timelineEvent("REFUND_INITIATED"),
+        timelineEvent("REFUND_REQUESTED")
+      ),
+    });
 
-    logger.info(`[POST /payments/record] Recorded ${body.paymentId} for order ${body.orderId}`);
-    res.status(201).json({success: true, paymentId: body.paymentId});
-  } catch (err) {
-    logger.error("[POST /payments/record] error", err);
-    res.status(500).json({error: "Failed to record payment."});
+    return res.json({success: true, refundId: refund.id});
+  } catch (err: unknown) {
+    logger.error("Refund failed", err);
+    const message = err instanceof Error ? err.message : "Unknown";
+    return res.status(500).json({error: message});
   }
 });
 
+/* WEBHOOK (IMPORTANT: USE RAW BODY IN EXPRESS) */
+export async function razorpayWebhookHandler(
+  req: Request,
+  res: Response
+) {
+  try {
+    const signature = req.headers["x-razorpay-signature"] as string;
+
+    const raw = req.body as Buffer;
+
+    const expected = crypto
+      .createHmac("sha256", WEBHOOK_SECRET)
+      .update(raw)
+      .digest("hex");
+
+    if (!safeEqual(expected, signature)) {
+      return res.status(400).json({error: "Invalid signature"});
+    }
+
+    const event = JSON.parse(raw.toString());
+
+    if (event.event === "payment.captured") {
+      const entity = event.payload.payment.entity;
+      const orderId = entity.notes?.orderId;
+
+      if (!orderId) return res.json({skip: true});
+
+      const result = await confirmPayment({
+        orderId,
+        paymentId: entity.id,
+        razorpayOrderId: entity.order_id,
+        paymentMethod: entity.method,
+        paymentMeta: entity,
+      });
+
+      if (result.shouldProcess) {
+        const doc = await db.doc(`orders/${orderId}`).get();
+        const order = doc.data()!;
+
+        if (!order.inventoryDeducted) {
+          await deductInventory(orderId, order.items || []);
+          await doc.ref.update({
+            inventoryDeducted: true,
+            timeline: FieldValue.arrayUnion(
+              timelineEvent("INVENTORY_DEDUCTED")
+            ),
+          });
+        }
+
+        if (!order.emailSent) {
+          await sendOrderEmail(
+            "payment_success",
+            toEmailPayload(orderId, order, entity.id)
+          );
+          await doc.ref.update({
+            emailSent: true,
+            timeline: FieldValue.arrayUnion(
+              timelineEvent("EMAIL_SENT")
+            ),
+          });
+        }
+      }
+    }
+
+    return res.json({received: true});
+  } catch (err) {
+    logger.error("Webhook failed", err);
+    return res.status(500).json({error: "Webhook failed"});
+  }
+}
+
+export default paymentsRouter;

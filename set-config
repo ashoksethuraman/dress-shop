@@ -1,0 +1,10 @@
+firebase functions:config:set razorpay.key_id="rzp_test_xxxxxx"
+firebase functions:config:set razorpay.key_secret="fQ0IbbDBDV7V2v0RvAgxxxxx"
+firebase functions:config:set razorpay.webhook_secret="your-own-secret"
+
+firebase functions:config:get
+
+
+in  code : 
+const key_id = functions.config().razorpay.key_id;
+const key_secret = functions.config().razorpay.key_secret;
