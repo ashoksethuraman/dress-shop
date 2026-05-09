@@ -129,7 +129,7 @@ export default function CheckoutPage() {
         total={total}
       />
 
-      <div className="max-w-6xl mx-auto px-4 py-8 lg:grid lg:grid-cols-[1fr_420px] lg:gap-12">
+      <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 py-8 lg:grid lg:grid-cols-[1fr_420px] lg:gap-12">
 
         {/* LEFT: form */}
         <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-8">
@@ -159,7 +159,7 @@ export default function CheckoutPage() {
         </form>
 
         {/* RIGHT: order summary (desktop) */}
-        <aside className="hidden lg:flex flex-col gap-6 border-l border-gray-200 pl-10 pt-2 lg:sticky lg:top-8 lg:self-start lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto">
+        <aside className="hidden lg:flex flex-col py-2 gap-6 border-l border-gray-200 pl-10 pt-2 lg:sticky lg:top-8 lg:self-start lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto">
           <h3 className="text-base font-bold text-gray-800">Order Summary</h3>
           <OrderSummaryPanel
             items={items}

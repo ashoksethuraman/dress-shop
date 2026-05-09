@@ -18,7 +18,7 @@ export const BADGE_COLORS: Record<string, string> = {
 };
 
 export function getPriceLevel(price: number) {
-  if (price >= 75) return { level: 'Premium', className: 'premium' };
-  if (price >= 50) return { level: 'Mid',     className: 'mid' };
+  if (price >= 700) return { level: 'Premium', className: 'premium' };
+  if (price >= 500) return { level: 'Mid',     className: 'mid' };
   return                 { level: 'Budget',  className: 'budget' };
 }

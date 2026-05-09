@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { FiUpload, FiX, FiPlus } from 'react-icons/fi';
 import { productsApi } from '../services/apiClient';
 import { uploadImages, uploadSizeChart, checkImageSize } from '../services/imageService';
+import { resolveImageUrl } from '../config/imageConfig';
 import { StockStatus } from '../utils/types';
 import { useAppDispatch } from '../store/hooks';
 import { dressShopApi } from '../store/apiSlice';
@@ -10,11 +11,14 @@ import Loader from './Loader';
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
 const MAX_IMAGES = 5;
 
-type Props = { onAdded: () => void };
+type Props = { onAdded?: () => void; productToEdit?: any; onSaved?: (id: string) => void };
 
 interface FieldErrors {
   title?: string;
+  productCode?: string;
   description?: string;
+  shippingAndDelivery?: string;
+  exchangeAndReturns?: string;
   price?: string;
   sizes?: string;
   images?: string;
@@ -23,7 +27,10 @@ interface FieldErrors {
 
 function validate(
   title: string,
+  productCode: string,
   description: string,
+  shippingAndDelivery: string,
+  exchangeAndReturns: string,
   price: string,
   sizes: string[],
   imageCount: number,
@@ -34,8 +41,17 @@ function validate(
   else if (title.trim().length < 3) errs.title = 'Product name must be at least 3 characters.';
   else if (title.trim().length > 100) errs.title = 'Product name must be 100 characters or fewer.';
 
+  if (!productCode.trim()) errs.productCode = 'Product code is required.';
+  else if (productCode.trim().length < 2) errs.productCode = 'Product code must be at least 2 characters.';
+
   if (!description.trim()) errs.description = 'Description is required.';
   else if (description.trim().length < 10) errs.description = 'Description must be at least 10 characters.';
+
+  if (!shippingAndDelivery.trim()) errs.shippingAndDelivery = 'Shipping & delivery is required.';
+  else if (shippingAndDelivery.trim().length < 3) errs.shippingAndDelivery = 'Shipping & delivery must be at least 3 characters.';
+
+  if (!exchangeAndReturns.trim()) errs.exchangeAndReturns = 'Exchange & returns is required.';
+  else if (exchangeAndReturns.trim().length < 3) errs.exchangeAndReturns = 'Exchange & returns must be at least 3 characters.';
 
   if (!price) errs.price = 'Price is required.';
   else if (Number(price) <= 0 || isNaN(Number(price))) errs.price = 'Price must be a number greater than 0.';
@@ -47,16 +63,20 @@ function validate(
   return errs;
 }
 
-export default function AddProductForm({ onAdded }: Props) {
+export default function AddProductForm({ onAdded, productToEdit, onSaved }: Props) {
   const dispatch = useAppDispatch();
   const [title, setTitle] = useState('');
+  const [productCode, setProductCode] = useState('');
   const [description, setDescription] = useState('');
+  const [shippingAndDelivery, setShippingAndDelivery] = useState('');
+  const [exchangeAndReturns, setExchangeAndReturns] = useState('');
   const [price, setPrice] = useState('');
   const [category, setCategory] = useState<'men' | 'women'>('women');
   const [sizeInventory, setSizeInventory] = useState<Record<string, number>>({});
   const [stockMode, setStockMode] = useState<'available' | 'out_of_stock'>('available');
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
+  const [existingImages, setExistingImages] = useState<string[]>([]);
   const [sizeChartFile, setSizeChartFile] = useState<File | null>(null);
   const [sizeChartPreview, setSizeChartPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -75,11 +95,36 @@ export default function AddProductForm({ onAdded }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Prefill when editing
+  useEffect(() => {
+    if (!productToEdit) return;
+    setTitle(productToEdit.title ?? '');
+    setProductCode(productToEdit.productCode ?? '');
+    setDescription(productToEdit.description ?? '');
+    setShippingAndDelivery(productToEdit.shippingAndDelivery ?? '');
+    setExchangeAndReturns(productToEdit.exchangeAndReturns ?? '');
+    setPrice(productToEdit.price ? String(productToEdit.price) : '');
+    setCategory(productToEdit.category ?? 'women');
+    setSizeInventory(productToEdit.sizeInventory ?? {});
+    setStockMode(productToEdit.stock ?? 'available');
+    setExistingImages(productToEdit.images ?? []);
+    // sizeChart: resolve for display only (keep stored value unchanged)
+    if (productToEdit.sizeChart) {
+      try {
+        const raw = decodeURIComponent(String(productToEdit.sizeChart));
+        setSizeChartPreview(raw.startsWith('http') ? raw : resolveImageUrl(raw));
+      } catch (e) {
+        setSizeChartPreview(resolveImageUrl(String(productToEdit.sizeChart)));
+      }
+    }
+  }, [productToEdit]);
+
   // Re-validate live once the user has hit submit once
   useEffect(() => {
-    if (submitted) setFieldErrors(validate(title, description, price, Object.keys(sizeInventory), imageFiles.length, stockMode));
+    const totalImageCount = previews.length + existingImages.length;
+    if (submitted) setFieldErrors(validate(title, productCode, description, shippingAndDelivery, exchangeAndReturns, price, Object.keys(sizeInventory), totalImageCount, stockMode));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, description, price, JSON.stringify(sizeInventory), imageFiles.length, submitted, stockMode]);
+  }, [title, productCode, description, shippingAndDelivery, exchangeAndReturns, price, JSON.stringify(sizeInventory), previews.length, existingImages.length, submitted, stockMode]);
 
   const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp'];
 
@@ -95,21 +140,21 @@ export default function AddProductForm({ onAdded }: Props) {
       return;
     }
 
-    const remaining = MAX_IMAGES - imageFiles.length;
+    const remaining = MAX_IMAGES - (imageFiles.length + existingImages.length);
     if (files.length > remaining) {
       setUploadError(
         `You can upload a maximum of ${MAX_IMAGES} images. ` +
-        `${imageFiles.length} already selected; only ${remaining} more allowed.`
+        `${imageFiles.length + existingImages.length} already selected; only ${remaining} more allowed.`
       );
       e.target.value = '';
       return;
     }
 
-    const MAX_RAW_BYTES = 100 * 1024; // 100 KB per image
+    const MAX_RAW_BYTES = 250 * 1024; // 250 KB per image
     for (const file of files) {
       if (file.size > MAX_RAW_BYTES) {
         setUploadError(
-          `"${file.name}" is ${Math.round(file.size / 1024)} KB — each product image must be under 100 KB.`
+          `"${file.name}" is ${Math.round(file.size / 1024)} KB — each product image must be under 250 KB.`
         );
         e.target.value = '';
         return;
@@ -141,10 +186,10 @@ export default function AddProductForm({ onAdded }: Props) {
       return;
     }
 
-    const MAX_RAW_BYTES = 100 * 1024; // 100 KB
+    const MAX_RAW_BYTES = 250 * 1024; // 250 KB
     if (file.size > MAX_RAW_BYTES) {
       setUploadError(
-        `Size chart "${file.name}" is ${Math.round(file.size / 1024)} KB — max allowed is 100 KB. Please compress or resize the image.`
+        `Size chart "${file.name}" is ${Math.round(file.size / 1024)} KB — max allowed is 250 KB. Please compress or resize the image.`
       );
       e.target.value = '';
       return;
@@ -167,15 +212,86 @@ export default function AddProductForm({ onAdded }: Props) {
     setSizeInventory((prev) => ({ ...prev, [s]: Math.max(0, qty) }));
 
   const removeImage = (i: number) => {
-    URL.revokeObjectURL(previews[i]);
-    setImageFiles((prev) => prev.filter((_, idx) => idx !== i));
-    setPreviews((prev) => prev.filter((_, idx) => idx !== i));
+    // if removing from newly selected previews
+    if (i < previews.length) {
+      URL.revokeObjectURL(previews[i]);
+      setImageFiles((prev) => prev.filter((_, idx) => idx !== i));
+      setPreviews((prev) => prev.filter((_, idx) => idx !== i));
+    } else {
+      // existing image removal (when editing)
+      const exIdx = i - previews.length;
+      setExistingImages((prev) => prev.filter((_, idx) => idx !== exIdx));
+    }
   };
+
+  const getCombined = () => {
+    const combined: Array<{ src: string; type: 'new' | 'existing'; file?: File }> = [];
+    previews.forEach((src, i) => combined.push({ src, type: 'new', file: imageFiles[i] }));
+    existingImages.forEach((src) => combined.push({ src, type: 'existing' }));
+    return combined;
+  };
+
+  const displayImageSrc = (v: string) => {
+    if (!v) return '';
+    try {
+      const raw = decodeURIComponent(v);
+      if (raw.startsWith('http')) return raw;
+      return resolveImageUrl(raw);
+    } catch (e) {
+      // fallback
+      if (v.startsWith('http')) return v;
+      return resolveImageUrl(v);
+    }
+  };
+
+  const setFromCombined = (combined: Array<{ src: string; type: 'new' | 'existing'; file?: File }>) => {
+    const newPreviews = combined.filter((c) => c.type === 'new').map((c) => c.src);
+    const newFiles = combined.filter((c) => c.type === 'new').map((c) => c.file as File);
+    const newExisting = combined.filter((c) => c.type === 'existing').map((c) => c.src);
+    setPreviews(newPreviews);
+    setImageFiles(newFiles);
+    setExistingImages(newExisting);
+  };
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  const onDragStart = (e: React.DragEvent, idx: number) => {
+    e.dataTransfer.setData('text/plain', String(idx));
+    e.dataTransfer.effectAllowed = 'move';
+    // small transparent image to avoid default ghosting in some browsers
+    try {
+      const img = new Image(); img.src = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
+      e.dataTransfer.setDragImage(img, 0, 0);
+    } catch (err) { /* ignore */ }
+  };
+
+  const onDragOver = (e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+    setDragOverIndex(idx);
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const onDrop = (e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+    const fromRaw = e.dataTransfer.getData('text/plain');
+    const from = fromRaw ? Number(fromRaw) : null;
+    setDragOverIndex(null);
+    if (from === null || Number.isNaN(from)) return;
+    if (from === idx) return;
+    const combined = getCombined();
+    const item = combined.splice(from, 1)[0];
+    // when removing an earlier index, the target index shifts left by 1
+    const adjustedIdx = from < idx ? idx - 1 : idx;
+    combined.splice(adjustedIdx, 0, item);
+    setFromCombined(combined);
+  };
+
+  const onDragEnd = () => setDragOverIndex(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitted(true);
-    const errs = validate(title, description, price, Object.keys(sizeInventory), imageFiles.length, stockMode);
+    const totalImageCount = previews.length + existingImages.length;
+    const errs = validate(title, productCode, description, shippingAndDelivery, exchangeAndReturns, price, Object.keys(sizeInventory), totalImageCount, stockMode);
     setFieldErrors(errs);
     if (Object.keys(errs).length > 0) return;
     // Don't proceed if an upload error is still showing — user must dismiss it first
@@ -194,22 +310,52 @@ export default function AddProductForm({ onAdded }: Props) {
       setLoadingLabel('Saving product…');
       const stockValue: StockStatus = stockMode;
       const savedTitle = title.trim();
-      const res = await productsApi.add({
-        title: savedTitle, description: description.trim(),
-        price: Number(price), category,
-        sizes: Object.keys(sizeInventory),
-        sizeInventory,
-        images: uploadedImages,
-        stock: stockValue,
-        ...(uploadedSizeChart ? { sizeChart: uploadedSizeChart } : {}),
-      });
-      const addedId = res.id;
-      // Bust RTK Query caches so public listing and admin view refresh immediately
-      dispatch(dressShopApi.util.invalidateTags([
-        { type: 'Product', id: 'LIST' },
-        { type: 'Product', id: 'ADMIN_LIST' },
-      ]));
-      setSuccessInfo({ id: addedId, name: savedTitle });
+      if (productToEdit) {
+        const payload: any = {
+          title: savedTitle,
+          description: description.trim(),
+          shippingAndDelivery: shippingAndDelivery.trim(),
+          exchangeAndReturns: exchangeAndReturns.trim(),
+          price: Number(price),
+          category,
+          sizes: Object.keys(sizeInventory),
+          sizeInventory,
+          images: [...existingImages, ...(uploadedImages || [])],
+          stock: stockValue,
+          productCode: productCode.trim(),
+          ...(uploadedSizeChart ? { sizeChart: uploadedSizeChart } : {}),
+        };
+        await productsApi.update(productToEdit.id, payload);
+        dispatch(dressShopApi.util.invalidateTags([
+          { type: 'Product', id: 'LIST' },
+          { type: 'Product', id: 'ADMIN_LIST' },
+          { type: 'Product', id: productToEdit.id },
+        ]));
+        setSuccessInfo({ id: productToEdit.id, name: savedTitle });
+        if (onSaved) onSaved(productToEdit.id);
+      } else {
+        const res = await productsApi.add({
+          title: savedTitle,
+          description: description.trim(),
+          shippingAndDelivery: shippingAndDelivery.trim(),
+          exchangeAndReturns: exchangeAndReturns.trim(),
+          price: Number(price),
+          category,
+          sizes: Object.keys(sizeInventory),
+          sizeInventory,
+          images: uploadedImages,
+          stock: stockValue,
+          productCode: productCode.trim(),
+          ...(uploadedSizeChart ? { sizeChart: uploadedSizeChart } : {}),
+        });
+        const addedId = res.id;
+        // Bust RTK Query caches so public listing and admin view refresh immediately
+        dispatch(dressShopApi.util.invalidateTags([
+          { type: 'Product', id: 'LIST' },
+          { type: 'Product', id: 'ADMIN_LIST' },
+        ]));
+        setSuccessInfo({ id: addedId, name: savedTitle });
+      }
       // Form reset + onAdded() happen when user dismisses the success modal
     } catch (err: any) {
       const raw: string = err?.message ?? '';
@@ -240,25 +386,28 @@ export default function AddProductForm({ onAdded }: Props) {
       <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm p-6">
         <h3 className="text-base font-bold text-primary mb-5 flex items-center gap-2">
           <span className="w-1.5 h-5 bg-brand-dark rounded-full inline-block" />
-          Add New Product
+          {productToEdit ? 'Edit Product' : 'Add New Product'}
         </h3>
 
         {/* Success popup modal */}
         {successInfo && (
           <AlertModal
             type="success"
-            title="Product Added"
-            messages={[`"${successInfo.name}" was added successfully.`]}
+            title={productToEdit ? 'Product Updated' : 'Product Added'}
+            messages={[`"${successInfo.name}" ${productToEdit ? 'was updated' : 'was added'} successfully.`]}
             onClose={() => {
               setSuccessInfo(null);
-              setTitle(''); setDescription(''); setPrice('');
-              setImageFiles([]); setPreviews([]);
-              setSizeChartFile(null); setSizeChartPreview(null);
-              setCategory('women');
-              setStockMode('available');
-              setSizeInventory({});
-              setSubmitted(false); setFieldErrors({});
-              onAdded();
+              if (!productToEdit) {
+                setTitle(''); setProductCode(''); setDescription(''); setPrice('');
+                setImageFiles([]); setPreviews([]);
+                setSizeChartFile(null); setSizeChartPreview(null);
+                setCategory('women');
+                setStockMode('available');
+                setSizeInventory({});
+                setShippingAndDelivery(''); setExchangeAndReturns('');
+                setSubmitted(false); setFieldErrors({});
+                onAdded && onAdded();
+              }
             }}
           />
         )}
@@ -275,36 +424,55 @@ export default function AddProductForm({ onAdded }: Props) {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-          {/* Name */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
-              Product Name <span className="text-red-400">*</span>
-            </label>
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              onBlur={() => submitted && setFieldErrors((p) => ({ ...p, ...validate(title, description, price, Object.keys(sizeInventory), imageFiles.length, stockMode) }))}
-              placeholder="e.g. Summer Floral Dress"
-              className={inputCls(!!fieldErrors.title)}
-            />
-            {errMsg(fieldErrors.title)}
-          </div>
+          {/* First Row: Product Name, Product Code, Price in same row */}
+          <div className="md:col-span-2">
+            <div className="grid grid-cols-12 gap-3">
+              {/* Name */}
+              <div className="col-span-12 md:col-span-5">
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                  Product Name <span className="text-red-400">*</span>
+                </label>
+                <input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  onBlur={() => submitted && setFieldErrors((p) => ({ ...p, ...validate(title, productCode, description, shippingAndDelivery, exchangeAndReturns, price, Object.keys(sizeInventory), previews.length + existingImages.length, stockMode) }))}
+                  placeholder="e.g. Summer Floral Dress"
+                  className={inputCls(!!fieldErrors.title)}
+                />
+                {errMsg(fieldErrors.title)}
+              </div>
 
-          {/* Price */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
-              Price (INR) <span className="text-red-400">*</span>
-            </label>
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              placeholder="0.00"
-              className={inputCls(!!fieldErrors.price)}
-            />
-            {errMsg(fieldErrors.price)}
+              {/* Product Code */}
+              <div className="col-span-12 md:col-span-4">
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                  Product Code <span className="text-red-400">*</span>
+                </label>
+                <input
+                  value={productCode}
+                  onChange={(e) => setProductCode(e.target.value)}
+                  placeholder="e.g. SFD-001"
+                  className={inputCls(!!fieldErrors.productCode)}
+                />
+                {errMsg(fieldErrors.productCode)}
+              </div>
+
+              {/* Price */}
+              <div className="col-span-12 md:col-span-3">
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                  Price (INR) <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  placeholder="0.00"
+                  className={inputCls(!!fieldErrors.price)}
+                />
+                {errMsg(fieldErrors.price)}
+              </div>
+            </div>
           </div>
 
           {/* Description */}
@@ -320,6 +488,39 @@ export default function AddProductForm({ onAdded }: Props) {
               className={`${inputCls(!!fieldErrors.description)} resize-none`}
             />
             {errMsg(fieldErrors.description)}
+          </div>
+
+          {/* SHIPPING & DELIVERY  + EXCHANGE & RETURNS (single-row textareas) */}
+          <div className="md:col-span-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                  SHIPPING & DELIVERY <span className="text-red-400">*</span>
+                </label>
+                <textarea
+                  value={shippingAndDelivery}
+                  onChange={(e) => setShippingAndDelivery(e.target.value)}
+                  placeholder="Shipping & delivery details..."
+                  rows={2}
+                  className={`${inputCls(!!fieldErrors.shippingAndDelivery)} resize-none h-24`}
+                />
+                {errMsg(fieldErrors.shippingAndDelivery)}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                  EXCHANGE & RETURNS <span className="text-red-400">*</span>
+                </label>
+                <textarea
+                  value={exchangeAndReturns}
+                  onChange={(e) => setExchangeAndReturns(e.target.value)}
+                  placeholder="Exchange & returns policy..."
+                  rows={2}
+                  className={`${inputCls(!!fieldErrors.exchangeAndReturns)} resize-none h-24`}
+                />
+                {errMsg(fieldErrors.exchangeAndReturns)}
+              </div>
+            </div>
           </div>
 
           {/* Category */}
@@ -399,19 +600,27 @@ export default function AddProductForm({ onAdded }: Props) {
                 )}
               </div>
               <input ref={sizeChartRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handleSizeChart} className="hidden" />
-              <p className="text-xs text-gray-400 mt-1.5">Single size chart · max 100 KB · 1 image only</p>
+              <p className="text-xs text-gray-400 mt-1.5">Single size chart · max 250 KB · 1 image only</p>
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
                 Image <span className="text-red-400">*</span>
-                {imageFiles.length > 0 && (
-                  <span className="ml-1 text-brand-dark normal-case font-normal">({imageFiles.length}/{MAX_IMAGES})</span>
+                {(previews.length + existingImages.length) > 0 && (
+                  <span className="ml-1 text-brand-dark normal-case font-normal">({previews.length + existingImages.length}/{MAX_IMAGES})</span>
                 )}
               </label>
               <div className="flex flex-wrap gap-3">
                 {previews.map((src, i) => (
-                  <div key={i} className="relative w-20 h-20 rounded-xl overflow-hidden border border-gray-200 group/img shrink-0">
+                  <div
+                    key={`new-${i}`}
+                    draggable
+                    onDragStart={(e) => onDragStart(e, i)}
+                    onDragOver={(e) => onDragOver(e, i)}
+                    onDrop={(e) => onDrop(e, i)}
+                    onDragEnd={onDragEnd}
+                    className={`relative w-20 h-20 rounded-xl overflow-hidden border border-gray-200 group/img shrink-0 ${dragOverIndex === i ? 'ring-2 ring-brand-dark' : ''}`}
+                  >
                     <img src={src} alt={`preview-${i}`} className="w-full h-full object-cover" />
                     <button
                       type="button"
@@ -422,7 +631,30 @@ export default function AddProductForm({ onAdded }: Props) {
                     </button>
                   </div>
                 ))}
-                {imageFiles.length < MAX_IMAGES && (
+                {existingImages.map((src, idx) => {
+                  const overallIdx = previews.length + idx;
+                  return (
+                    <div
+                      key={`existing-${idx}`}
+                      draggable
+                      onDragStart={(e) => onDragStart(e, overallIdx)}
+                      onDragOver={(e) => onDragOver(e, overallIdx)}
+                      onDrop={(e) => onDrop(e, overallIdx)}
+                      onDragEnd={onDragEnd}
+                      className={`relative w-20 h-20 rounded-xl overflow-hidden border border-gray-200 group/img shrink-0 ${dragOverIndex === overallIdx ? 'ring-2 ring-brand-dark' : ''}`}
+                    >
+                      <img src={displayImageSrc(src)} alt={`existing-${idx}`} className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => removeImage(overallIdx)}
+                        className="absolute inset-0 bg-black/50 text-white flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity"
+                      >
+                        <FiX size={16} />
+                      </button>
+                    </div>
+                  );
+                })}
+                {(previews.length + existingImages.length) < MAX_IMAGES && (
                   <button
                     type="button"
                     onClick={() => fileRef.current?.click()}
@@ -437,7 +669,7 @@ export default function AddProductForm({ onAdded }: Props) {
                 )}
               </div>
               <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={handleImages} className="hidden" />
-              <p className="text-xs text-gray-400 mt-1.5">Max 5 images · 100 KB per image (500 KB total) · JPEG</p>
+              <p className="text-xs text-gray-400 mt-1.5">Max 5 images · 250 KB per image (1250 KB total) · JPEG</p>
               {errMsg(fieldErrors.images)}
               {uploadError && (
                 <AlertModal
@@ -510,10 +742,10 @@ export default function AddProductForm({ onAdded }: Props) {
           <button
             type="submit"
             disabled={loading || !!uploadError || !!apiError}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-brand-dark hover:bg-brand-hover text-white font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-2 px-6 py-2.5 !rounded-full bg-brand-dark hover:bg-brand-hover text-white font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <FiPlus size={15} />
-            {loading ? 'Adding…' : 'Add Product'}
+            {loading ? (productToEdit ? 'Saving…' : 'Adding…') : (productToEdit ? 'Save Changes' : 'Add Product')}
           </button>
         </div>
       </form>

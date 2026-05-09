@@ -27,10 +27,10 @@ export default function WishlistPage() {
 
   return (
     <div className="h-full flex flex-col bg-gray-50">
-      <div className="max-w-7xl mx-auto w-full px-4 pt-4 pb-2">
+      <div className="max-w-6xl mx-auto w-full px-6 sm:px-8 lg:px-12 pt-4 pb-2">
 
         {/* Header */}
-        <div className="flex items-center gap-3 mb-3">
+        <div className="flex items-center gap-3 mb-3 mt-2">
           <Link
             to="/"
             className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-brand-dark transition-colors no-underline"
@@ -53,7 +53,7 @@ export default function WishlistPage() {
 
       {/* Loading state */}
       {loading && (
-        <div className="max-w-7xl mx-auto w-full px-4">
+        <div className="max-w-6xl mx-auto w-full px-6 sm:px-8 lg:px-12">
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="bg-white rounded-2xl h-80 animate-pulse" />
@@ -64,8 +64,8 @@ export default function WishlistPage() {
 
         {/* Empty state */}
         {!loading && wishlistProducts.length === 0 && (
-          <div className="flex flex-col items-center pt-8 text-center px-4">
-            <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+          <div className="flex flex-col items-center pt-2 text-center px-4 pb-5">
+            <div className="w-15 h-15 rounded-full bg-gray-100 flex items-center justify-center mb-4">
               <FiHeart size={36} className="text-gray-400" />
             </div>
             <h2 className="text-xl font-semibold text-gray-700 mb-2">Your wishlist is empty</h2>
@@ -83,7 +83,7 @@ export default function WishlistPage() {
 
         {/* Product grid */}
         {!loading && wishlistProducts.length > 0 && (
-          <div className="max-w-7xl mx-auto w-full px-4 pb-4">
+          <div className="max-w-6xl mx-auto w-full px-6 sm:px-8 lg:px-12 pb-4">
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
               {wishlistProducts.map((product) => (
                 <ProductCard key={product.id} product={product} />

@@ -55,6 +55,21 @@
 **Composite index:**
 - `category ASC + createdAt DESC` — used for category-filtered product listings
 
+### Additional composite indexes required for server-side sorting
+
+The product listing endpoints support server-side ordering by `price`, `title` (name), and `salesCount`. When you combine ordering with filtering (for example, filtering by `category`) Firestore requires composite indexes for those query shapes. The following composite indexes are already added to `firestore.indexes.json` and should be deployed with `firebase deploy --only firestore`:
+
+- `category ASC + createdAt DESC` — category listings (already present)
+- `category ASC + price ASC` — category + price (low → high)
+- `category ASC + price DESC` — category + price (high → low)
+- `category ASC + title ASC` — category + name (A → Z)
+- `category ASC + title DESC` — category + name (Z → A)
+- `category ASC + salesCount DESC` — category + best-sellers (sales desc)
+
+Notes:
+- If you add additional server-side filters (e.g. `availability` or `brand`) and also sort by price/title, you'll need matching composite indexes that include those `where` fields and the `orderBy` fields. The Firebase Console will prompt you with an index creation link if a query requires an index at runtime.
+- Composite index creation may take a few minutes to complete after `firebase deploy`.
+
 ---
 
 ## 2. `orders/{orderId}`

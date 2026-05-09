@@ -2,6 +2,7 @@ import type {ProductCategory, StockStatus} from "./enums";
 
 export interface CreateProductBody {
   title: string;
+  productCode: string;
   description?: string;
   price: number;
   category?: ProductCategory;
@@ -10,6 +11,8 @@ export interface CreateProductBody {
   stock?: StockStatus;
   sizeInventory?: Record<string, number>;
   sizeChart?: string;
+  shippingAndDelivery?: string;
+  exchangeAndReturns?: string;
 }
 
 export interface UpdateProductBody {
@@ -22,4 +25,6 @@ export interface UpdateProductBody {
   stock?: StockStatus;
   sizeInventory?: Record<string, number>;
   sizeChart?: string;
+  shippingAndDelivery?: string;
+  exchangeAndReturns?: string;
 }

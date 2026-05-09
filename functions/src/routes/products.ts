@@ -44,22 +44,81 @@ function deriveSingleRef(url?: string | null): {path: string | null; name: strin
 
 productsRouter.get("/", async (req: Request, res: Response) => {
   try {
-    const snap = await db.collection("products").orderBy("createdAt", "desc").get();
-    const all = snap.docs.map((d) => ({
+    const q = typeof req.query.q === "string" ? req.query.q.trim().toLowerCase() : "";
+    const limit = Number(req.query.limit) || 10;
+    const lastDocId = typeof req.query.lastDocId === "string" ? req.query.lastDocId : undefined;
+    const sortBy = typeof req.query.sortBy === 'string' ? req.query.sortBy : undefined;
+
+    // support server-side sorting. default: createdAt desc.
+    // client may pass: 'sales', 'name-asc', 'name-desc', 'price-asc', 'price-desc'
+    let baseQuery: FirebaseFirestore.Query = db.collection("products");
+    let direction: FirebaseFirestore.OrderByDirection = 'desc';
+    if (typeof sortBy === 'string') {
+      if (sortBy === 'sales') {
+        baseQuery = baseQuery.orderBy('salesCount', 'desc');
+      } else if (sortBy.startsWith('price')) {
+        direction = sortBy.endsWith('asc') ? 'asc' : 'desc';
+        baseQuery = baseQuery.orderBy('price', direction);
+      } else if (sortBy.startsWith('name')) {
+        direction = sortBy.endsWith('asc') ? 'asc' : 'desc';
+        baseQuery = baseQuery.orderBy('title', direction);
+      } else {
+        baseQuery = baseQuery.orderBy('createdAt', 'desc');
+      }
+    } else {
+      baseQuery = baseQuery.orderBy('createdAt', 'desc');
+    }
+
+    let query = baseQuery.limit(limit + 1);
+
+    if (lastDocId) {
+      const lastSnap = await db.doc(`products/${lastDocId}`).get();
+      if (lastSnap.exists) {
+        query = (query as FirebaseFirestore.Query).startAfter(lastSnap);
+      }
+    }
+
+    const snap = await query.get();
+    const docs = snap.docs;
+    const hasMore = docs.length > limit;
+    const take = hasMore ? docs.slice(0, limit) : docs;
+
+    const all = take.map((d) => ({
       id: d.id, ...d.data(),
       createdAt: (d.data().createdAt as FirebaseFirestore.Timestamp)?.toDate?.()?.toISOString() ?? null,
     }));
-    let products = all.filter((p) => (p as Record<string, unknown>).stock !== "out_of_stock");
-    const q = typeof req.query.q === "string" ? req.query.q.trim().toLowerCase() : "";
+
+    // apply server-side filters (category, availability) and q
+    const category = typeof req.query.category === 'string' ? req.query.category : undefined;
+    const availability = typeof req.query.availability === 'string' ? req.query.availability : undefined;
+
+    let products = all;
+
+    if (availability === 'in-stock') {
+      products = products.filter((p) => (p as any).stock === 'available');
+    } else if (availability === 'out-of-stock') {
+      products = products.filter((p) => (p as any).stock === 'out_of_stock');
+    } else {
+      // default: hide out_of_stock
+      products = products.filter((p) => (p as Record<string, unknown>).stock !== 'out_of_stock');
+    }
+
+    if (category) {
+      products = products.filter((p: any) => ((p.category ?? '') as string).toLowerCase() === category.toLowerCase());
+    }
+
     if (q) {
       products = products.filter((p: any) =>
-        (p.title ?? "").toLowerCase().includes(q) ||
-        (p.description ?? "").toLowerCase().includes(q) ||
-        (p.category ?? "").toLowerCase().includes(q)
+        (p.title ?? '').toLowerCase().includes(q) ||
+        (p.description ?? '').toLowerCase().includes(q) ||
+        (p.category ?? '').toLowerCase().includes(q)
       );
     }
-    logger.info(`[GET /products] q="${q}" total=${all.length} visible=${products.length}`);
-    res.json({products});
+
+    const lastVisibleId = take.length > 0 ? take[take.length - 1].id : undefined;
+
+    logger.info(`[GET /products] q="${q}" limit=${limit} lastDocId=${lastDocId} returned=${products.length} hasMore=${hasMore}`);
+    res.json({products, hasMore, lastDocId: lastVisibleId});
   } catch (err) {
     logger.error("[GET /products] error", err);
     res.status(500).json({error: "Failed to fetch products."});
@@ -107,6 +166,7 @@ productsRouter.post("/", authenticate, requireAdmin, validate(validateCreateProd
     await ref.set({
       id: ref.id,
       title: body.title,
+      productCode: body.productCode,
       description: body.description ?? "",
       price: Number(body.price),
       category: body.category ?? "women",
@@ -118,6 +178,8 @@ productsRouter.post("/", authenticate, requireAdmin, validate(validateCreateProd
       // image: images[0] ?? "",
       stock: body.stock ?? "available",
       sizeChart: body.sizeChart ?? null,
+      shippingAndDelivery: body.shippingAndDelivery ?? null,
+      exchangeAndReturns: body.exchangeAndReturns ?? null,
       // sizeChartPath: sizeChartRef.path,
       // sizeChartName: sizeChartRef.name,
       createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
@@ -154,6 +216,8 @@ productsRouter.put("/:id", authenticate, requireAdmin, sanitizeParam("id"), vali
     updates.sizeChartPath = sizeChartRef.path;
     updates.sizeChartName = sizeChartRef.name;
   }
+  if (body.shippingAndDelivery !== undefined) updates.shippingAndDelivery = body.shippingAndDelivery;
+  if (body.exchangeAndReturns !== undefined) updates.exchangeAndReturns = body.exchangeAndReturns;
   try {
     await db.doc(`products/${id}`).update(updates);
     logger.info(`[PUT /products/:id] Updated: ${id} by ${req.user!.uid}`);

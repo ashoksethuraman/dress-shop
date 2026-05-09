@@ -1,9 +1,9 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { addToCart } from '../store/cartSlice';
 import { toggleWishlist } from '../store/wishlistSlice';
-import { FiTrash2, FiEye, FiHeart, FiShoppingCart, FiCheck } from 'react-icons/fi';
+import { FiTrash2, FiEye, FiEdit2, FiHeart, FiShoppingCart, FiCheck } from 'react-icons/fi';
 import { Product } from '../utils/types';
 import { resolveImageUrl } from '../config/imageConfig';
 
@@ -33,6 +33,8 @@ interface Props {
 export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
   const dispatch = useAppDispatch();
   const wishlisted = useAppSelector((s) => s.wishlist.ids.includes(p.id));
+  const currentIsAdmin = useAppSelector((s) => s.user.user?.isAdmin ?? false) || Boolean(isAdmin);
+  const navigate = useNavigate();
   const cartItems  = useAppSelector((s) => s.cart.items);
 
   const images: string[] = React.useMemo(() => {
@@ -127,7 +129,7 @@ export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
                 key={idx}
                 src={src}
                 alt={`${p.title} ${idx + 1}`}
-                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
+                className={`absolute inset-0 w-full h-full object-cover object-center transition-opacity duration-500 ${
                   idx === activeIdx ? 'opacity-100' : 'opacity-0'
                 }`}
               />
@@ -176,7 +178,7 @@ export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
       </div>
 
       {/* Content ~35% */}
-      <div className="px-3 pt-2.5 pb-3 flex flex-col gap-1.5">
+      <div className="px-3 pt-2.5 pb-3 flex flex-col gap-1">
 
         <h4 className="font-semibold text-sm text-primary leading-snug truncate">{p.title}</h4>
 
@@ -221,14 +223,26 @@ export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
 
         {/* Price + action icons */}
         <div className="flex items-center justify-between mt-0.5">
-          <span className="font-bold text-accent text-base leading-none">&#8377;{p.price.toFixed(2)}</span>
+          <span className="font-bold text-accent text-sm leading-none">&#8377;{p.price.toFixed(0)}</span>
 
           <div className="flex items-center gap-1.5">
+            {/* Admin edit button */}
+            {currentIsAdmin && (
+              <div className="mr-1">
+                <button
+                  onClick={() => navigate(`/admin/product/${p.id}`)}
+                  title="Edit product"
+                  className="flex items-center justify-center w-8 h-8 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                   <FiEdit2 size={14} className={wishlisted ? 'fill-rose-500' : ''} />
+                </button>
+              </div>
+            )}
             {/* Wishlist */}
             <div className="relative group/wish">
               <button
                 onClick={() => dispatch(toggleWishlist(p.id))}
-                className={`flex items-center justify-center w-8 h-8 rounded-xl border transition-colors ${
+                className={`flex items-center justify-center w-8 h-8 !rounded-full border transition-colors ${
                   wishlisted
                     ? 'bg-rose-50 border-rose-300 text-rose-500'
                     : 'border-gray-200 text-gray-400 hover:border-rose-300 hover:text-rose-400'
@@ -246,7 +260,7 @@ export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
               <button
                 onClick={handleAddToCart}
                 disabled={isOutOfStock}
-                className={`flex items-center justify-center w-8 h-8 rounded-xl border transition-all ${
+                className={`flex items-center justify-center w-8 h-8 !rounded-full border transition-all ${
                   isOutOfStock
                     ? 'border-gray-200 text-gray-300 cursor-not-allowed'
                     : adding

@@ -13,6 +13,9 @@ export type Product = {
   sizeInventory?: Record<string, number>;
   salesCount?: number;
   sizeChart?: string;
+  productCode?: string;
+  exchangeAndReturns?:string;
+  shippingAndDelivery?:string;
 };
 
 export type DeletePayload = {

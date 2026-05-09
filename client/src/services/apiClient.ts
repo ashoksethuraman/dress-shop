@@ -225,6 +225,7 @@ export const apiClient = {
 /* PRODUCTS API */
 type ProductFields = {
   title: string;
+  productCode: string;
   description?: string;
   price: number;
   category?: 'men' | 'women';
@@ -233,10 +234,15 @@ type ProductFields = {
   stock?: 'available' | 'out_of_stock';
   sizeInventory?: Record<string, number>;
   sizeChart?: string;
+  shippingAndDelivery?: string;
+  exchangeAndReturns?: string;
 };
 
 export const productsApi = {
-  list: () => apiClient.get<{ products: Product[] }>('products'),
+  list: (params?: { limit?: number; lastDocId?: string; q?: string; sortBy?: string; category?: string; availability?: string }) => {
+    const qs = buildQuery(params || {});
+    return apiClient.get<{ products: Product[]; hasMore?: boolean; lastDocId?: string }>(`products${qs ? `?${qs}` : ''}`);
+  },
 
   search: (q: string) =>
     apiClient.get<{ products: Product[] }>(

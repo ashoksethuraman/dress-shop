@@ -74,21 +74,21 @@ export default function ShippingPage() {
   return (
     <div className="bg-bg">
       {/* Page header */}
-      <div className="px-6 pt-6 pb-2">
+      <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 pt-6 pb-2">
         <div className="flex items-center gap-3">
           <FiTruck size={22} className="text-brand-dark" />
           <h1 className="text-2xl font-bold text-gray-900 font-display">Shipping / Tracking</h1>
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-6 py-6">
+      <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 py-6">
 
         {/* ── Search bar ── */}
         <div className="bg-brand rounded-2xl border border-brand-border shadow-sm px-5 py-5 mb-6">
           <label className="block text-sm font-semibold text-gray-700 mb-2">
             Enter your order number
           </label>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <input
               type="text"
               value={input}
@@ -100,7 +100,7 @@ export default function ShippingPage() {
             <button
               onClick={handleTrack}
               disabled={loading}
-              className="flex items-center gap-2 px-5 py-3 rounded-xl bg-brand-dark hover:bg-brand-hover disabled:opacity-50 text-white font-bold text-sm transition-colors flex-shrink-0"
+              className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-brand-dark hover:bg-brand-hover disabled:opacity-50 text-white font-bold text-sm transition-colors flex-shrink-0 w-full sm:w-auto"
             >
               {loading
                 ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />

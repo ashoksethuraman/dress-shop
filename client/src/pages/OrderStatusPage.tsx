@@ -253,7 +253,7 @@ export default function OrderStatusPage() {
     if (!order) return;
     let logoDataUrl: string | undefined;
     try {
-      const res = await fetch('/app-logo.png');
+      const res = await fetch('/halley-comet-logo.png');
       const blob = await res.blob();
       logoDataUrl = await new Promise<string>((resolve) => {
         const reader = new FileReader();
@@ -273,7 +273,7 @@ export default function OrderStatusPage() {
   if (!visible) return <Loader fullPage label="Loading order details…" />;
 
   if (!order) return (
-    <div className="max-w-lg mx-auto px-4 py-28 text-center">
+    <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 py-28 text-center">
       <FiPackage size={52} className="text-gray-200 mx-auto mb-5" />
       <h2 className="text-xl font-bold text-gray-700 mb-2">No order details found</h2>
       <p className="text-sm text-gray-500 mb-6">This page requires an active order session. Check your email for confirmation.</p>
@@ -286,7 +286,7 @@ export default function OrderStatusPage() {
     const title = FAILURE_TITLES[reason ?? 'payment_failed'];
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="max-w-3xl mx-auto px-4 py-8">
+        <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 py-8">
           <nav className="text-xs text-gray-400 mb-5 flex items-center gap-1.5">
             <Link to="/" className="hover:text-red-500 transition-colors">Home</Link>
             <span>›</span><span className="text-red-500 font-medium">{title}</span>
@@ -359,7 +359,7 @@ export default function OrderStatusPage() {
   /* ── SUCCESS VIEW ── */
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto px-4 py-8">
+      <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 py-8">
         <nav className="text-xs text-gray-400 mb-5 flex items-center gap-1.5">
           <Link to="/" className="hover:text-brand-dark transition-colors">Home</Link>
           <span>›</span><span className="text-brand-dark font-medium">Order Confirmed</span>

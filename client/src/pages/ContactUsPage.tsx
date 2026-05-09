@@ -15,14 +15,14 @@ export default function ContactUsPage() {
     <div className="h-full flex flex-col">
 
       {/* Page header */}
-      <div className="px-6 pt-6 pb-2">
+      <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 pt-6 pb-2">
         <div className="flex items-center gap-3">
           <FiMail size={22} className="text-brand-dark" />
           <h1 className="text-2xl font-bold text-gray-900 font-display">Contact</h1>
         </div>
       </div>
 
-      <div className="flex flex-col items-center px-6 py-6">
+      <div className="flex flex-col items-center max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 py-6">
 
       {/* Info card – original row sizes */}
       <div className="bg-brand rounded-2xl border border-brand-border shadow-sm p-6 w-full max-w-lg flex flex-col gap-4">

@@ -25,11 +25,11 @@ function compressToDataUrl(file: File, maxPx = 900, quality = 0.78): Promise<str
   });
 }
 
-/** Client-side size guard: each product image must be ≤ 100 KB. */
+/** Client-side size guard: each product image must be ≤ 250 KB. */
 export async function checkImageSize(file: File): Promise<void> {
-  const MAX_BYTES = 100 * 1024;
+  const MAX_BYTES = 250 * 1024;
   if (file.size > MAX_BYTES) {
-    throw new Error(`"${file.name}" is ${Math.round(file.size / 1024)} KB — max allowed per product image is 100 KB.`);
+    throw new Error(`"${file.name}" is ${Math.round(file.size / 1024)} KB — max allowed per product image is 250 KB.`);
   }
 }
 
@@ -75,11 +75,11 @@ export async function uploadImages(files: File[], category: string, title: strin
   return Promise.all(files.map((f) => uploadImage(f, category, title)));
 }
 
-/** Upload a size-chart image and return its public URL. Max 100 KB raw enforced client-side. */
+/** Upload a size-chart image and return its public URL. Max 250 KB raw enforced client-side. */
 export async function uploadSizeChart(file: File): Promise<string> {
-  const MAX_BYTES = 100 * 1024;
+  const MAX_BYTES = 250 * 1024;
   if (file.size > MAX_BYTES) {
-    throw new Error(`Size chart "${file.name}" is ${Math.round(file.size / 1024)} KB — max allowed is 100 KB.`);
+    throw new Error(`Size chart "${file.name}" is ${Math.round(file.size / 1024)} KB — max allowed is 250 KB.`);
   }
   return uploadToBackend(file, 'size-charts');
 }
