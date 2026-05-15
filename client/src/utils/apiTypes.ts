@@ -180,14 +180,17 @@ export interface StoredOrder {
 }
 
 export interface TrackOrderResponse {
-  id:               string;
-  orderStatus:      OrderStatus;
-  paymentStatus:    PaymentStatus;
-  paymentMethod:    string | null;
-  totalAmount:      number;
-  createdAt:        string | null;
-  shippingAddress:  StoredAddress | null;
-  items:            StoredOrderItem[];
+  id:                     string;
+  orderStatus:            OrderStatus;
+  paymentStatus:          PaymentStatus;
+  paymentMethod:          string | null;
+  totalAmount:            number;
+  createdAt:              string | null;
+  shippingAddress:        StoredAddress | null;
+  billingAddress?:        StoredAddress;
+  billingAndShippingSame: boolean;
+  timeline:               TimelineEntry[];
+  items:                  StoredOrderItem[];
 }
 
 

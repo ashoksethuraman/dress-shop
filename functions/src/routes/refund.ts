@@ -3,40 +3,110 @@ import Razorpay from "razorpay";
 import {db} from "../config/firebase";
 import {FieldValue} from "firebase-admin/firestore";
 import {sendOrderEmail} from "../services/emailService";
+import * as logger from "firebase-functions/logger";
 
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID!,
-  key_secret: process.env.RAZORPAY_KEY_SECRET!,
-});
+// Initialize Razorpay with validation
+let razorpay: Razorpay | null = null;
+
+try {
+  if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+    razorpay = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET,
+    });
+    logger.info("Razorpay initialized successfully for refund module");
+  } else {
+    logger.error("Razorpay credentials missing in refund module");
+  }
+} catch (error) {
+  logger.error("Failed to initialize Razorpay in refund module", error);
+}
 
 /* -------------------------------------------------------------------------- */
 /*                         INITIATE REFUND (AUTO)                             */
 /* -------------------------------------------------------------------------- */
 
-export async function initiateRefund(orderId: string, paymentId: string) {
-  // Razorpay refund
-  const refund = await razorpay.payments.refund(paymentId, {});
+export async function initiateRefund(
+  orderId: string,
+  paymentId: string,
+  amount?: number
+) {
+  if (!razorpay) {
+    throw new Error("Razorpay not initialized - check credentials");
+  }
 
-  // Update DB
-  await db.doc(`orders/${orderId}`).update({
-    paymentStatus: "REFUND_INITIATED",
-    orderStatus: "REFUND_INITIATED",
-    refundedAt: FieldValue.serverTimestamp(),
-    timeline: FieldValue.arrayUnion({
-      status: "REFUND_INITIATED",
-      note: "Refund initiated via Razorpay",
-      timestamp: new Date().toISOString(),
-    }),
+  logger.info(`Initiating refund for order ${orderId}`, {
+    paymentId,
+    amount,
   });
 
-  return refund;
+  interface RazorpayRefundParams {
+    notes: {
+      orderId: string;
+      [key: string]: string;
+    };
+    amount?: number;
+  }
+
+  try {
+    // Razorpay refund - amount should be in paise (smallest unit)
+    const refundParams: RazorpayRefundParams = {
+      notes: {orderId},
+    };
+
+    // If amount is provided, include it (must be in paise)
+    if (amount) {
+      refundParams.amount = Math.round(amount * 100);
+    }
+
+    const refund = await razorpay.payments.refund(paymentId, refundParams);
+
+    logger.info("Refund created successfully", {
+      refundId: refund.id,
+      status: refund.status,
+    });
+
+    // Update DB
+    await db.doc(`orders/${orderId}`).update({
+      paymentStatus: "REFUND_INITIATED",
+      orderStatus: "REFUND_INITIATED",
+      refundId: refund.id,
+      refundedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+      timeline: FieldValue.arrayUnion({
+        status: "REFUND_INITIATED",
+        note: `Refund initiated via Razorpay (ID: ${refund.id})`,
+        timestamp: new Date().toISOString(),
+      }),
+    });
+
+    return refund;
+  } catch (error) {
+    logger.error(`Refund initiation failed for order ${orderId}`, {
+      error,
+      paymentId,
+      amount,
+    });
+    throw error;
+  }
 }
 
 /* -------------------------------------------------------------------------- */
 /*                         REFUND WEBHOOK HANDLER                             */
 /* -------------------------------------------------------------------------- */
 
-export async function handleRefundWebhook(body: any) {
+interface RefundWebhookPayload {
+  payload: {
+    refund: {
+      entity: {
+        payment_id: string;
+        [key: string]: unknown;
+      };
+    };
+  };
+}
+
+export async function handleRefundWebhook(body: RefundWebhookPayload) {
   const paymentId = body.payload.refund.entity.payment_id;
   const orderRecord = await db
     .collection("orders")

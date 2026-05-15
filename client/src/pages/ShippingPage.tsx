@@ -240,69 +240,148 @@ export default function ShippingPage() {
               <p className="text-xs text-brand-dark mt-1 cursor-pointer hover:underline">See all updates</p>
             </div>
 
-            {/* ── Address + Order Info ── */}
-            <div className="grid sm:grid-cols-2 gap-4">
-
-              {/* Shipping Address */}
-              <div className="bg-brand rounded-2xl border border-brand-border shadow-sm px-5 py-5">
-                <p className="flex items-center gap-1.5 text-sm font-bold text-gray-800 mb-3">
-                  <FiMapPin size={14} className="text-brand-dark" /> Shipping Address
-                </p>
-                <div className="text-sm text-gray-600 flex flex-col gap-0.5">
-                  <p className="font-semibold text-gray-800">{addr.name}</p>
-                  <p>{addr.line1}</p>
-                  {addr.line2 && <p>{addr.line2}</p>}
-                  <p>{addr.city}, {addr.state} {addr.pincode}</p>
-                  <p>{addr.country || 'India'}</p>
-                  {addr.phone && <p className="text-gray-400 text-xs mt-1">📞 {addr.phone}</p>}
+            {/* ── Addresses Section ── */}
+            <div className="bg-brand rounded-2xl border border-brand-border shadow-sm overflow-hidden">
+              <p className="px-5 py-3 text-xs font-bold text-gray-400 uppercase tracking-wide border-b border-gray-100">
+                Delivery Information
+              </p>
+              <div className="grid sm:grid-cols-2 gap-4 p-5">
+                {/* Shipping Address */}
+                <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-4">
+                  <p className="flex items-center gap-1.5 text-sm font-bold text-gray-800 mb-3">
+                    <FiMapPin size={14} className="text-brand-dark" /> Shipping Address
+                  </p>
+                  <div className="text-sm text-gray-600 flex flex-col gap-0.5">
+                    <p className="font-semibold text-gray-800">{addr.name}</p>
+                    <p>{addr.line1}</p>
+                    {addr.line2 && <p>{addr.line2}</p>}
+                    <p>{addr.city}, {addr.state} {addr.pincode}</p>
+                    <p>{addr.country || 'India'}</p>
+                    {addr.phone && <p className="text-gray-400 text-xs mt-2 flex items-center gap-1">📞 {addr.phone}</p>}
+                  </div>
                 </div>
-              </div>
 
-              {/* Order Info */}
-              <div className="bg-brand rounded-2xl border border-brand-border shadow-sm px-5 py-5">
-                <p className="flex items-center gap-1.5 text-sm font-bold text-gray-800 mb-3">
-                  <FiInfo size={14} className="text-brand-dark" /> Order Info
-                </p>
-                <div className="flex flex-col gap-2 text-sm text-gray-600">
-                  <div className="flex justify-between">
-                    <span>Method</span>
-                    <span className="font-semibold text-gray-800">
-                      {order.paymentMethod
-                        ? order.paymentMethod.charAt(0).toUpperCase() + order.paymentMethod.slice(1)
-                        : '—'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span>Payment</span>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                      order.paymentStatus === 'SUCCESS'   ? 'bg-green-100 text-green-700'  :
-                      order.paymentStatus === 'FAILED'    ? 'bg-red-100 text-red-700'      :
-                      order.paymentStatus === 'CANCELLED' ? 'bg-gray-100 text-gray-500'    :
-                      order.paymentStatus === 'REFUNDED'  ? 'bg-purple-100 text-purple-700':
-                      'bg-amber-100 text-amber-700'
-                    }`}>
-                      {order.paymentStatus ?? 'PENDING'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Items</span>
-                    <span className="font-semibold text-gray-800">
-                      {order.items?.reduce((a: number, i: any) => a + i.qty, 0) ?? '—'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Total</span>
-                    <span className="font-semibold text-brand-dark">{formatPrice(order.totalAmount)}</span>
-                  </div>
-                  <div className="flex justify-between items-center pt-1 border-t border-gray-100">
-                    <span>Order Status</span>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${statusBadgeClass()}`}>
-                      {statusLabel()}
-                    </span>
-                  </div>
+                {/* Billing Address */}
+                <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-4">
+                  <p className="flex items-center gap-1.5 text-sm font-bold text-gray-800 mb-3">
+                    <FiMapPin size={14} className="text-brand-dark" /> Billing Address
+                  </p>
+                  {order.billingAndShippingSame ? (
+                    <div className="text-sm text-gray-500 italic flex items-center gap-2 py-4">
+                      <FiCheckCircle size={16} className="text-green-500" />
+                      Same as shipping address
+                    </div>
+                  ) : order.billingAddress ? (
+                    <div className="text-sm text-gray-600 flex flex-col gap-0.5">
+                      <p className="font-semibold text-gray-800">{order.billingAddress.name}</p>
+                      <p>{order.billingAddress.line1}</p>
+                      {order.billingAddress.line2 && <p>{order.billingAddress.line2}</p>}
+                      <p>{order.billingAddress.city}, {order.billingAddress.state} {order.billingAddress.pincode}</p>
+                      <p>{order.billingAddress.country || 'India'}</p>
+                      {order.billingAddress.phone && <p className="text-gray-400 text-xs mt-2 flex items-center gap-1">📞 {order.billingAddress.phone}</p>}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500 italic">No billing address available</div>
+                  )}
                 </div>
               </div>
             </div>
+
+            {/* ── Order Info ── */}
+            <div className="bg-brand rounded-2xl border border-brand-border shadow-sm px-5 py-5">
+              <p className="flex items-center gap-1.5 text-sm font-bold text-gray-800 mb-4">
+                <FiInfo size={14} className="text-brand-dark" /> Order Information
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-gray-400 uppercase tracking-wide">Payment Method</span>
+                  <span className="font-semibold text-gray-800 text-sm">
+                    {order.paymentMethod
+                      ? order.paymentMethod.charAt(0).toUpperCase() + order.paymentMethod.slice(1)
+                      : '—'}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-gray-400 uppercase tracking-wide">Payment Status</span>
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full w-fit ${
+                    order.paymentStatus === 'SUCCESS'   ? 'bg-green-100 text-green-700'  :
+                    order.paymentStatus === 'FAILED'    ? 'bg-red-100 text-red-700'      :
+                    order.paymentStatus === 'CANCELLED' ? 'bg-gray-100 text-gray-500'    :
+                    order.paymentStatus === 'REFUNDED'  ? 'bg-purple-100 text-purple-700':
+                    'bg-amber-100 text-amber-700'
+                  }`}>
+                    {order.paymentStatus ?? 'PENDING'}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-gray-400 uppercase tracking-wide">Total Items</span>
+                  <span className="font-semibold text-gray-800 text-sm">
+                    {order.items?.reduce((a: number, i: any) => a + i.qty, 0) ?? '—'}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-gray-400 uppercase tracking-wide">Order Total</span>
+                  <span className="font-bold text-brand-dark text-base">{formatPrice(order.totalAmount)}</span>
+                </div>
+              </div>
+              <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
+                <span className="text-sm text-gray-600">Current Order Status</span>
+                <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${statusBadgeClass()}`}>
+                  {statusLabel()}
+                </span>
+              </div>
+            </div>
+
+            {/* ── Tracking History Timeline ── */}
+            {order.timeline && order.timeline.length > 0 && (
+              <div className="bg-brand rounded-2xl border border-brand-border shadow-sm px-5 py-5">
+                <p className="flex items-center gap-1.5 text-sm font-bold text-gray-800 mb-4">
+                  <FiClock size={14} className="text-brand-dark" /> Tracking History
+                </p>
+                <div className="relative">
+                  {/* Timeline container */}
+                  <div className="flex flex-col gap-0">
+                    {order.timeline.map((event: any, index: number) => {
+                      const isLast = index === order.timeline.length - 1;
+                      return (
+                        <div key={index} className="flex items-start gap-4 relative">
+                          {/* Timeline line */}
+                          {!isLast && (
+                            <div className="absolute left-[11px] top-[28px] bottom-[-16px] w-0.5 bg-gray-200" />
+                          )}
+                          
+                          {/* Timeline dot */}
+                          <div className="relative z-10 flex-shrink-0">
+                            <div className="w-6 h-6 rounded-full bg-brand-dark border-2 border-white shadow-sm flex items-center justify-center">
+                              <div className="w-2 h-2 rounded-full bg-white" />
+                            </div>
+                          </div>
+
+                          {/* Event details */}
+                          <div className={`flex-1 ${!isLast ? 'pb-6' : 'pb-0'}`}>
+                            <div className="bg-white rounded-xl border border-gray-100 px-4 py-3 shadow-sm">
+                              <p className="font-semibold text-sm text-gray-800">
+                                {event.status?.replace(/_/g, ' ') || 'Status Update'}
+                              </p>
+                              {event.note && (
+                                <p className="text-xs text-gray-600 mt-1">{event.note}</p>
+                              )}
+                              <p className="text-xs text-gray-400 mt-1.5 flex items-center gap-1">
+                                <FiClock size={11} />
+                                {new Date(event.timestamp).toLocaleString('en-IN', {
+                                  dateStyle: 'medium',
+                                  timeStyle: 'short',
+                                })}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* ── Items list ── */}
             <div className="bg-brand rounded-2xl border border-brand-border shadow-sm overflow-hidden">

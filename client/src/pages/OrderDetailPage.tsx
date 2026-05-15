@@ -559,15 +559,15 @@ export default function OrderDetailPage() {
                 </p>
               )}
 
-              {/* Initiate button */}
-              {isRefundEligible && !refundDone && (
+              {/* Initiate button !isOwnOrder */}
+              {/* { isRefundEligible && !refundDone && (
                 <button
                   onClick={() => { setShowRefundModal(true); setRefundError(null); }}
                   className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-sm transition-colors"
                 >
                   <FiRefreshCw size={13} /> Initiate Refund ({formatPrice(order.totalAmount)})
                 </button>
-              )}
+              )} */}
             </section>
           )}
 

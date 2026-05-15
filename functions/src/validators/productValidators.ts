@@ -11,7 +11,7 @@ function validateProductFields(
   if (requireTitle) {
     const e = requireStr(b, "title");
     if (e) return e;
-    
+
     // productCode is required when creating a new product
     const pcErr = requireStr(b, "productCode");
     if (pcErr) return pcErr;
@@ -56,13 +56,13 @@ function validateProductFields(
   }
 
   if (b.shippingAndDelivery !== undefined) {
-    if (typeof b.shippingAndDelivery !== 'string') return fail('shippingAndDelivery must be a string.', 'shippingAndDelivery');
-    if ((b.shippingAndDelivery as string).trim().length === 0) return fail('shippingAndDelivery cannot be empty.', 'shippingAndDelivery');
+    if (typeof b.shippingAndDelivery !== "string") return fail("shippingAndDelivery must be a string.", "shippingAndDelivery");
+    if ((b.shippingAndDelivery as string).trim().length === 0) return fail("shippingAndDelivery cannot be empty.", "shippingAndDelivery");
   }
 
   if (b.exchangeAndReturns !== undefined) {
-    if (typeof b.exchangeAndReturns !== 'string') return fail('exchangeAndReturns must be a string.', 'exchangeAndReturns');
-    if ((b.exchangeAndReturns as string).trim().length === 0) return fail('exchangeAndReturns cannot be empty.', 'exchangeAndReturns');
+    if (typeof b.exchangeAndReturns !== "string") return fail("exchangeAndReturns must be a string.", "exchangeAndReturns");
+    if ((b.exchangeAndReturns as string).trim().length === 0) return fail("exchangeAndReturns cannot be empty.", "exchangeAndReturns");
   }
 
   if (b.sizeInventory !== undefined) {

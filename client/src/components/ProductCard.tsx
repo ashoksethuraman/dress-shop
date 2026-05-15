@@ -120,8 +120,8 @@ export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
         </button>
       )}
 
-      {/* Image area ~65% */}
-      <div className="relative h-64 bg-gray-100 overflow-hidden shrink-0">
+      {/* Image area with 3:4 aspect ratio (portrait) */}
+      <div className="relative w-full aspect-[3/4] bg-gray-100 overflow-hidden shrink-0">
         {images.length > 0 ? (
           <>
             {images.map((src, idx) => (

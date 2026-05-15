@@ -3,7 +3,7 @@ import { useAppSelector } from '../store/hooks';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useForm, useWatch } from 'react-hook-form';
 import { FiArrowLeft } from 'react-icons/fi';
-import { preloadRazorpayScript } from '../services/paymentService';
+import { preloadRazorpayScript, getRazorpayLoadError, retryRazorpayScript } from '../services/paymentService';
 import { CheckoutFormState } from '../utils/types';
 import { type StockValidationIssue } from '../utils/apiTypes';
 import BillingAddressSection from '../components/checkout/BillingAddressSection';
@@ -42,12 +42,32 @@ export default function CheckoutPage() {
   const { taxAmount, shippingFee, totalAmount: total } = calcOrderTotals(subtotal);
 
   const navigatedAway = useRef(false);
+  const [sdkError, setSdkError] = React.useState<string | null>(null);
+  const [retryingSDK, setRetryingSDK] = React.useState(false);
 
   useEffect(() => {
     if (!navigatedAway.current && !isBuyNow && items.length === 0) navigate('/', { replace: true });
   }, [items.length, isBuyNow, navigate]);
 
-  useEffect(() => { preloadRazorpayScript(); }, []);  // always preload (mock payment disabled)
+  useEffect(() => {
+    preloadRazorpayScript().catch(() => {
+      const error = getRazorpayLoadError();
+      setSdkError(error?.message || 'Failed to load payment gateway');
+    });
+  }, []);  // always preload (mock payment disabled)
+
+  const handleRetrySDK = async () => {
+    setRetryingSDK(true);
+    setSdkError(null);
+    try {
+      await retryRazorpayScript();
+      setRetryingSDK(false);
+    } catch {
+      const error = getRazorpayLoadError();
+      setSdkError(error?.message || 'Failed to load payment gateway');
+      setRetryingSDK(false);
+    }
+  };
 
   const {
     loading, payError, setPayError,
@@ -61,7 +81,7 @@ export default function CheckoutPage() {
     ? savedForm.billingOptionSame
     : savedForm?.billingOption !== 'different';
 
-  const { register, handleSubmit, watch, control, formState: { errors } } = useForm<CheckoutFormState>({
+  const { register, handleSubmit, watch, control, formState: { errors }, clearErrors } = useForm<CheckoutFormState>({
     defaultValues: {
       shippingAddress: { ...EMPTY_ADDRESS, ...(savedForm?.shippingAddress ?? {}) },
       billingAddress:  { ...EMPTY_ADDRESS, ...(savedForm?.billingAddress  ?? {}) },
@@ -88,6 +108,29 @@ export default function CheckoutPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+
+      {/* Razorpay SDK loading error modal */}
+      {sdkError && (
+        <AlertModal
+          type="error"
+          title="Unable to Load Payment Gateway"
+          messages={[
+            'The payment system failed to load. This may be caused by:',
+            'Network connectivity issues or slow internet connection',
+            'Ad blockers or browser extensions blocking payment scripts',
+            'Firewall or security software restrictions',
+            'Please try the following:',
+            '1. Check your internet connection',
+            '2. Disable ad blockers or browser extensions temporarily',
+            '3. Try refreshing the page or clicking "Retry" below',
+          ]}
+          onClose={() => setSdkError(null)}
+          actionLabel={retryingSDK ? "Retrying..." : "Retry Loading"}
+          onAction={retryingSDK ? undefined : handleRetrySDK}
+          actionIcon={null}
+          actionVariant="primary"
+        />
+      )}
 
       {/* Stock validation modal */}
       {stockIssues && (
@@ -154,7 +197,7 @@ export default function CheckoutPage() {
           <ContactSection register={register} errors={errors} user={user} />
           <DeliverySection register={register} errors={errors} />
           <ShippingMethodSection hasAddress={!!(shippingAddress && shippingState)} />
-          <BillingAddressSection control={control} register={register} errors={errors} />
+          <BillingAddressSection control={control} register={register} errors={errors} clearErrors={clearErrors} />
           <PaymentSection loading={loading} disabled={loading || items.length === 0} />
         </form>
 

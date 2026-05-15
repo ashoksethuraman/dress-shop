@@ -64,21 +64,28 @@ export function useProductsPaged({ includeAll = false, pageSize = 10, sortBy, ca
       fetching.current = false;
       setLoading(false);
     }
-  }, [pageSize, lastDocId, hasMore, trigger, includeAll, q, sortBy, category, availability]);
+  }, [trigger, hasMore, lastDocId]);
 
-  const refresh = useCallback(async (opts?: { bust?: boolean }) => {
+  const refresh = useCallback(async () => {
     // clear and fetch first page
     setPages([]);
     setHasMore(true);
     setLastDocId(undefined);
     fetching.current = false;
     setError(null);
-    try {
-      await fetchNext();
-    } catch (err) {
-      // fetchNext handles error
-    }
+    setLoading(false);
+    // Trigger fetchNext on next tick to ensure state is updated
+    setTimeout(() => {
+      fetchNext();
+    }, 0);
   }, [fetchNext]);
+
+  const removeProduct = useCallback((productId: string) => {
+    // Optimistically remove the product from the current state
+    setPages((prev) => {
+      return prev.map((page) => page.filter((product) => product.id !== productId));
+    });
+  }, []);
 
   // initial load
   useEffect(() => {
@@ -95,6 +102,7 @@ export function useProductsPaged({ includeAll = false, pageSize = 10, sortBy, ca
     fetchNext,
     hasMore,
     refresh,
+    removeProduct,
     // debug info
     lastFetchParams,
     lastFetchCount,

@@ -742,7 +742,7 @@ export default function AddProductForm({ onAdded, productToEdit, onSaved }: Prop
           <button
             type="submit"
             disabled={loading || !!uploadError || !!apiError}
-            className="flex items-center gap-2 px-6 py-2.5 !rounded-full bg-brand-dark hover:bg-brand-hover text-white font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-2 px-6 py-2.5 rounded-md bg-brand-dark hover:bg-brand-hover text-white font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <FiPlus size={15} />
             {loading ? (productToEdit ? 'Saving…' : 'Adding…') : (productToEdit ? 'Save Changes' : 'Add Product')}

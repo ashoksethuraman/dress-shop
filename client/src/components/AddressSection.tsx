@@ -9,16 +9,17 @@ interface Props {
   prefix: AddressPrefix;
   register: UseFormRegister<CheckoutFormState>;
   errors: FieldErrors<CheckoutFormState>;
+  isRequired?: boolean; // Control whether fields are required
 }
 
 /* ─── Address Section ────────────────────────────────────── */
-export default function AddressSection({ prefix, register, errors }: Props) {
+export default function AddressSection({ prefix, register, errors, isRequired = true }: Props) {
   // Access nested error object for the given prefix
   const errs = (errors[prefix] ?? {}) as Record<string, { message?: string } | undefined>;
 
   // Helper: register a nested field, e.g. "shippingAddress.firstName"
   const r = (name: string, rules?: object) =>
-    register(`${prefix}.${name}` as any, rules);
+    register(`${prefix}.${name}` as any, isRequired ? rules : {});
 
   return (
     <div className="flex flex-col gap-3">
@@ -76,7 +77,7 @@ export default function AddressSection({ prefix, register, errors }: Props) {
           <label htmlFor={`${prefix}-state`} className="text-xs text-gray-500">State</label>
           <select
             id={`${prefix}-state`}
-            {...register(`${prefix}.state` as any, { required: 'Select a state' })}
+            {...r('state', { required: 'Select a state' })}
             className={`w-full border rounded-xl px-4 py-3 text-sm bg-white text-gray-800 focus:outline-none focus:ring-2 transition-all appearance-none
               ${errs.state ? 'border-red-400 focus:ring-red-100' : 'border-gray-300 focus:border-brand-dark focus:ring-brand'}`}
           >

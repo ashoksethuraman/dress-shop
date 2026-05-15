@@ -565,39 +565,47 @@ export default function ProductDetailsPage() {
           </div>
 
 
-          {/* Shipping Features Panel */}
-          <div className="bg-black rounded-lg p-3 mt-5">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Shipping Features Panel - Compact & Refined */}
+          <div className="bg-black rounded-xl p-4 mt-5">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
 
               {/* Free Shipping */}
               <div className="flex flex-col items-center text-center">
-                <div className="mb-3">
-                  <FiTruck className="w-10 h-10 text-white" />
+                <div className="mb-2">
+                  <FiTruck className="w-8 h-8 text-white" />
                 </div>
-                <h4 className="font-semibold text-white text-sm mb-1">
+                <h4 className="font-semibold text-white text-xs mb-0.5">
                   Free Shipping
                 </h4>
+                <p className="text-[10px] text-gray-400 leading-tight">
+                  On all orders above ₹999
+                </p>
               </div>
 
               {/* Same Day Dispatch */}
               <div className="flex flex-col items-center text-center">
-                <div className="mb-3">
-                  <FiClock className="w-10 h-10 text-white" />
+                <div className="mb-2">
+                  <FiClock className="w-8 h-8 text-white" />
                 </div>
-                <h4 className="font-semibold text-white text-sm mb-1">
+                <h4 className="font-semibold text-white text-xs mb-0.5">
                   Same Day Dispatch
                 </h4>
+                <p className="text-[10px] text-gray-400 leading-tight">
+                  Orders placed before 2 PM
+                </p>
               </div>
 
               {/* Express Delivery */}
               <div className="flex flex-col items-center text-center">
-                <div className="mb-3">
-                  <FiSend className="w-10 h-10 text-white" />
+                <div className="mb-2">
+                  <FiSend className="w-8 h-8 text-white" />
                 </div>
-                <h4 className="font-semibold text-white text-sm mb-1">
-                  Express Delivery on Request
+                <h4 className="font-semibold text-white text-xs mb-0.5">
+                  Express Delivery
                 </h4>
-                {/* <p className="text-xs text-gray-300">Available </p> */}
+                <p className="text-[10px] text-gray-400 leading-tight">
+                  Available on request
+                </p>
               </div>
 
             </div>

@@ -47,26 +47,26 @@ productsRouter.get("/", async (req: Request, res: Response) => {
     const q = typeof req.query.q === "string" ? req.query.q.trim().toLowerCase() : "";
     const limit = Number(req.query.limit) || 10;
     const lastDocId = typeof req.query.lastDocId === "string" ? req.query.lastDocId : undefined;
-    const sortBy = typeof req.query.sortBy === 'string' ? req.query.sortBy : undefined;
+    const sortBy = typeof req.query.sortBy === "string" ? req.query.sortBy : undefined;
 
     // support server-side sorting. default: createdAt desc.
     // client may pass: 'sales', 'name-asc', 'name-desc', 'price-asc', 'price-desc'
     let baseQuery: FirebaseFirestore.Query = db.collection("products");
-    let direction: FirebaseFirestore.OrderByDirection = 'desc';
-    if (typeof sortBy === 'string') {
-      if (sortBy === 'sales') {
-        baseQuery = baseQuery.orderBy('salesCount', 'desc');
-      } else if (sortBy.startsWith('price')) {
-        direction = sortBy.endsWith('asc') ? 'asc' : 'desc';
-        baseQuery = baseQuery.orderBy('price', direction);
-      } else if (sortBy.startsWith('name')) {
-        direction = sortBy.endsWith('asc') ? 'asc' : 'desc';
-        baseQuery = baseQuery.orderBy('title', direction);
+    let direction: FirebaseFirestore.OrderByDirection = "desc";
+    if (typeof sortBy === "string") {
+      if (sortBy === "sales") {
+        baseQuery = baseQuery.orderBy("salesCount", "desc");
+      } else if (sortBy.startsWith("price")) {
+        direction = sortBy.endsWith("asc") ? "asc" : "desc";
+        baseQuery = baseQuery.orderBy("price", direction);
+      } else if (sortBy.startsWith("name")) {
+        direction = sortBy.endsWith("asc") ? "asc" : "desc";
+        baseQuery = baseQuery.orderBy("title", direction);
       } else {
-        baseQuery = baseQuery.orderBy('createdAt', 'desc');
+        baseQuery = baseQuery.orderBy("createdAt", "desc");
       }
     } else {
-      baseQuery = baseQuery.orderBy('createdAt', 'desc');
+      baseQuery = baseQuery.orderBy("createdAt", "desc");
     }
 
     let query = baseQuery.limit(limit + 1);
@@ -89,30 +89,40 @@ productsRouter.get("/", async (req: Request, res: Response) => {
     }));
 
     // apply server-side filters (category, availability) and q
-    const category = typeof req.query.category === 'string' ? req.query.category : undefined;
-    const availability = typeof req.query.availability === 'string' ? req.query.availability : undefined;
+    const category = typeof req.query.category === "string" ? req.query.category : undefined;
+    const availability = typeof req.query.availability === "string" ? req.query.availability : undefined;
+
+    interface ProductData {
+      stock?: string;
+      category?: string;
+      title?: string;
+      description?: string;
+      [key: string]: unknown;
+    }
 
     let products = all;
 
-    if (availability === 'in-stock') {
-      products = products.filter((p) => (p as any).stock === 'available');
-    } else if (availability === 'out-of-stock') {
-      products = products.filter((p) => (p as any).stock === 'out_of_stock');
-    } else {
-      // default: hide out_of_stock
-      products = products.filter((p) => (p as Record<string, unknown>).stock !== 'out_of_stock');
+    if (availability === "in-stock") {
+      products = products.filter((p) => (p as ProductData).stock === "available");
+    } else if (availability === "out-of-stock") {
+      products = products.filter((p) => (p as ProductData).stock === "out_of_stock");
     }
+    // else: show all products (available + out_of_stock) by default
 
     if (category) {
-      products = products.filter((p: any) => ((p.category ?? '') as string).toLowerCase() === category.toLowerCase());
+      products = products.filter((p) => {
+        const prod = p as ProductData;
+        return ((prod.category ?? "") as string).toLowerCase() === category.toLowerCase();
+      });
     }
 
     if (q) {
-      products = products.filter((p: any) =>
-        (p.title ?? '').toLowerCase().includes(q) ||
-        (p.description ?? '').toLowerCase().includes(q) ||
-        (p.category ?? '').toLowerCase().includes(q)
-      );
+      products = products.filter((p) => {
+        const prod = p as ProductData;
+        return (prod.title ?? "").toLowerCase().includes(q) ||
+          (prod.description ?? "").toLowerCase().includes(q) ||
+          (prod.category ?? "").toLowerCase().includes(q);
+      });
     }
 
     const lastVisibleId = take.length > 0 ? take[take.length - 1].id : undefined;

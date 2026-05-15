@@ -45,19 +45,22 @@ export default function ProductsPage() {
   // map availability to server-expected values ('available' | 'out_of_stock')
   const availabilityParam = filters.availability === 'all' ? undefined : filters.availability;
   const categoryParam = !filters.category || filters.category === 'all' ? undefined : filters.category;
-  const { products, loading, error, fetchNext, hasMore, refresh, lastFetchParams, lastFetchCount } = useProductsPaged({ pageSize: INITIAL_COUNT, q: filters.searchQuery, availability: availabilityParam, category: categoryParam, sortBy });
+  const { products, loading, error, fetchNext, hasMore, refresh, removeProduct, lastFetchParams, lastFetchCount } = useProductsPaged({ pageSize: INITIAL_COUNT, q: filters.searchQuery, availability: availabilityParam, category: categoryParam, sortBy });
+
+  // Ensure products is always an array
+  const safeProducts = products ?? [];
 
   const priceRange = useMemo(() => {
-    if (products.length === 0) return { min: 0, max: 10000 };
-    const prices = products.map(p => p.price);
+    if (safeProducts.length === 0) return { min: 0, max: 10000 };
+    const prices = safeProducts.map(p => p.price);
     return { min: Math.floor(Math.min(...prices)), max: Math.ceil(Math.max(...prices)) };
-  }, [products]);
+  }, [safeProducts]);
 
   useEffect(() => {
-    if (products.length > 0 && filters.priceRange.max === 10000) {
+    if (safeProducts.length > 0 && filters.priceRange.max === 10000) {
       setFilters(prev => ({ ...prev, priceRange: { min: priceRange.min, max: priceRange.max } }));
     }
-  }, [products, priceRange.min, priceRange.max]);
+  }, [safeProducts, priceRange.min, priceRange.max, filters.priceRange.max]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -75,12 +78,28 @@ export default function ProductsPage() {
 
   useEffect(() => {
     // when server-backed filters or server-side sort change, reload pages from first page
+    console.log('ProductsPage: Refreshing due to filter/sort change', {
+      searchQuery: filters.searchQuery,
+      availability: filters.availability,
+      category: filters.category,
+      sortBy
+    });
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.searchQuery, filters.availability, filters.category, sortBy]);
 
+  // Debug log for products state
+  useEffect(() => {
+    console.log('ProductsPage: Products state updated', {
+      productsCount: safeProducts.length,
+      loading,
+      error,
+      hasMore
+    });
+  }, [safeProducts.length, loading, error, hasMore]);
+
   const filteredAndSortedProducts = useMemo(() => {
-    let result = [...products];
+    let result = [...safeProducts];
     if (filters.availability === 'available') result = result.filter(p => p.stock === 'available');
     else if (filters.availability === 'out_of_stock') result = result.filter(p => p.stock === 'out_of_stock');
     result = result.filter(p => p.price >= filters.priceRange.min && p.price <= filters.priceRange.max);
@@ -98,7 +117,7 @@ export default function ProductsPage() {
       }
     });
     return result;
-  }, [products, filters, sortBy]);
+  }, [safeProducts, filters, sortBy]);
 
   useEffect(() => {
     if (loading || error) return;
@@ -149,14 +168,18 @@ export default function ProductsPage() {
 
     try {
       await deleteProduct({ id, images: formattedImagePaths }).unwrap();
-      refresh({ bust: true });
+      // Optimistically remove the product from UI instead of full refresh
+      removeProduct(id);
     } catch (err) {
       console.error("Delete failed:", err);
+      alert("Failed to delete product. Please try again.");
+      // On error, refresh to restore correct state
+      refresh();
     }
   };
 
   // Show full-page loader on initial load
-  if (loading && products.length === 0) {
+  if (loading && safeProducts.length === 0) {
     return <Loader fullPage label="Loading Collections..." />;
   }
 
@@ -271,7 +294,11 @@ export default function ProductsPage() {
         <div style={{ position: 'fixed', right: 12, bottom: 12, zIndex: 9999 }}>
           <div className="bg-white border rounded-lg shadow-md p-3 text-xs font-mono text-gray-700" style={{ minWidth: 260 }}>
             <div className="font-semibold text-sm mb-1">Debug</div>
-            <div>Products: <strong>{products.length}</strong></div>
+            <div>Products: <strong>{safeProducts.length}</strong></div>
+            <div>Filtered: <strong>{filteredAndSortedProducts.length}</strong></div>
+            <div>Loading: <strong>{loading ? 'Yes' : 'No'}</strong></div>
+            <div>Error: <strong>{error ? 'Yes' : 'No'}</strong></div>
+            <div>Has More: <strong>{hasMore ? 'Yes' : 'No'}</strong></div>
             <div>Last response count: <strong>{lastFetchCount}</strong></div>
             <div className="mt-2">Last params:</div>
             <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 160, overflow: 'auto' }}>{JSON.stringify(lastFetchParams, null, 2)}</pre>
