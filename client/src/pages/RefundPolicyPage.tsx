@@ -14,7 +14,7 @@ export default function Policy() {
           <section>
             <h2 className="text-xl font-semibold mb-2">Return & Refund Policy</h2>
             <p>
-              At StudioTimess, we take pride in the quality of our products.
+              At Halley comet, we take pride in the quality of our products.
               However, please note that we do not offer returns or refunds.
               All sales are final.
             </p>

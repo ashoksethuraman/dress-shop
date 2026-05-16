@@ -27,7 +27,8 @@ declare global {
 
 const ALLOWED_ORIGINS = [
   "http://localhost:3000",
-  "https://halleycomet-7cd48.web.app", // ← Added frontend domain
+  "https://halleycomet-7cd48.web.app",
+  "https://halleycomet-7cd48.firebaseapp.com",
   `https://${process.env.GCLOUD_PROJECT}.web.app`,
   `https://${process.env.GCLOUD_PROJECT}.firebaseapp.com`,
 ];
@@ -65,15 +66,17 @@ function cookieOptions(httpOnly: boolean) {
   return {
     httpOnly,
     secure: IS_PROD,
-    sameSite: IS_PROD ? ("none" as const) : ("lax" as const),
+    // Use "lax" for same-origin (Firebase Hosting rewrites make this same-origin)
+    // This is more secure than "none" and works perfectly with same-domain setup
+    sameSite: "lax" as const,
     maxAge: 3600 * 1000,
     path: "/",
   };
 }
 
-export function setAuthCookies(res: Response, sessionJwt: string, csrfToken: string): void {
+export function setAuthCookies(res: Response, sessionJwt: string): void {
   res.cookie("__session", sessionJwt, cookieOptions(true));
-  res.cookie("XSRF-TOKEN", csrfToken, cookieOptions(false));
+  // res.cookie("XSRF-TOKEN", csrfToken, cookieOptions(false));
 }
 
 export function clearAuthCookies(res: Response): void {
@@ -247,25 +250,43 @@ function verifyJwt(token: string): AuthUserPayload | null {
 ========================================================= */
 
 export function authenticate(req: Request, res: Response, next: NextFunction): void {
+  logger.info("=== AUTHENTICATION START ===");
+  logger.info("Request URL:", req.originalUrl);
+  logger.info("Request Method:", req.method);
+
+  // Step 1 — Read session cookie
   const sessionCookie =
     (req.cookies as Record<string, string | undefined>)["__session"];
+  logger.info("Step 1: Session cookie (__session):", sessionCookie);
 
+  // Step 2 — Read Authorization header
   const header = req.headers.authorization ?? "";
-  const token =
-    sessionCookie ?? (header.startsWith("Bearer ") ? header.slice(7) : null);
+  logger.info("Step 2: Authorization header:", header);
 
+  // Step 3 — Choose which token to use
+  const token = sessionCookie ?? (header.startsWith("Bearer ") ? header.slice(7) : null);
+  logger.info("Step 3: Extracted Token:", token);
+
+  // Step 4 — Validate token presence
   if (!token) {
+    logger.error("Step 4 FAIL: No token provided. Returning 401.");
     res.status(401).json({error: "Authentication required."});
     return;
   }
 
+  // Step 5 — Verify JWT
   const decoded = verifyJwt(token);
   if (!decoded) {
+    logger.error("Step 5 FAIL: Invalid or expired token. Returning 401.");
     res.status(401).json({error: "Invalid or expired token."});
     return;
   }
-  logger.info("[user data] req.user =", decoded);
+
+  // Step 6 — Success
+  logger.info("Step 6 SUCCESS: JWT decoded:", decoded);
   req.user = decoded;
+
+  logger.info("=== AUTHENTICATION COMPLETE ===");
   next();
 }
 

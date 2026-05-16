@@ -44,9 +44,9 @@ const isDev = process.env.NODE_ENV === 'development';
 const useEmulator =
   process.env.REACT_APP_USE_EMULATOR === 'true' && isDev;
 
-export const API_BASE_URL = useEmulator
-  ? '/api'
-  : `https://${region}-${projectId}.cloudfunctions.net/api`;
+// Always use relative path - Firebase Hosting rewrites /api/** to Cloud Functions
+// This ensures same-origin requests so cookies work properly
+export const API_BASE_URL = '/api';
 
 /* =========================================================
    HELPERS

@@ -54,7 +54,7 @@ export default function HomePage() {
               <div className="mt-6 sm:mt-8  flex flex-col gap-3 sm:gap-4 items-center md:items-start">
                 <Link
                   to="/products"
-                  className="inline-flex items-center justify-center !rounded-full bg-[#1a1a1a] px-7 py-3.5 text-sm font-semibold text-white shadow-lg transition hover:bg-[#333333] w-64 sm:w-auto"
+                  className="inline-flex items-center justify-center !rounded-md bg-[#1a1a1a] px-7 py-3.5 text-sm font-semibold text-white shadow-lg transition hover:bg-[#333333] w-64 sm:w-auto"
                 >
                   Explore Now
                 </Link>

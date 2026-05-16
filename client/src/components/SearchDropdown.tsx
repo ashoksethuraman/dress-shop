@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { productsApi } from '../services/apiClient';
 import { FiPackage } from 'react-icons/fi';
 import type { Product } from '../utils/types';
+import { formatPrice } from '../utils/format';
+
 
 type Props = {
   searchQuery: string;
@@ -95,7 +97,7 @@ export default function SearchDropdown({ searchQuery, isOpen, onClose }: Props) 
                   )}
                   <div className="flex items-center gap-3">
                     <span className="text-xl font-bold text-[#8B6F6B]">
-                      ${product.price?.toFixed(2) || '0.00'}
+                      {formatPrice(product.price) || '0.00'}
                     </span>
                     {product.stock && (
                       <span className={`text-xs px-2 py-1 rounded-full ${

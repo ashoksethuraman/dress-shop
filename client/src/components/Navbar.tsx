@@ -93,7 +93,7 @@ export default function Navbar({ menuOpen, setMenuOpen, cartCount, user, bump, i
         className="fixed top-0 inset-x-0 z-50 bg-[#D9B3AF]"
       >
         {/* ── Main row ── */}
-        <div className="max-w-6xl mx-auto w-full h-[90px] flex items-center px-6 sm:px-8 lg:px-12 gap-3 justify-between">
+        <div className="max-w-6xl mx-auto w-full h-[100px] flex items-center px-6 sm:px-8 lg:px-12 gap-3 justify-between">
 
           {/* LEFT — hamburger button */}
           <div className="flex items-center">
@@ -115,7 +115,7 @@ export default function Navbar({ menuOpen, setMenuOpen, cartCount, user, bump, i
               <img
                 src="/halley-comet-logo.png"
                 alt="Halley Comet"
-                className="h-16 w-auto object-contain"
+                className="h-18 w-auto object-contain"
                 style={{ maxWidth: '160px' }}
               />
             </Link>

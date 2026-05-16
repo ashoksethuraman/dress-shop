@@ -16,10 +16,9 @@ export default function Footer() {
     }, []);
 
     return (
-        <footer 
-            className={`bg-[#1a1a1a] text-white w-full overflow-x-hidden transition-opacity duration-700 ${
-                isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
-            }`}
+        <footer
+            className={`bg-[#1a1a1a] text-white w-full overflow-x-hidden transition-opacity duration-700 ${isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                }`}
             style={{ willChange: 'opacity' }}
         >
 
@@ -70,7 +69,7 @@ export default function Footer() {
                     </ul>
                 </div>
 
-                {/* NEWSLETTER SECTION */}
+                { /* UPDATED NEWSLETTER SECTION */}
                 <div className="flex flex-col items-center lg:items-start text-center md:text-left">
                     <h3 className="text-lg font-semibold">Stay Updated</h3>
 
@@ -78,13 +77,18 @@ export default function Footer() {
                         Subscribe for latest arrivals, offers, and exclusive deals.
                     </p>
 
-                    <div className="mt-6 flex w-full max-w-sm gap-2">
+                    {/* RESPONSIVE INPUT + BUTTON */}
+                    <div
+                        className=" mt-6 w-full max-w-sm flex flex-col md:flex-row  items-center md:items-start  gap-3 " >
+                        {/* INPUT — full width always */}
                         <input
                             type="email"
                             placeholder="Enter your email"
-                            className="flex-1 rounded-full px-5 py-3 text-black focus:outline-none"
-                        />
-                        <button className="bg-white text-black font-semibold px-6 py-3 rounded-full hover:bg-[#e8e8e8] transition">
+                            className=" w-full md:flex-1 rounded-md px-5 py-3 text-black focus:outline-none "/>
+
+                        {/* BUTTON — desktop inline, mobile centered below */}
+                        <button
+                            className="bg-white text-black font-semibold px-6 py-3 rounded-full hover:bg-[#e8e8e8] transition md:ml-2  mx-auto md:mx-0 " >
                             Join
                         </button>
                     </div>

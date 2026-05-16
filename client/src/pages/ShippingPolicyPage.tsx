@@ -14,7 +14,7 @@ export default function ShippingPolicy() {
 
           <section>
             <p>
-              At StudioTimess, we aim to get your loungewear to you as quickly and 
+              At Halley comet, we aim to get your loungewear to you as quickly and 
               safely as possible. Please review our shipping policy for more details.
             </p>
           </section>

@@ -20,7 +20,7 @@ export default function AdminPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 py-6">
+    <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 py-8">
 
       {/* Header + tabs on the same row, tabs pushed to the right */}
       <div className="flex items-center justify-between gap-3 mb-6">
