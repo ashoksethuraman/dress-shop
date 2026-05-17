@@ -45,10 +45,10 @@ export default function OrderSummaryPanel({
           <span>Subtotal</span>
           <span>{formatPrice(subtotal)}</span>
         </div>
-        <div className="flex justify-between text-sm text-gray-600">
+        {/* <div className="flex justify-between text-sm text-gray-600">
           <span>GST (18%)</span>
           <span>{formatPrice(taxAmount)}</span>
-        </div>
+        </div> */}
         <div className="flex justify-between text-sm text-gray-600">
           <span>Shipping</span>
           {shippingFee === 0

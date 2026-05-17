@@ -39,7 +39,7 @@ export default function BestSellersPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 py-10 min-h-[calc(100vh-120px)] sm:min-h-[calc(100vh-90px)]">
+    <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 pt-10 md:pt-10 pb-10 min-h-[calc(100vh-120px)] sm:min-h-[calc(100vh-90px)]">
       {/* <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between mb-10"> */}
         <div className='flex items-center justify-center h-20'>
           {/* <p className="text-sm uppercase tracking-[0.35em] text-[#8f7a74]">Most loved styles</p> */}
@@ -65,14 +65,14 @@ export default function BestSellersPage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
             {bestSellers.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}
           </div>
 
           {loading && hasMore && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6 mt-6">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6 mt-6">
               {Array.from({ length: 12 }).map((_, i) => (
                 <div key={i} className="h-96 rounded-3xl bg-gray-100 animate-pulse" />
               ))}

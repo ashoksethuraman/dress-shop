@@ -253,14 +253,14 @@ export default function ProductDetailsPage() {
   const selectedSizeFew = selectedSizeStock !== undefined && selectedSizeStock > 0 && selectedSizeStock < 3;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pt-20 md:pt-20">
       {/* Size chart modal */}
       {sizeChartOpen && sizeChartUrl && (
         <SizeChartModal url={sizeChartUrl} onClose={() => setSizeChartOpen(false)} />
       )}
 
       {/* Back nav */}
-      <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 pt-6">
+      <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12">
         <Link to="/" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-brand-dark no-underline transition-colors">
           <FiChevronLeft size={16} /> Back to shop
         </Link>
@@ -381,7 +381,9 @@ export default function ProductDetailsPage() {
           {/* Price */}
           <div>
             <div className="flex items-baseline gap-3">
-              <span className="text-3xl font-extrabold text-brand-dark">{formatPrice(product.price)}</span>
+              <span className="text-3xl font-extrabold text-brand-dark">
+                {formatPrice(product.price)} <span className="text-xs text-gray-500 font-normal ml-2">(GST included)</span>
+              </span>
               {/* {level.className === 'premium' && (
                 <>
                   <span className="text-sm text-gray-400 line-through">₹{(product.price * 1.43).toFixed(0)}</span>
@@ -575,10 +577,10 @@ export default function ProductDetailsPage() {
                   <FiTruck className="w-8 h-8 text-white" />
                 </div>
                 <h4 className="font-semibold text-white text-xs mb-0.5">
-                  Free Shipping
+                  Fast Shipping
                 </h4>
                 <p className="text-[10px] text-gray-400 leading-tight">
-                  On all orders above ₹999
+                  On all orders
                 </p>
               </div>
 

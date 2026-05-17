@@ -58,8 +58,8 @@ export default function OrderSummaryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 py-8">
+    <div className="min-h-screen bg-gray-50 pt-20 md:pt-20">
+      <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 pb-4">
 
         {/* Back link */}
         <button
@@ -142,8 +142,8 @@ export default function OrderSummaryPage() {
             {/* Trust badges */}
             <div className="grid grid-cols-3 gap-3 mt-2">
               {[
-                { icon: <FiTruck size={16} />, label: 'Free Shipping', sub: 'Orders above ₹999' },
-                { icon: <FiRefreshCw size={16} />, label: 'Easy Returns', sub: '7-day policy' },
+                { icon: <FiTruck size={16} />, label: 'Fast Shipping', sub: 'On all orders' },
+                { icon: <FiRefreshCw size={16} />, label: 'No Returns', sub: '' },
                 { icon: <FiShield size={16} />, label: 'Secure Payment', sub: 'Razorpay encrypted' },
               ].map(({ icon, label, sub }) => (
                 <div key={label} className="flex flex-col items-center text-center bg-white rounded-xl px-3 py-3 shadow-sm gap-1">
@@ -166,10 +166,10 @@ export default function OrderSummaryPage() {
                 <span>Subtotal ({items.reduce((a, i) => a + i.qty, 0)} items)</span>
                 <span>{formatPrice(subtotal)}</span>
               </div>
-              <div className="flex justify-between text-gray-600">
+              {/* <div className="flex justify-between text-gray-600">
                 <span>GST (18%)</span>
                 <span>{formatPrice(taxAmount)}</span>
-              </div>
+              </div> */}
               <div className="flex justify-between text-gray-600">
                 <span>Shipping</span>
                 {shippingFee === 0

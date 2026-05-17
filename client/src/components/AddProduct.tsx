@@ -383,9 +383,9 @@ export default function AddProductForm({ onAdded, productToEdit, onSaved }: Prop
       {/* Full-page loader overlay covering all upload + save activity */}
       {loading && <Loader fullPage label={loadingLabel} />}
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm p-6">
-        <h3 className="text-base font-bold text-primary mb-5 flex items-center gap-2">
-          <span className="w-1.5 h-5 bg-brand-dark rounded-full inline-block" />
+      <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm p-4 sm:p-6 overflow-x-hidden">
+        <h3 className="text-sm sm:text-base font-bold text-primary mb-4 sm:mb-5 flex items-center gap-2">
+          <span className="w-1.5 h-4 sm:h-5 bg-brand-dark rounded-full inline-block" />
           {productToEdit ? 'Edit Product' : 'Add New Product'}
         </h3>
 
@@ -422,13 +422,13 @@ export default function AddProductForm({ onAdded, productToEdit, onSaved }: Prop
           />
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
 
           {/* First Row: Product Name, Product Code, Price in same row */}
           <div className="md:col-span-2">
-            <div className="grid grid-cols-12 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
               {/* Name */}
-              <div className="col-span-12 md:col-span-5">
+              <div className="col-span-12 sm:col-span-12 md:col-span-5">
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
                   Product Name <span className="text-red-400">*</span>
                 </label>
@@ -443,7 +443,7 @@ export default function AddProductForm({ onAdded, productToEdit, onSaved }: Prop
               </div>
 
               {/* Product Code */}
-              <div className="col-span-12 md:col-span-4">
+              <div className="col-span-12 sm:col-span-12 md:col-span-4">
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
                   Product Code <span className="text-red-400">*</span>
                 </label>
@@ -457,7 +457,7 @@ export default function AddProductForm({ onAdded, productToEdit, onSaved }: Prop
               </div>
 
               {/* Price */}
-              <div className="col-span-12 md:col-span-3">
+              <div className="col-span-12 sm:col-span-12 md:col-span-3">
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
                   Price (INR) <span className="text-red-400">*</span>
                 </label>
@@ -492,7 +492,7 @@ export default function AddProductForm({ onAdded, productToEdit, onSaved }: Prop
 
           {/* SHIPPING & DELIVERY  + EXCHANGE & RETURNS (single-row textareas) */}
           <div className="md:col-span-2">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
                   SHIPPING & DELIVERY <span className="text-red-400">*</span>
@@ -528,11 +528,11 @@ export default function AddProductForm({ onAdded, productToEdit, onSaved }: Prop
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
               Category <span className="text-red-400">*</span>
             </label>
-            <div className="flex gap-3">
+            <div className="flex gap-2 sm:gap-3">
               {(['women', 'men'] as const).map((cat) => (
                 <label
                   key={cat}
-                  className={`flex items-center gap-2 px-5 py-2 rounded-xl border-2 cursor-pointer text-sm font-semibold transition-all select-none
+                  className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 rounded-xl border-2 cursor-pointer text-xs sm:text-sm font-semibold transition-all select-none flex-1 justify-center
                   ${category === cat
                       ? 'border-brand-dark bg-brand text-brand-dark'
                       : 'border-gray-200 text-gray-500 hover:border-brand-dark'}`}
@@ -735,14 +735,14 @@ export default function AddProductForm({ onAdded, productToEdit, onSaved }: Prop
         </div>
 
         {/* Submit */}
-        <div className="mt-6 flex items-center justify-between">
+        <div className="mt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="text-xs text-gray-400">
             All fields marked <span className="text-red-400">*</span> are required
           </div>
           <button
             type="submit"
             disabled={loading || !!uploadError || !!apiError}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-md bg-brand-dark hover:bg-brand-hover text-white font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-2 px-4 sm:px-6 py-2.5 rounded-md bg-brand-dark hover:bg-brand-hover text-white font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors w-full sm:w-auto"
           >
             <FiPlus size={15} />
             {loading ? (productToEdit ? 'Saving…' : 'Adding…') : (productToEdit ? 'Save Changes' : 'Add Product')}

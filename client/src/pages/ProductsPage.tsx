@@ -185,9 +185,9 @@ export default function ProductsPage() {
 
   return (
     <>
-    <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 py-10 min-h-[calc(100vh-120px)] sm:min-h-[calc(100vh-90px)]">
-      <div className="flex items-center justify-center h-20">
-        <h1 className="mt-3 text-3xl sm:text-4xl font-semibold text-primary">Collections</h1>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 md:pt-18 pb-5 min-h-[calc(100vh-120px)] sm:min-h-[calc(100vh-90px)]">
+      <div className="flex items-center justify-center h-14 mb-2">
+        <h1 className="text-3xl sm:text-4xl font-semibold text-primary">Collections</h1>
         {/* <div className="flex flex-wrap gap-3">
           <Link to="/best-sellers" className={`inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-semibold transition ${isBest ? 'border border-[#1a1a1a] bg-[#1a1a1a] text-white' : 'border border-[#1a1a1a] bg-white text-[#1a1a1a] hover:bg-[#f5e9e5]'}`}>
             Best Sellers
@@ -199,7 +199,7 @@ export default function ProductsPage() {
       </div>
 
       {!loading && !error && (
-        <div className="mb-8" ref={dropdownRef}>
+        <div className="mb-6" ref={dropdownRef}>
           {/* <div className="bg-white rounded-2xl shadow-sm p-4">
             <div className="flex flex-col sm:flex-row sm:items-center gap-2">
               <select
@@ -240,8 +240,7 @@ export default function ProductsPage() {
             </div>
             <div className="mt-4 sm:hidden text-sm text-gray-600">Showing {visibleProducts.length} of {filteredAndSortedProducts.length} products</div>
           </div> */}
-          <div className="hidden sm:block text-sm text-gray-600 font-semibold text-[#D9B3AF] text-end">{filteredAndSortedProducts.length} products</div>
-
+          <div className="text-sm text-gray-600 font-semibold text-[#D9B3AF] text-right">{filteredAndSortedProducts.length} products</div>
         </div>
       )}
 
@@ -260,7 +259,7 @@ export default function ProductsPage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
             {visibleProducts.map((product) => (
               <ProductCard
                 key={product.id}
@@ -276,7 +275,7 @@ export default function ProductsPage() {
           )}
 
           {!loading && !error && hasMore && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6 mt-6">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6 mt-6">
               {Array.from({ length: INITIAL_COUNT }).map((_, i) => (
                 <SkeletonCard key={i} />
               ))}

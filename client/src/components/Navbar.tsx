@@ -115,7 +115,7 @@ export default function Navbar({ menuOpen, setMenuOpen, cartCount, user, bump, i
               <img
                 src="/halley-comet-logo.png"
                 alt="Halley Comet"
-                className="h-18 w-auto object-contain"
+                className="h-16 sm:h-[86px] w-auto object-contain"
                 style={{ maxWidth: '160px' }}
               />
             </Link>

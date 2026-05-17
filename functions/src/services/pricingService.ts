@@ -1,9 +1,10 @@
+import {logger} from "firebase-functions";
 import {db} from "../config/firebase";
 import type {CreateOrderBody} from "../types/order";
 
 // ── Pricing constants (must stay in sync with client/src/utils/priceLevel.ts) ─
-export const TAX_RATE = 0.18; // 18% GST
-export const SHIPPING_FEE = 49; // flat ₹49
+export const TAX_RATE = 0; // 18% GST
+export const SHIPPING_FEE = 100; // flat ₹49
 export const FREE_SHIPPING = 999; // free above this subtotal
 export const MAX_QTY_PER_ITEM = 10;
 
@@ -78,9 +79,9 @@ export async function calculateOrderPricing(
 
   const subtotal = parseFloat(pricedItems.reduce((acc, i) => acc + i.total, 0).toFixed(2));
   const taxAmount = parseFloat((subtotal * TAX_RATE).toFixed(2));
-  const shippingFee = subtotal >= FREE_SHIPPING ? 0 : SHIPPING_FEE;
+  const shippingFee = SHIPPING_FEE;
   const discount = 0; // future: apply coupon logic here
   const totalAmount = parseFloat((subtotal + taxAmount + shippingFee - discount).toFixed(2));
-
+  logger.info("total amoun tis: ", totalAmount);
   return {items: pricedItems, subtotal, taxAmount, shippingFee, discount, totalAmount};
 }

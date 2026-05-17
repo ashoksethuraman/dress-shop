@@ -1,6 +1,6 @@
 // ── Pricing constants — must stay in sync with functions/src/services/pricingService.ts ──
-export const TAX_RATE      = 0.18;  // 18% GST
-export const SHIPPING_FEE  = 49;    // flat ₹49
+export const TAX_RATE      = 0;  // 18% GST
+export const SHIPPING_FEE  = 100;    // flat ₹49
 export const FREE_SHIPPING = 999;   // free above this subtotal
 
 /** Compute the same totals the server will calculate. */

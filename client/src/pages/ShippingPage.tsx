@@ -72,9 +72,9 @@ export default function ShippingPage() {
   }
 
   return (
-    <div className="bg-bg">
+    <div className="bg-bg pt-20 md:pt-20">
       {/* Page header */}
-      <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 pt-6 pb-2">
+      <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 pb-2">
         <div className="flex items-center gap-3">
           <FiTruck size={22} className="text-brand-dark" />
           <h1 className="text-2xl font-bold text-gray-900 font-display">Shipping / Tracking</h1>
@@ -113,6 +113,34 @@ export default function ShippingPage() {
               <FiAlertCircle size={14} /> {error}
             </p>
           )}
+        </div>
+
+        {/* Customer Information Message */}
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 rounded-xl shadow-sm px-6 py-5 mb-6">
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 mt-0.5">
+              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                <FiInfo className="text-blue-600" size={20} />
+              </div>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-gray-800 mb-2 font-display">
+                Dear Customer,
+              </h3>
+              <p className="text-gray-700 leading-relaxed mb-2">
+                Tracking details will be shared with you once your order has been shipped.
+              </p>
+              <p className="text-gray-800 font-semibold flex items-center gap-2">
+                <FiCheckCircle className="text-green-500" size={16} />
+                Thank you for choosing us!
+              </p>
+            </div>
+            <div className="flex-shrink-0 hidden sm:block">
+              <div className="w-12 h-12 rounded-full bg-blue-100 bg-opacity-50 flex items-center justify-center">
+                <FiPackage className="text-blue-400" size={24} />
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* ── Results ── */}

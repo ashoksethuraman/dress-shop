@@ -41,11 +41,15 @@ const region = 'asia-south1';
 
 const isDev = process.env.NODE_ENV === 'development';
 
-const useEmulator =
-  process.env.REACT_APP_USE_EMULATOR === 'true' && isDev;
+const useEmulator = process.env.REACT_APP_USE_EMULATOR === 'true' && isDev;
+// DEV purpose  local should be enable:
+// export const API_BASE_URL = useEmulator
+//   ? '/api'
+//   : `https://${region}-${projectId}.cloudfunctions.net/api`;
 
 // Always use relative path - Firebase Hosting rewrites /api/** to Cloud Functions
-// This ensures same-origin requests so cookies work properly
+// This ensures same-origin requests so cookies work properly 
+// prod should be enable
 export const API_BASE_URL = '/api';
 
 /* =========================================================
@@ -387,4 +391,50 @@ export const adminUsersApi = {
       targetUid,
       isAdmin,
     }),
+};
+
+/* CONFIG API */
+export interface SiteConfig {
+  homeBanner: {
+    imageName: string;
+    imageUrl: string;
+    uploadedAt: any;
+    uploadedBy: string;
+  } | null;
+}
+
+export const configApi = {
+  getSettings: () =>
+    apiClient.get<SiteConfig>('config/settings'),
+
+  uploadHomeBanner: (base64: string) =>
+    apiClient.post<{ url: string }>('config/upload-home-banner', { base64 }),
+
+  deleteHomeBanner: () =>
+    apiClient.delete<{ success: boolean }>('config/home-banner'),
+};
+
+/* CONTACT API */
+export interface ContactInfo {
+  tradeName: string;
+  brandName: string;
+  address: string;
+  phone: string;
+  email: string;
+  operatingHours: string;
+  mapUrl: string;
+  socialMedia: {
+    facebook: string;
+    instagram: string;
+    twitter: string;
+    whatsapp: string;
+  };
+}
+
+export const contactApi = {
+  get: () =>
+    apiClient.get<ContactInfo>('config/contact'),
+
+  update: (info: ContactInfo) =>
+    apiClient.put<ContactInfo>('config/contact', info),
 };

@@ -13,6 +13,7 @@ import {ordersRouter} from "./routes/orders";
 import {paymentsRouter, razorpayWebhookHandler} from "./routes/payments";
 import {imagesRouter} from "./routes/images";
 import {usersRouter} from "./routes/users";
+import {configRouter} from "./routes/config";
 
 const app = express();
 
@@ -50,6 +51,7 @@ app.use("/api/orders", ordersRouter);
 app.use("/api/payments", paymentsRouter);
 app.use("/api/images", imagesRouter);
 app.use("/api/users", usersRouter);
+app.use("/api/config", configRouter);
 
 // -------------------- 404 HANDLER --------------------
 app.use((_req: Request, res: Response) => {

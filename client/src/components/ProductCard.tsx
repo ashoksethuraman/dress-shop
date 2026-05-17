@@ -178,12 +178,12 @@ export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
       </div>
 
       {/* Content ~35% */}
-      <div className="px-3 pt-2.5 pb-3 flex flex-col gap-1">
+      <div className="px-2 sm:px-3 pt-2 sm:pt-2.5 pb-2 sm:pb-3 flex flex-col gap-0.5 sm:gap-1">
 
-        <h4 className="font-semibold text-sm text-primary leading-snug truncate">{p.title}</h4>
+        <h4 className="font-semibold text-xs sm:text-sm text-primary leading-snug truncate">{p.title}</h4>
 
         {/* Category + sizes */}
-        <div className="flex items-center gap-1 flex-wrap">
+        <div className="flex items-center gap-0.5 sm:gap-1 flex-wrap">
           {p.category && (
             <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold capitalize shrink-0 ${
               p.category === 'women' ? 'bg-pink-50 text-pink-500' : 'bg-blue-50 text-blue-500'
@@ -223,18 +223,20 @@ export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
 
         {/* Price + action icons */}
         <div className="flex items-center justify-between mt-0.5">
-          <span className="font-bold text-accent text-sm leading-none">&#8377;{p.price.toFixed(0)}</span>
+          <span className="font-bold text-accent text-xs sm:text-sm leading-none">
+            &#8377;{p.price.toFixed(0)} <span className="text-[9px] text-gray-500 font-normal">(GST incl.)</span>
+          </span>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1 sm:gap-1.5">
             {/* Admin edit button */}
             {currentIsAdmin && (
-              <div className="mr-1">
+              <div className="mr-0.5 sm:mr-1">
                 <button
                   onClick={() => navigate(`/admin/product/${p.id}`)}
                   title="Edit product"
-                  className="flex items-center justify-center w-8 h-8 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                  className="flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
                 >
-                   <FiEdit2 size={14} className={wishlisted ? 'fill-rose-500' : ''} />
+                   <FiEdit2 size={12} className={wishlisted ? 'fill-rose-500' : ''} />
                 </button>
               </div>
             )}
@@ -242,13 +244,13 @@ export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
             <div className="relative group/wish">
               <button
                 onClick={() => dispatch(toggleWishlist(p.id))}
-                className={`flex items-center justify-center w-8 h-8 !rounded-full border transition-colors ${
+                className={`flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 !rounded-full border transition-colors ${
                   wishlisted
                     ? 'bg-rose-50 border-rose-300 text-rose-500'
                     : 'border-gray-200 text-gray-400 hover:border-rose-300 hover:text-rose-400'
                 }`}
               >
-                <FiHeart size={14} className={wishlisted ? 'fill-rose-500' : ''} />
+                <FiHeart size={12} className={wishlisted ? 'fill-rose-500' : ''} />
               </button>
               <span className="pointer-events-none absolute bottom-full right-0 mb-1.5 whitespace-nowrap rounded bg-gray-800 px-2 py-1 text-xs text-white opacity-0 group-hover/wish:opacity-100 transition-opacity z-20">
                 {wishlisted ? 'Remove wishlist' : 'Wishlist'}
@@ -260,7 +262,7 @@ export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
               <button
                 onClick={handleAddToCart}
                 disabled={isOutOfStock}
-                className={`flex items-center justify-center w-8 h-8 !rounded-full border transition-all ${
+                className={`flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 !rounded-full border transition-all ${
                   isOutOfStock
                     ? 'border-gray-200 text-gray-300 cursor-not-allowed'
                     : adding
@@ -268,7 +270,7 @@ export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
                     : 'bg-brand-dark border-brand-dark text-white hover:bg-brand-hover'
                 }`}
               >
-                {adding ? <FiCheck size={14} /> : <FiShoppingCart size={14} />}
+                {adding ? <FiCheck size={12} /> : <FiShoppingCart size={12} />}
               </button>
               <span className="pointer-events-none absolute bottom-full right-0 mb-1.5 whitespace-nowrap rounded bg-gray-800 px-2 py-1 text-xs text-white opacity-0 group-hover/cart:opacity-100 transition-opacity z-20">
                 {isOutOfStock ? 'Out of stock' : 'Add to cart'}

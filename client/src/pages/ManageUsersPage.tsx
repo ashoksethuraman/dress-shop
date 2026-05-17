@@ -170,7 +170,7 @@ export default function ManageUsersPage() {
   const canActivate   = selectedCount > 0 && Array.from(selected).some((id) => !users.find((u) => u.id === id)?.isActive);
 
   return (
-    <div className="max-w-6xl g-white mx-auto px-6 sm:px-8 lg:px-12 py-6">
+    <div className="max-w-6xl g-white mx-auto px-6 sm:px-8 lg:px-12 pb-3 pt-20 md:pt-20">
       <div className="max-w-6xl mx-auto">
 
         {/* ── Header ── */}

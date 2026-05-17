@@ -84,7 +84,7 @@ export default function MyOrdersPage() {
   if (!user || user.isGuest) return null;
 
   return (
-    <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 py-6">
+    <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 pt-20 md:pt-20 ">
 
       {/* ── Page header ── */}
       <div className="flex flex-wrap items-start justify-between gap-3 mb-6">

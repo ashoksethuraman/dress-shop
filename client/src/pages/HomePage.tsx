@@ -36,7 +36,6 @@ export default function HomePage() {
   const announceItems = [
     'Limited Stock Available',
     'Loved by 1000+ Women',
-    'Free Shipping on all orders',
     '10% Off on your first order',
     'PAN India Shipping',
   ];
@@ -53,7 +52,7 @@ export default function HomePage() {
               </p>
               <div className="mt-6 sm:mt-8  flex flex-col gap-3 sm:gap-4 items-center md:items-start">
                 <Link
-                  to="/products"
+                  to="/collections"
                   className="inline-flex items-center justify-center !rounded-md bg-[#1a1a1a] px-7 py-3.5 text-sm font-semibold text-white shadow-lg transition hover:bg-[#333333] w-64 sm:w-auto"
                 >
                   Explore Now
@@ -100,7 +99,7 @@ export default function HomePage() {
         </div>
 
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {Array.from({ length: 4 }).map((_, index) => (
               <ProductPlaceholder key={index} />
             ))}
@@ -139,7 +138,7 @@ export default function HomePage() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {featuredBestSellers.map((product) => (
                 <ProductCard key={product.id} product={product} />
               ))}
@@ -160,14 +159,14 @@ export default function HomePage() {
         <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12">
           <div className="text-center mb-10">
             {/* <p className="text-sm uppercase tracking-[0.25em] text-[#8e6c69]">Featured collection</p> */}
-            <h2 className="mt-3 text-3xl sm:text-4xl font-bold">Our Products</h2>
+            <h2 className="text-3xl sm:text-4xl font-bold">Our Products</h2>
             <p className="mt-3 text-sm sm:text-base text-[#5f5f5f] max-w-2xl mx-auto">
               Explore a broader range of styles and everyday essentials from our dress shop.
             </p>
           </div>
 
           {loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {Array.from({ length: 4 }).map((_, index) => (
                 <ProductPlaceholder key={index} />
               ))}
@@ -200,7 +199,7 @@ export default function HomePage() {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {featuredProducts.map((product) => (
                   <ProductCard key={product.id} product={product} />
                 ))}

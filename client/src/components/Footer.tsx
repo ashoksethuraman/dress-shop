@@ -1,18 +1,41 @@
 import { useState, useEffect } from 'react';
 import { Link } from "react-router-dom";
-import { FaWhatsapp, FaInstagram, FaFacebook } from "react-icons/fa";
+import { FaWhatsapp, FaInstagram, FaFacebook, FaTwitter } from "react-icons/fa";
+import { contactApi } from '../services/apiClient';
 
 export default function Footer() {
     const [isVisible, setIsVisible] = useState(false);
+    const [socialUrls, setSocialUrls] = useState({
+        whatsapp: 'https://wa.me/xxxxxxxxxx',
+        instagram: 'https://instagram.com/yourbrand',
+        facebook: 'https://facebook.com/yourbrand',
+        twitter: 'https://twitter.com/yourbrand'
+    });
 
     useEffect(() => {
         // Wait for page content to stabilize before showing footer
-        // Use a longer delay and check if document is ready
         const timer = setTimeout(() => {
             setIsVisible(true);
-        }, 800); // Increased delay to 800ms
+        }, 800);
 
         return () => clearTimeout(timer);
+    }, []);
+
+    useEffect(() => {
+        // Fetch social media URLs from database
+        contactApi.get()
+            .then(data => {
+                setSocialUrls({
+                    whatsapp: data.socialMedia.whatsapp || 'https://wa.me/xxxxxxxxxx',
+                    instagram: data.socialMedia.instagram || 'https://instagram.com/yourbrand',
+                    facebook: data.socialMedia.facebook || 'https://facebook.com/yourbrand',
+                    twitter: data.socialMedia.twitter || 'https://twitter.com/yourbrand'
+                });
+            })
+            .catch((err) => {
+                console.error('Failed to load social media URLs:', err);
+                // Keep fallback URLs on error
+            });
     }, []);
 
     return (
@@ -101,17 +124,41 @@ export default function Footer() {
                     flex items-center justify-between">
 
                     <div className="flex gap-6 text-xl">
-                        <a href="https://wa.me/xxxxxxxxxx" target="_blank" rel="noreferrer"
-                            className="hover:text-[#25D366] transition">
+                        <a 
+                            href={socialUrls.whatsapp.startsWith('http') ? socialUrls.whatsapp : `https://wa.me/${socialUrls.whatsapp}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="hover:text-[#25D366] transition"
+                            title="WhatsApp"
+                        >
                             <FaWhatsapp />
                         </a>
-                        <a href="https://instagram.com/yourbrand" target="_blank" rel="noreferrer"
-                            className="hover:text-pink-400 transition">
+                        <a 
+                            href={socialUrls.instagram} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="hover:text-pink-400 transition"
+                            title="Instagram"
+                        >
                             <FaInstagram />
                         </a>
-                        <a href="https://facebook.com/yourbrand" target="_blank" rel="noreferrer"
-                            className="hover:text-blue-400 transition">
+                        <a 
+                            href={socialUrls.facebook} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="hover:text-blue-400 transition"
+                            title="Facebook"
+                        >
                             <FaFacebook />
+                        </a>
+                        <a 
+                            href={socialUrls.twitter} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="hover:text-[#1DA1F2] transition"
+                            title="Twitter"
+                        >
+                            <FaTwitter />
                         </a>
                     </div>
 
