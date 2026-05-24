@@ -61,14 +61,30 @@ export async function checkBannerImage(file: File): Promise<void> {
  * Uploads a home banner image
  */
 export async function uploadHomeBanner(file: File): Promise<string> {
+  console.log('[uploadHomeBanner] Starting upload', {
+    fileName: file.name,
+    fileType: file.type,
+    fileSize: file.size,
+  });
+
   // Validate image first
   await checkBannerImage(file);
 
   // Convert to base64
   const base64 = await fileToBase64(file);
+  
+  console.log('[uploadHomeBanner] Base64 conversion complete', {
+    base64Length: base64.length,
+    base64Prefix: base64.substring(0, 100),
+  });
 
   // Upload via API
   const response = await apiClient.post<{ bannerImage: string }>('config', { base64 });
+  
+  console.log('[uploadHomeBanner] Upload successful', {
+    bannerUrl: response.bannerImage,
+  });
+  
   return response.bannerImage;
 }
 

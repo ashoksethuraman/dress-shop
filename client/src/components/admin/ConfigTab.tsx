@@ -37,7 +37,13 @@ export default function ConfigTab() {
     };
   }, [preview]);
 
-  const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp'];
+  const ALLOWED_MIME = [
+    'image/jpeg',
+    'image/jpg',    // Non-standard but commonly used
+    'image/pjpeg',  // Progressive JPEG (older browsers)
+    'image/png',
+    'image/webp'
+  ];
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -47,7 +53,10 @@ export default function ConfigTab() {
 
     // Validate file type
     if (!ALLOWED_MIME.includes(file.type)) {
-      setUploadError(`"${file.name}" is not allowed. Only JPEG, PNG, and WebP images are accepted.`);
+      setUploadError(
+        `"${file.name}" was rejected (detected type: "${file.type || 'unknown'}"). ` +
+        `Only JPEG, PNG, and WebP images are accepted.`
+      );
       e.target.value = '';
       return;
     }

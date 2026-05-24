@@ -10,16 +10,6 @@ import {validateHomeBannerUpload} from "../validators/configValidators";
 export const configRouter = Router();
 
 /**
- * Helper to extract extension from base64 data URL
- */
-function getExtension(base64: string): string {
-  if (base64.startsWith("image/jpeg") || base64.startsWith("image/jpg")) return "jpg";
-  if (base64.startsWith("image/png")) return "png";
-  if (base64.startsWith("image/webp")) return "webp";
-  return "jpg";
-}
-
-/**
  * Helper to generate random filename
  */
 function generateRandomFilename(ext: string): string {
@@ -66,39 +56,104 @@ configRouter.post(
   validate(validateHomeBannerUpload),
   async (req: Request, res: Response) => {
     try {
+      const requestId = uuidv4().substring(0, 8);
       const {base64} = req.body as {base64: string};
 
-      // Extract base64 data from data URL format: data:image/...;base64,DATA
-      let base64Data: string;
-      const dataUrlMatch = base64.match(/^data:image\/[^;]+;base64,(.+)$/);
+      logger.info(`[POST /config:${requestId}] Banner upload request received`, {
+        userId: (req as any).user?.uid,
+        base64Length: base64?.length,
+        base64Prefix: base64?.substring(0, 100),
+      });
 
-      if (dataUrlMatch && dataUrlMatch[1]) {
-        base64Data = dataUrlMatch[1];
-      } else {
-        return res.status(400).json({error: "Invalid base64 format. Expected image/... format."});
+      // Validate base64 format
+      const dataUrlMatch = base64.match(/^data:image\/(jpeg|jpg|png|webp);base64,(.+)$/i);
+
+      logger.info(`[POST /config:${requestId}] Regex match result`, {
+        matched: !!dataUrlMatch,
+        format: dataUrlMatch?.[1],
+        hasData: !!dataUrlMatch?.[2],
+      });
+
+      if (!dataUrlMatch || !dataUrlMatch[2]) {
+        const detectedPrefix = base64.substring(0, 50);
+        logger.error(`[POST /config:${requestId}] Invalid format after validation`, {
+          detectedPrefix,
+        });
+        return res.status(400).json({
+          error: `Unsupported image format. Only JPEG, PNG, and WebP are allowed. Detected: ${detectedPrefix}`,
+        });
       }
 
-      const buffer = Buffer.from(base64Data, "base64");
-      const ext = getExtension(base64);
+      const base64Data = dataUrlMatch[2];
+      const mimeType = dataUrlMatch[1];
+
+      // Convert base64 to buffer
+      let buffer: Buffer;
+      try {
+        buffer = Buffer.from(base64Data, "base64");
+      } catch (err) {
+        return res.status(400).json({error: "Invalid base64 data."});
+      }
+
+      // Validate buffer size (max 500KB for banner images)
+      const MAX_BUFFER_SIZE = 500 * 1024;
+      if (buffer.length > MAX_BUFFER_SIZE) {
+        return res.status(400).json({
+          error: `Image too large (${Math.round(buffer.length / 1024)} KB). Maximum allowed is 500 KB.`,
+        });
+      }
+
+      const ext = mimeType === "jpeg" || mimeType === "jpg" ? "jpg" : mimeType;
       const fileName = generateRandomFilename(ext);
       const objectPath = `config/banners/${fileName}`;
 
-      // Upload to Firebase Storage
+      // Upload to Firebase Storage (uses default bucket)
       const bucket = admin.storage().bucket();
       const file = bucket.file(objectPath);
       const downloadToken = uuidv4();
 
-      await file.save(buffer, {
-        metadata: {
-          contentType: `image/${ext}`,
-          firebaseStorageDownloadTokens: downloadToken,
-        },
+      logger.info(`[POST /config:${requestId}] Storage configuration`, {
+        bucketName: bucket.name,
+        objectPath: objectPath,
+        bufferSize: buffer.length,
+        contentType: `image/${ext}`,
       });
 
-      // Generate public URL
+      logger.info(`[POST /config:${requestId}] Uploading to bucket: ${bucket.name}, path: ${objectPath}`);
+
+      try {
+        await file.save(buffer, {
+          resumable: false,
+          contentType: `image/${ext}`,
+          metadata: {
+            cacheControl: "public,max-age=31536000,immutable",
+            firebaseStorageDownloadTokens: downloadToken,
+          },
+        });
+
+        // Verify file was actually uploaded
+        const [exists] = await file.exists();
+        if (!exists) {
+          logger.error(`[POST /config:${requestId}] File upload failed - file does not exist after save`);
+          throw new Error("File upload failed - file does not exist in storage");
+        }
+
+        logger.info(`[POST /config:${requestId}] File upload verified - exists in storage`);
+      } catch (uploadErr) {
+        logger.error(`[POST /config:${requestId}] Storage upload error`, {
+          error: uploadErr,
+          bucket: bucket.name,
+          path: objectPath,
+        });
+        throw new Error(`Storage upload failed: ${uploadErr instanceof Error ? uploadErr.message : String(uploadErr)}`);
+      }
+
+      // Generate public URL with correct Firebase Storage format
       const encodedPath = encodeURIComponent(objectPath);
-      const bucketName = bucket.name;
-      const publicUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodedPath}?alt=media&token=${downloadToken}`;
+      // Use bucket name directly without modification
+      const publicUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${downloadToken}`;
+
+      logger.info(`[POST /config] Generated banner URL: ${publicUrl}`);
 
       // Get current banner to delete old one
       const configDoc = await db.collection("config").doc("settings").get();
@@ -171,7 +226,7 @@ configRouter.delete(
 
       const filePath = decodeURIComponent(urlMatch[1]);
 
-      // Delete from storage
+      // Delete from storage (uses default bucket)
       const bucket = admin.storage().bucket();
       await bucket.file(filePath).delete();
 

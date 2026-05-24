@@ -126,7 +126,13 @@ export default function AddProductForm({ onAdded, productToEdit, onSaved }: Prop
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [title, productCode, description, shippingAndDelivery, exchangeAndReturns, price, JSON.stringify(sizeInventory), previews.length, existingImages.length, submitted, stockMode]);
 
-  const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp'];
+  const ALLOWED_MIME = [
+    'image/jpeg',
+    'image/jpg',    // Non-standard but commonly used
+    'image/pjpeg',  // Progressive JPEG (older browsers)
+    'image/png',
+    'image/webp'
+  ];
 
   const handleImages = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -135,7 +141,10 @@ export default function AddProductForm({ onAdded, productToEdit, onSaved }: Prop
 
     const badType = files.find((f) => !ALLOWED_MIME.includes(f.type));
     if (badType) {
-      setUploadError(`"${badType.name}" is not allowed. Only JPEG, PNG, and WebP images are accepted.`);
+      setUploadError(
+        `"${badType.name}" was rejected (detected type: "${badType.type || 'unknown'}"). ` +
+        `Only JPEG, PNG, and WebP images are accepted.`
+      );
       e.target.value = '';
       return;
     }
@@ -181,7 +190,10 @@ export default function AddProductForm({ onAdded, productToEdit, onSaved }: Prop
     setUploadError(null);
 
     if (!ALLOWED_MIME.includes(file.type)) {
-      setUploadError(`"${file.name}" is not allowed. Only JPEG, PNG, and WebP images are accepted.`);
+      setUploadError(
+        `"${file.name}" was rejected (detected type: "${file.type || 'unknown'}"). ` +
+        `Only JPEG, PNG, and WebP images are accepted.`
+      );
       e.target.value = '';
       return;
     }

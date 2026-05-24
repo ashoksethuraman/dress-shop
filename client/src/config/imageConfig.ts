@@ -21,7 +21,7 @@ export function resolveImageUrl(imageValue: string): string {
   const query = qIdx >= 0 ? val.slice(qIdx + 1) : '';
 
   // For storage object names (folder/object), Firebase expects the object name to be URL-encoded
-  if (path.startsWith('products') || path.startsWith('size-charts')) {
+  if (path.startsWith('products') || path.startsWith('size-charts') || path.startsWith('config/banners')) {
     const encodedPath = encodeURIComponent(path);
     return `${IMAGE_STORAGE_URL}${encodedPath}${query ? `?${query}` : ''}`;
   }

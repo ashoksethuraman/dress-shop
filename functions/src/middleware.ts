@@ -27,6 +27,8 @@ declare global {
 
 const ALLOWED_ORIGINS = [
   "http://localhost:3000",
+  "https://halleycomet.in",
+  "https://www.halleycomet.in",
   "https://halleycomet-7cd48.web.app",
   "https://halleycomet-7cd48.firebaseapp.com",
   `https://${process.env.GCLOUD_PROJECT}.web.app`,
@@ -250,43 +252,27 @@ function verifyJwt(token: string): AuthUserPayload | null {
 ========================================================= */
 
 export function authenticate(req: Request, res: Response, next: NextFunction): void {
-  logger.info("=== AUTHENTICATION START ===");
-  logger.info("Request URL:", req.originalUrl);
-  logger.info("Request Method:", req.method);
-
-  // Step 1 — Read session cookie
+  // Read session cookie or Authorization header
   const sessionCookie =
     (req.cookies as Record<string, string | undefined>)["__session"];
-  logger.info("Step 1: Session cookie (__session):", sessionCookie);
-
-  // Step 2 — Read Authorization header
   const header = req.headers.authorization ?? "";
-  logger.info("Step 2: Authorization header:", header);
-
-  // Step 3 — Choose which token to use
   const token = sessionCookie ?? (header.startsWith("Bearer ") ? header.slice(7) : null);
-  logger.info("Step 3: Extracted Token:", token);
 
-  // Step 4 — Validate token presence
   if (!token) {
-    logger.error("Step 4 FAIL: No token provided. Returning 401.");
+    logger.warn("[AUTH] No token provided", {path: req.path});
     res.status(401).json({error: "Authentication required."});
     return;
   }
 
-  // Step 5 — Verify JWT
   const decoded = verifyJwt(token);
   if (!decoded) {
-    logger.error("Step 5 FAIL: Invalid or expired token. Returning 401.");
+    logger.warn("[AUTH] Invalid or expired token", {path: req.path});
     res.status(401).json({error: "Invalid or expired token."});
     return;
   }
 
-  // Step 6 — Success
-  logger.info("Step 6 SUCCESS: JWT decoded:", decoded);
   req.user = decoded;
-
-  logger.info("=== AUTHENTICATION COMPLETE ===");
+  logger.debug("[AUTH] User authenticated", {uid: decoded.uid, role: decoded.role});
   next();
 }
 
@@ -303,17 +289,12 @@ export function optionalAuth(req: Request, _res: Response, next: NextFunction): 
 }
 
 export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
-  logger.info("[requireAdmin] req.user =", {
-    user: req.user,
-  });
-  console.log("[requireAdmin] req.user =", req.user);
-
   if (!req.user || req.user.role !== "admin") {
-    logger.warn("[requireAdmin] blocked access", {
-      user: req.user,
-      reason: "not admin or missing user",
+    logger.warn("[requireAdmin] Access denied", {
+      uid: req.user?.uid,
+      role: req.user?.role,
+      path: req.path,
     });
-
     res.status(403).json({error: "Admin access required."});
     return;
   }

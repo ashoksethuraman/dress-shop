@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import ProductCard from '../components/ProductCard';
 import { useProducts } from '../hooks/useProducts';
 import { useDeleteProductMutation, useSearchProductsQuery } from '../store/apiSlice';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAppSelector } from '../store/hooks';
 import { FiTrendingUp, FiGrid, FiSearch } from 'react-icons/fi';
+import { getSiteConfig } from '../services/configService';
+import type { SiteConfig } from '../types/config';
 
 function ProductPlaceholder() {
   return (
@@ -23,12 +25,32 @@ export default function HomePage() {
   const { products, loading, error, refresh } = useProducts();
   const isAdmin = useAppSelector((s) => s.user.user?.isAdmin ?? false);
 
+  // Config state for banner image
+  const [config, setConfig] = useState<SiteConfig | null>(null);
+  const [configLoading, setConfigLoading] = useState(true);
+
+  // Fetch site configuration on mount
+  useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        const data = await getSiteConfig();
+        setConfig(data);
+      } catch (err) {
+        console.error('Failed to load config:', err);
+      } finally {
+        setConfigLoading(false);
+      }
+    };
+    loadConfig();
+  }, []);
+
   const allProducts = products ?? [];
   const bestSellers = [...allProducts]
     .filter((product) => (product.salesCount ?? 0) > 0)
     .sort((a, b) => (b.salesCount ?? 0) - (a.salesCount ?? 0));
 
-  const heroImage = '/assets/home-page-banner-image.jpg';
+  // Use uploaded banner if available, otherwise fallback to local asset
+  const heroImage = config?.bannerImage || '/assets/home-page-banner-image.jpg';
 
   const featuredBestSellers = bestSellers.length > 0 ? bestSellers.slice(0, 4) : allProducts.slice(0, 4);
   const featuredProducts = allProducts.slice(0, 4);
