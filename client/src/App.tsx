@@ -86,7 +86,7 @@ function AppLayout() {
   }, [cartCount]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-bg">
+    <div className="min-h-screen flex flex-col bg-bg overflow-x-hidden">
       {apiLoadingCount > 0 && <Loader fullPage />}
       <Navbar
         cartCount={cartCount}

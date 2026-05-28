@@ -1,5 +1,5 @@
 import express, {type Request, type Response, type NextFunction} from "express";
-import * as logger from "firebase-functions/logger";
+import {sanitizedLogger} from "./utils/logger";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
 // authenticate
@@ -39,7 +39,7 @@ app.use(globalLimiter);
 
 // -------------------- REQUEST LOGGER --------------------
 app.use((req: Request, _res: Response, next: NextFunction) => {
-  logger.debug("[app] Incoming request", {method: req.method, url: req.originalUrl, body: req.body});
+  sanitizedLogger.debug("[app] Incoming request", {method: req.method, url: req.originalUrl, body: req.body});
   next();
 });
 
@@ -53,15 +53,14 @@ app.use("/api/images", imagesRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/config", configRouter);
 
-// -------------------- 404 HANDLER --------------------
 app.use((_req: Request, res: Response) => {
-  logger.debug("[app] 404 Not Found", {method: _req.method, url: _req.originalUrl, body: _req.body});
+  sanitizedLogger.debug("[app] 404 Not Found", {method: _req.method, url: _req.originalUrl, body: _req.body});
   res.status(404).json({error: "Not found."});
 });
 
 // -------------------- ERROR HANDLER --------------------
 app.use((err: Error, _req: Request, res: Response) => {
-  logger.error("[app] Unhandled error", err);
+  sanitizedLogger.error("[app] Unhandled error", err);
   res.status(500).json({error: "Internal server error."});
 });
 

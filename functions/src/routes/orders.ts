@@ -163,6 +163,8 @@ ordersRouter.get("/track/:id", async (req, res) => {
     return res.json({
       id: snap.id,
       orderStatus: d.orderStatus,
+      billingAddress: d.billingAddress,
+      shippingAddress: d.shippingAddress,
       paymentStatus: d.paymentStatus,
       paymentMethod: d.paymentMethod,
       totalAmount: d.totalAmount,

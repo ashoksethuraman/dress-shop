@@ -7,6 +7,8 @@ type OrderSummaryItem = {
   title: string;
   price: number;
   qty: number;
+  size?: string | null;
+  ageSize?: string | null;
 };
 
 type OrderSummaryPanelProps = {
@@ -36,6 +38,12 @@ export default function OrderSummaryPanel({
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-gray-800 truncate">{it.title}</p>
+            {it.size && (
+              <p className="text-xs text-gray-500 mt-0.5">Size: {it.size}</p>
+            )}
+            {it.ageSize && (
+              <p className="text-xs text-gray-500 mt-0.5">Age: {it.ageSize} years</p>
+            )}
           </div>
           <p className="text-sm font-semibold text-gray-800">{formatPrice(it.price * it.qty)}</p>
         </div>

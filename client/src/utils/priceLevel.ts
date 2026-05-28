@@ -6,7 +6,7 @@ export const FREE_SHIPPING = 999;   // free above this subtotal
 /** Compute the same totals the server will calculate. */
 export function calcOrderTotals(subtotal: number) {
   const taxAmount   = parseFloat((subtotal * TAX_RATE).toFixed(2));
-  const shippingFee = subtotal >= FREE_SHIPPING ? 0 : SHIPPING_FEE;
+  const shippingFee = SHIPPING_FEE;
   const totalAmount = parseFloat((subtotal + taxAmount + shippingFee).toFixed(2));
   return { taxAmount, shippingFee, totalAmount };
 }

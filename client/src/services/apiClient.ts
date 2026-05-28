@@ -23,12 +23,14 @@ import {
 } from '../utils/apiTypes';
 
 import type { Product } from '../utils/types';
+import type { SiteConfig, ContactInfo } from '../types/config';
 
 /* =========================================================
    RE-EXPORTS
 ========================================================= */
 export type { SignupPayload, AuthUserInfo, AuthResponse, UserProfile };
 export type { ApiError };
+export type { ContactInfo };
 
 /* =========================================================
    CONFIG
@@ -394,43 +396,18 @@ export const adminUsersApi = {
 };
 
 /* CONFIG API */
-export interface SiteConfig {
-  homeBanner: {
-    imageName: string;
-    imageUrl: string;
-    uploadedAt: any;
-    uploadedBy: string;
-  } | null;
-}
-
 export const configApi = {
   getSettings: () =>
-    apiClient.get<SiteConfig>('config/settings'),
+    apiClient.get<SiteConfig>('config'),
 
   uploadHomeBanner: (base64: string) =>
-    apiClient.post<{ url: string }>('config/upload-home-banner', { base64 }),
+    apiClient.post<{ bannerImage: string }>('config', { base64 }),
 
   deleteHomeBanner: () =>
-    apiClient.delete<{ success: boolean }>('config/home-banner'),
+    apiClient.delete<{ success: boolean }>('config/banner'),
 };
 
 /* CONTACT API */
-export interface ContactInfo {
-  tradeName: string;
-  brandName: string;
-  address: string;
-  phone: string;
-  email: string;
-  operatingHours: string;
-  mapUrl: string;
-  socialMedia: {
-    facebook: string;
-    instagram: string;
-    twitter: string;
-    whatsapp: string;
-  };
-}
-
 export const contactApi = {
   get: () =>
     apiClient.get<ContactInfo>('config/contact'),

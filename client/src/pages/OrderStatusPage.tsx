@@ -76,6 +76,7 @@ function ItemRows({ items, compact }: { items: any[]; compact: boolean }) {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-gray-800 truncate">{it.title}</p>
             {it.size && <p className="text-xs text-gray-400 mt-0.5">Size: {it.size}</p>}
+            {it.ageSize && <p className="text-xs text-gray-400 mt-0.5">Age: {it.ageSize} years</p>}
             <p className="text-xs text-gray-500 mt-0.5">Qty: {it.qty} × ₹{Number(it.unitPrice ?? it.price ?? 0).toFixed(2)}</p>
           </div>
           <p className="text-sm font-bold text-gray-800 flex-shrink-0">₹{Number(it.total ?? (it.unitPrice ?? it.price ?? 0) * it.qty).toFixed(2)}</p>
@@ -197,7 +198,7 @@ function buildPdf({ order, isFailure, reason, paymentId, paymentMethod, placedOn
   tx('ITEM', L); tx('QTY', 125); tx('UNIT PRICE', 148); tx('TOTAL', R, 'right');
   ln(1); hr(210); sf(10); sc(30, 30, 30);
   order.items?.forEach((it: any) => {
-    const itemLabel = it.size ? `${it.title} (Size: ${it.size})` : it.title;
+    const itemLabel = it.size ? `${it.title} (Size: ${it.size})` : it.ageSize ? `${it.title} (Age: ${it.ageSize} years)` : it.title;
     const uPrice = Number(it.unitPrice ?? it.price ?? 0);
     const iTotal = Number(it.total ?? uPrice * it.qty);
     tx(itemLabel, L); tx(String(it.qty), 125);

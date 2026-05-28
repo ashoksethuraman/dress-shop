@@ -101,6 +101,7 @@ export function useCheckoutSubmit({
           title: i.title,
           qty: i.qty,
           size: i.size ?? null,
+          ageSize: i.ageSize ?? null,
         })),
         totalAmount: +total.toFixed(2),
       };
@@ -115,6 +116,7 @@ export function useCheckoutSubmit({
           title: i.title,
           qty: i.qty,
           size: i.size ?? null,
+          ageSize: i.ageSize ?? null,
           unitPrice: i.price,
           total: parseFloat((i.price * i.qty).toFixed(2)),
         })),

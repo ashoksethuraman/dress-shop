@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { FiMail, FiPhone, FiMapPin, FiClock, FiTag, FiInfo, FiEdit2, FiSave, FiX, FiFacebook, FiInstagram, FiTwitter, FiMessageCircle } from 'react-icons/fi';
+import { FiMail, FiPhone, FiMapPin, FiClock, FiTag, FiInfo, FiEdit2, FiSave, FiX, FiFacebook, FiInstagram, FiMessageCircle } from 'react-icons/fi';
+import { FaYoutube } from 'react-icons/fa';
 import { useSelector } from 'react-redux';
 import { RootState } from '../store';
 import { contactApi, ContactInfo } from '../services/apiClient';
@@ -21,7 +22,7 @@ export default function ContactUsPage() {
     socialMedia: {
       facebook: '',
       instagram: '',
-      twitter: '',
+      youtube: '',
       whatsapp: '',
     },
   });
@@ -82,11 +83,11 @@ export default function ContactUsPage() {
   };
 
   const handleInputChange = (field: keyof ContactInfo, value: string) => {
-    setEditForm(prev => ({ ...prev, [field]: value }));
+    setEditForm((prev: ContactInfo) => ({ ...prev, [field]: value }));
   };
 
   const handleSocialMediaChange = (platform: keyof ContactInfo['socialMedia'], value: string) => {
-    setEditForm(prev => ({
+    setEditForm((prev: ContactInfo) => ({
       ...prev,
       socialMedia: {
         ...prev.socialMedia,
@@ -444,28 +445,28 @@ export default function ContactUsPage() {
                 </div>
               </div>
 
-              {/* Twitter */}
+              {/* YouTube */}
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-sky-100 flex items-center justify-center flex-shrink-0">
-                  <FiTwitter size={16} className="text-sky-600" />
+                <div className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
+                  <FaYoutube size={16} className="text-red-600" />
                 </div>
                 <div className="flex-1">
                   {isEditing ? (
                     <input
                       type="text"
-                      value={editForm.socialMedia.twitter}
-                      onChange={(e) => handleSocialMediaChange('twitter', e.target.value)}
-                      placeholder="Twitter profile URL"
+                      value={editForm.socialMedia.youtube}
+                      onChange={(e) => handleSocialMediaChange('youtube', e.target.value)}
+                      placeholder="YouTube channel URL"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                     />
-                  ) : contactInfo.socialMedia.twitter ? (
+                  ) : contactInfo.socialMedia.youtube ? (
                     <a
-                      href={contactInfo.socialMedia.twitter}
+                      href={contactInfo.socialMedia.youtube}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-sm font-medium text-sky-600 hover:underline"
+                      className="text-sm font-medium text-red-600 hover:underline"
                     >
-                      Twitter
+                      YouTube
                     </a>
                   ) : (
                     <p className="text-sm text-gray-400">Not configured</p>

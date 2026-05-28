@@ -60,7 +60,7 @@ configRouter.post(
       const {base64} = req.body as {base64: string};
 
       logger.info(`[POST /config:${requestId}] Banner upload request received`, {
-        userId: (req as any).user?.uid,
+        userId: req.user?.uid,
         base64Length: base64?.length,
         base64Prefix: base64?.substring(0, 100),
       });

@@ -138,7 +138,7 @@ export default function CheckoutPage() {
           type="warning"
           title="Some items in your cart are unavailable"
           messages={(stockIssues as StockValidationIssue[]).map((i) => {
-            const s = i.size ? ` (Size ${i.size})` : '';
+            const s = i.size ? ` (Size ${i.size})` : i.ageSize ? ` (Age ${i.ageSize} years)` : '';
             if (i.reason === 'not_found')           return `"${i.title}"${s} is no longer available — please remove it from your cart.`;
             if (i.reason === 'size_unavailable')    return `"${i.title}"${s} is not available anymore — please choose another size.`;
             if (i.reason === 'insufficient_stock')  return `"${i.title}"${s} has only ${i.availableQty ?? 0} left, but your cart has ${i.requestedQty ?? 0}.`;

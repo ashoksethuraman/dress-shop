@@ -7,7 +7,7 @@
  * @param obj - The object to sanitize
  * @returns A sanitized copy of the object
  */
-function sanitize(obj: any): any {
+function sanitize(obj: unknown): unknown {
   if (!obj || typeof obj !== "object") {
     return obj;
   }
@@ -22,12 +22,16 @@ function sanitize(obj: any): any {
     "authorization",
   ];
 
-  const sanitized = Array.isArray(obj) ? [...obj] : {...obj};
+  if (Array.isArray(obj)) {
+    return obj.map((item) => sanitize(item));
+  }
+
+  const sanitized: Record<string, unknown> = {...obj as Record<string, unknown>};
 
   for (const key in sanitized) {
     if (Object.prototype.hasOwnProperty.call(sanitized, key)) {
       const lowerKey = key.toLowerCase();
-      
+
       // Check if the key contains any sensitive field name
       if (sensitiveFields.some((field) => lowerKey.includes(field.toLowerCase()))) {
         sanitized[key] = "[REDACTED]";
@@ -50,7 +54,7 @@ export const sanitizedLogger = {
    * @param message - The message to log
    * @param data - Optional data to log (will be sanitized)
    */
-  debug(message: string, data?: any): void {
+  debug(message: string, data?: unknown): void {
     if (data) {
       console.log(`[DEBUG] ${message}`, sanitize(data));
     } else {
@@ -63,7 +67,7 @@ export const sanitizedLogger = {
    * @param message - The message to log
    * @param data - Optional data to log (will be sanitized)
    */
-  info(message: string, data?: any): void {
+  info(message: string, data?: unknown): void {
     if (data) {
       console.log(`[INFO] ${message}`, sanitize(data));
     } else {
@@ -76,7 +80,7 @@ export const sanitizedLogger = {
    * @param message - The warning message
    * @param data - Optional data to log (will be sanitized)
    */
-  warn(message: string, data?: any): void {
+  warn(message: string, data?: unknown): void {
     if (data) {
       console.warn(`[WARN] ${message}`, sanitize(data));
     } else {
@@ -89,7 +93,7 @@ export const sanitizedLogger = {
    * @param message - The error message
    * @param error - The error object or data
    */
-  error(message: string, error?: any): void {
+  error(message: string, error?: unknown): void {
     if (error) {
       console.error(`[ERROR] ${message}`, sanitize(error));
     } else {

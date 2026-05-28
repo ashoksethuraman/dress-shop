@@ -17,7 +17,7 @@ export type RefundStatus = typeof REFUND_STATUSES[number];
 export const FAIL_REASONS = ["payment_dismissed", "payment_failed"] as const;
 export type FailReason = typeof FAIL_REASONS[number];
 
-export const PRODUCT_CATEGORIES = ["men", "women"] as const;
+export const PRODUCT_CATEGORIES = ["men", "women", "boys", "girls"] as const;
 export type ProductCategory = typeof PRODUCT_CATEGORIES[number];
 
 export const STOCK_STATUSES = ["available", "out_of_stock"] as const;

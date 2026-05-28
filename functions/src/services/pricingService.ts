@@ -15,6 +15,7 @@ export interface PricedItem {
   unitPrice: number;
   total: number;
   size: string | null;
+  ageSize: string | null;
 }
 
 export interface OrderPricing {
@@ -71,9 +72,14 @@ export async function calculateOrderPricing(
         item.size.trim() :
         null;
 
+    const ageSize =
+      typeof item.ageSize === "string" && item.ageSize.trim().length > 0 ?
+        item.ageSize.trim() :
+        null;
+
     pricedItems.push({
       productId: item.productId, title, qty: item.qty,
-      unitPrice, total: parseFloat((unitPrice * item.qty).toFixed(2)), size,
+      unitPrice, total: parseFloat((unitPrice * item.qty).toFixed(2)), size, ageSize,
     });
   }
 

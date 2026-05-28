@@ -50,11 +50,13 @@ productsRouter.get("/", async (req: Request, res: Response) => {
     const sortBy = typeof req.query.sortBy === "string" ? req.query.sortBy : undefined;
 
     // support server-side sorting. default: createdAt desc.
-    // client may pass: 'sales', 'name-asc', 'name-desc', 'price-asc', 'price-desc'
+    // client may pass: 'newest', 'sales', 'name-asc', 'name-desc', 'price-asc', 'price-desc'
     let baseQuery: FirebaseFirestore.Query = db.collection("products");
     let direction: FirebaseFirestore.OrderByDirection = "desc";
     if (typeof sortBy === "string") {
-      if (sortBy === "sales") {
+      if (sortBy === "newest") {
+        baseQuery = baseQuery.orderBy("createdAt", "desc");
+      } else if (sortBy === "sales") {
         baseQuery = baseQuery.orderBy("salesCount", "desc");
       } else if (sortBy.startsWith("price")) {
         direction = sortBy.endsWith("asc") ? "asc" : "desc";
@@ -185,6 +187,8 @@ productsRouter.post("/", authenticate, requireAdmin, validate(validateCreateProd
       // imagePaths,
       // imageNames,
       sizeInventory: body.sizeInventory ?? {},
+      ageSizes: body.ageSizes ?? [],
+      ageSizeInventory: body.ageSizeInventory ?? {},
       // image: images[0] ?? "",
       stock: body.stock ?? "available",
       sizeChart: body.sizeChart ?? null,
@@ -219,6 +223,8 @@ productsRouter.put("/:id", authenticate, requireAdmin, sanitizeParam("id"), vali
   }
   if (body.sizes !== undefined) updates.sizes = body.sizes;
   if (body.sizeInventory !== undefined) updates.sizeInventory = body.sizeInventory;
+  if (body.ageSizes !== undefined) updates.ageSizes = body.ageSizes;
+  if (body.ageSizeInventory !== undefined) updates.ageSizeInventory = body.ageSizeInventory;
   if (body.stock !== undefined) updates.stock = body.stock;
   if (body.sizeChart !== undefined) {
     const sizeChartRef = deriveSingleRef(body.sizeChart ?? null);

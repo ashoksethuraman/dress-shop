@@ -27,7 +27,7 @@ export default function WishlistPage() {
 
   return (
     <div className="h-full flex flex-col bg-gray-50">
-      <div className="max-w-6xl mx-auto w-full px-6 sm:px-8 lg:px-12 pt-4 pb-2">
+      <div className="max-w-6xl mx-auto w-full px-6 sm:px-8 lg:px-12 pt-8 pb-2">
 
         {/* Header */}
         <div className="flex items-center gap-3 mb-3 mt-2">

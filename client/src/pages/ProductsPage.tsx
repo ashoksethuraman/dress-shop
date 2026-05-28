@@ -6,7 +6,7 @@ import { useDeleteProductMutation } from '../store/apiSlice';
 import { useAppSelector } from '../store/hooks';
 import Loader from '../components/Loader';
 
-type SortOption = 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc';
+type SortOption = 'newest' | 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc';
 
 interface FilterState {
   availability: 'all' | 'available' | 'out_of_stock';
@@ -27,7 +27,7 @@ export default function ProductsPage() {
   // const isCollections = location.pathname === '/collections';
   const isAdmin = useAppSelector((s) => s.user.user?.isAdmin ?? false);
 
-  const [sortBy, setSortBy] = useState<SortOption>('name-asc');
+  const [sortBy, setSortBy] = useState<SortOption>('price-asc');
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -56,11 +56,10 @@ export default function ProductsPage() {
     return { min: Math.floor(Math.min(...prices)), max: Math.ceil(Math.max(...prices)) };
   }, [safeProducts]);
 
-  useEffect(() => {
-    if (safeProducts.length > 0 && filters.priceRange.max === 10000) {
-      setFilters(prev => ({ ...prev, priceRange: { min: priceRange.min, max: priceRange.max } }));
-    }
-  }, [safeProducts, priceRange.min, priceRange.max, filters.priceRange.max]);
+// NOTE: Do not auto-set `filters.priceRange` from the currently-fetched products.
+// Auto-setting here caused newly-fetched pages containing higher-priced items
+// to be excluded because the price filter was narrowed to the first page's range.
+// Keep the default broad range (0..10000) so pagination returns all items.
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -107,15 +106,18 @@ export default function ProductsPage() {
       const query = filters.searchQuery.toLowerCase();
       result = result.filter(p => p.title.toLowerCase().includes(query) || (p.description && p.description.toLowerCase().includes(query)));
     }
-    result.sort((a, b) => {
-      switch (sortBy) {
-        case 'name-asc': return a.title.localeCompare(b.title);
-        case 'name-desc': return b.title.localeCompare(a.title);
-        case 'price-asc': return a.price - b.price;
-        case 'price-desc': return b.price - a.price;
-        default: return 0;
-      }
-    });
+    // Only apply client-side sorting for options not handled by backend
+    if (sortBy !== 'newest') {
+      result.sort((a, b) => {
+        switch (sortBy) {
+          case 'name-asc': return a.title.localeCompare(b.title);
+          case 'name-desc': return b.title.localeCompare(a.title);
+          case 'price-asc': return a.price - b.price;
+          case 'price-desc': return b.price - a.price;
+          default: return 0;
+        }
+      });
+    }
     return result;
   }, [safeProducts, filters, sortBy]);
 
@@ -143,8 +145,8 @@ export default function ProductsPage() {
     filters.priceRange.min !== priceRange.min || filters.priceRange.max !== priceRange.max || (filters.category && filters.category !== 'all');
 
   const resetFilters = () => {
-    setFilters({ availability: 'all', priceRange: { min: priceRange.min, max: priceRange.max }, searchQuery: '', category: 'all' });
-    setSortBy('name-asc');
+    setFilters({ availability: 'all', priceRange: { min: 0, max: 10000 }, searchQuery: '', category: 'all' });
+    setSortBy('newest');
   };
 
   function extractStoragePath(url: string): string {

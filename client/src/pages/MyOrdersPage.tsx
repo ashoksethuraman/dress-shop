@@ -271,7 +271,7 @@ export default function MyOrdersPage() {
                       className="text-xs text-muted bg-brand rounded-full px-2.5 py-0.5 border border-brand-border/40"
                     >
                       {item.title} ×{item.qty}
-                      {item.size ? ` (${item.size})` : ''}
+                      {item.size ? ` (${item.size})` : item.ageSize ? ` (${item.ageSize} yrs)` : ''}
                     </span>
                   ))}
                   {order.items.length > 4 && (

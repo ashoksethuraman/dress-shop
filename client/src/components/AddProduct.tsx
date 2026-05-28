@@ -9,6 +9,7 @@ import { dressShopApi } from '../store/apiSlice';
 import AlertModal from './AlertModal';
 import Loader from './Loader';
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
+const AGE_SIZES = ['8-9', '9-10', '10-11', '11-12', '12-13', '13-14', '14-15', '15-16'];
 const MAX_IMAGES = 5;
 
 type Props = { onAdded?: () => void; productToEdit?: any; onSaved?: (id: string) => void };
@@ -71,8 +72,9 @@ export default function AddProductForm({ onAdded, productToEdit, onSaved }: Prop
   const [shippingAndDelivery, setShippingAndDelivery] = useState('');
   const [exchangeAndReturns, setExchangeAndReturns] = useState('');
   const [price, setPrice] = useState('');
-  const [category, setCategory] = useState<'men' | 'women'>('women');
+  const [category, setCategory] = useState<'men' | 'women' | 'boys' | 'girls'>('women');
   const [sizeInventory, setSizeInventory] = useState<Record<string, number>>({});
+  const [ageSizeInventory, setAgeSizeInventory] = useState<Record<string, number>>({});
   const [stockMode, setStockMode] = useState<'available' | 'out_of_stock'>('available');
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
@@ -106,6 +108,7 @@ export default function AddProductForm({ onAdded, productToEdit, onSaved }: Prop
     setPrice(productToEdit.price ? String(productToEdit.price) : '');
     setCategory(productToEdit.category ?? 'women');
     setSizeInventory(productToEdit.sizeInventory ?? {});
+    setAgeSizeInventory(productToEdit.ageSizeInventory ?? {});
     setStockMode(productToEdit.stock ?? 'available');
     setExistingImages(productToEdit.images ?? []);
     // sizeChart: resolve for display only (keep stored value unchanged)
@@ -122,9 +125,11 @@ export default function AddProductForm({ onAdded, productToEdit, onSaved }: Prop
   // Re-validate live once the user has hit submit once
   useEffect(() => {
     const totalImageCount = previews.length + existingImages.length;
-    if (submitted) setFieldErrors(validate(title, productCode, description, shippingAndDelivery, exchangeAndReturns, price, Object.keys(sizeInventory), totalImageCount, stockMode));
+    const isChildCategory = category === 'boys' || category === 'girls';
+    const sizesToValidate = isChildCategory ? Object.keys(ageSizeInventory) : Object.keys(sizeInventory);
+    if (submitted) setFieldErrors(validate(title, productCode, description, shippingAndDelivery, exchangeAndReturns, price, sizesToValidate, totalImageCount, stockMode));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, productCode, description, shippingAndDelivery, exchangeAndReturns, price, JSON.stringify(sizeInventory), previews.length, existingImages.length, submitted, stockMode]);
+  }, [title, productCode, description, shippingAndDelivery, exchangeAndReturns, price, category, JSON.stringify(sizeInventory), JSON.stringify(ageSizeInventory), previews.length, existingImages.length, submitted, stockMode]);
 
   const ALLOWED_MIME = [
     'image/jpeg',
@@ -223,6 +228,17 @@ export default function AddProductForm({ onAdded, productToEdit, onSaved }: Prop
   const setSizeQty = (s: string, qty: number) =>
     setSizeInventory((prev) => ({ ...prev, [s]: Math.max(0, qty) }));
 
+  const toggleAgeSize = (s: string) =>
+    setAgeSizeInventory((prev) => {
+      const next = { ...prev };
+      if (s in next) delete next[s];
+      else next[s] = 0;
+      return next;
+    });
+
+  const setAgeSizeQty = (s: string, qty: number) =>
+    setAgeSizeInventory((prev) => ({ ...prev, [s]: Math.max(0, qty) }));
+
   const removeImage = (i: number) => {
     // if removing from newly selected previews
     if (i < previews.length) {
@@ -303,7 +319,9 @@ export default function AddProductForm({ onAdded, productToEdit, onSaved }: Prop
     e.preventDefault();
     setSubmitted(true);
     const totalImageCount = previews.length + existingImages.length;
-    const errs = validate(title, productCode, description, shippingAndDelivery, exchangeAndReturns, price, Object.keys(sizeInventory), totalImageCount, stockMode);
+    const isChildCategory = category === 'boys' || category === 'girls';
+    const sizesToValidate = isChildCategory ? Object.keys(ageSizeInventory) : Object.keys(sizeInventory);
+    const errs = validate(title, productCode, description, shippingAndDelivery, exchangeAndReturns, price, sizesToValidate, totalImageCount, stockMode);
     setFieldErrors(errs);
     if (Object.keys(errs).length > 0) return;
     // Don't proceed if an upload error is still showing — user must dismiss it first
@@ -330,13 +348,21 @@ export default function AddProductForm({ onAdded, productToEdit, onSaved }: Prop
           exchangeAndReturns: exchangeAndReturns.trim(),
           price: Number(price),
           category,
-          sizes: Object.keys(sizeInventory),
-          sizeInventory,
           images: [...existingImages, ...(uploadedImages || [])],
           stock: stockValue,
           productCode: productCode.trim(),
           ...(uploadedSizeChart ? { sizeChart: uploadedSizeChart } : {}),
         };
+        
+        // Add appropriate size fields based on category
+        if (isChildCategory) {
+          payload.ageSizes = Object.keys(ageSizeInventory);
+          payload.ageSizeInventory = ageSizeInventory;
+        } else {
+          payload.sizes = Object.keys(sizeInventory);
+          payload.sizeInventory = sizeInventory;
+        }
+        
         await productsApi.update(productToEdit.id, payload);
         dispatch(dressShopApi.util.invalidateTags([
           { type: 'Product', id: 'LIST' },
@@ -346,20 +372,29 @@ export default function AddProductForm({ onAdded, productToEdit, onSaved }: Prop
         setSuccessInfo({ id: productToEdit.id, name: savedTitle });
         if (onSaved) onSaved(productToEdit.id);
       } else {
-        const res = await productsApi.add({
+        const payload: any = {
           title: savedTitle,
           description: description.trim(),
           shippingAndDelivery: shippingAndDelivery.trim(),
           exchangeAndReturns: exchangeAndReturns.trim(),
           price: Number(price),
           category,
-          sizes: Object.keys(sizeInventory),
-          sizeInventory,
           images: uploadedImages,
           stock: stockValue,
           productCode: productCode.trim(),
           ...(uploadedSizeChart ? { sizeChart: uploadedSizeChart } : {}),
-        });
+        };
+        
+        // Add appropriate size fields based on category
+        if (isChildCategory) {
+          payload.ageSizes = Object.keys(ageSizeInventory);
+          payload.ageSizeInventory = ageSizeInventory;
+        } else {
+          payload.sizes = Object.keys(sizeInventory);
+          payload.sizeInventory = sizeInventory;
+        }
+        
+        const res = await productsApi.add(payload);
         const addedId = res.id;
         // Bust RTK Query caches so public listing and admin view refresh immediately
         dispatch(dressShopApi.util.invalidateTags([
@@ -540,11 +575,11 @@ export default function AddProductForm({ onAdded, productToEdit, onSaved }: Prop
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
               Category <span className="text-red-400">*</span>
             </label>
-            <div className="flex gap-2 sm:gap-3">
-              {(['women', 'men'] as const).map((cat) => (
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+              {(['women', 'men', 'girls', 'boys'] as const).map((cat) => (
                 <label
                   key={cat}
-                  className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 rounded-xl border-2 cursor-pointer text-xs sm:text-sm font-semibold transition-all select-none flex-1 justify-center
+                  className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-xl border-2 cursor-pointer text-xs sm:text-sm font-semibold transition-all select-none justify-center
                   ${category === cat
                       ? 'border-brand-dark bg-brand text-brand-dark'
                       : 'border-gray-200 text-gray-500 hover:border-brand-dark'}`}
@@ -554,10 +589,18 @@ export default function AddProductForm({ onAdded, productToEdit, onSaved }: Prop
                     name="category"
                     value={cat}
                     checked={category === cat}
-                    onChange={() => setCategory(cat)}
+                    onChange={() => {
+                      setCategory(cat);
+                      // Clear size inventories when switching between adult and children categories
+                      if ((cat === 'boys' || cat === 'girls') && (category === 'men' || category === 'women')) {
+                        setSizeInventory({});
+                      } else if ((cat === 'men' || cat === 'women') && (category === 'boys' || category === 'girls')) {
+                        setAgeSizeInventory({});
+                      }
+                    }}
                     className="hidden"
                   />
-                  {cat === 'women' ? '👗 Women' : '👔 Men'}
+                  {cat === 'women' ? '👗 Women' : cat === 'men' ? '👔 Men' : cat === 'girls' ? '👧 Girls' : '👦 Boys'}
                 </label>
               ))}
             </div>
@@ -694,54 +737,114 @@ export default function AddProductForm({ onAdded, productToEdit, onSaved }: Prop
             </div>
           </div>
 
-          {/* Right — Sizes + Quantity */}
+          {/* Right — Sizes + Quantity (Conditional: Adult vs Children) */}
           <div className="flex flex-col gap-5">
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                Sizes <span className="text-red-400">*</span>
-                {Object.keys(sizeInventory).length > 0 && <span className="ml-1 text-brand-dark normal-case font-normal">({Object.keys(sizeInventory).join(', ')})</span>}
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {SIZES.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => toggleSize(s)}
-                    className={`w-11 h-11 rounded-xl border-2 text-xs font-bold transition-all
-                    ${s in sizeInventory
-                        ? 'border-brand-dark bg-brand-dark text-white shadow-sm'
-                        : fieldErrors.sizes
-                          ? 'border-red-300 text-red-400 hover:border-red-400'
-                          : 'border-gray-200 text-gray-600 hover:border-brand-dark hover:text-brand-dark'}`}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-              {errMsg(fieldErrors.sizes)}
-            </div>
-
-            {Object.keys(sizeInventory).length > 0 && (
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                  Quantity per Size
-                </label>
-                <div className="flex flex-wrap gap-5">
-                  {Object.keys(sizeInventory).map((sz) => (
-                    <div key={sz} className="flex flex-col items-center gap-1.5">
-                      <span className="text-xs font-bold text-brand-dark bg-brand border border-brand-border px-2.5 py-0.5 rounded-lg">{sz}</span>
-                      <input
-                        type="number"
-                        min={0}
-                        value={sizeInventory[sz]}
-                        onChange={(e) => setSizeQty(sz, parseInt(e.target.value) || 0)}
-                        className="w-16 text-center border border-gray-200 rounded-lg py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand bg-gray-50"
-                      />
-                    </div>
-                  ))}
+            {/* Adult Sizes (Men/Women) */}
+            {(category === 'men' || category === 'women') && (
+              <>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                    Sizes <span className="text-red-400">*</span>
+                    {Object.keys(sizeInventory).length > 0 && <span className="ml-1 text-brand-dark normal-case font-normal">({Object.keys(sizeInventory).join(', ')})</span>}
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {SIZES.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => toggleSize(s)}
+                        className={`w-11 h-11 rounded-xl border-2 text-xs font-bold transition-all
+                        ${s in sizeInventory
+                            ? 'border-brand-dark bg-brand-dark text-white shadow-sm'
+                            : fieldErrors.sizes
+                              ? 'border-red-300 text-red-400 hover:border-red-400'
+                              : 'border-gray-200 text-gray-600 hover:border-brand-dark hover:text-brand-dark'}`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                  {errMsg(fieldErrors.sizes)}
                 </div>
-                <p className="text-xs text-gray-400 mt-1.5">Set 0 if the size is out of stock.</p>
-              </div>
+
+                {Object.keys(sizeInventory).length > 0 && (
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                      Quantity per Size
+                    </label>
+                    <div className="space-y-2">
+                      {Object.keys(sizeInventory)
+                        .sort((a, b) => SIZES.indexOf(a) - SIZES.indexOf(b))
+                        .map((s) => (
+                          <div key={s} className="flex items-center gap-3">
+                            <span className="w-10 text-xs font-bold text-gray-700">{s}:</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={sizeInventory[s]}
+                              onChange={(e) => setSizeQty(s, Number(e.target.value))}
+                              className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-dark focus:border-brand-dark"
+                            />
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Age Sizes (Boys/Girls) */}
+            {(category === 'boys' || category === 'girls') && (
+              <>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                    Age Sizes (Years) <span className="text-red-400">*</span>
+                    {Object.keys(ageSizeInventory).length > 0 && <span className="ml-1 text-brand-dark normal-case font-normal">({Object.keys(ageSizeInventory).join(', ')})</span>}
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {AGE_SIZES.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => toggleAgeSize(s)}
+                        className={`min-w-[3.5rem] h-11 px-2 rounded-xl border-2 text-xs font-bold transition-all
+                        ${s in ageSizeInventory
+                            ? 'border-brand-dark bg-brand-dark text-white shadow-sm'
+                            : fieldErrors.sizes
+                              ? 'border-red-300 text-red-400 hover:border-red-400'
+                              : 'border-gray-200 text-gray-600 hover:border-brand-dark hover:text-brand-dark'}`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                  {errMsg(fieldErrors.sizes)}
+                </div>
+
+                {Object.keys(ageSizeInventory).length > 0 && (
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                      Quantity per Age Size
+                    </label>
+                    <div className="space-y-2">
+                      {Object.keys(ageSizeInventory)
+                        .sort((a, b) => AGE_SIZES.indexOf(a) - AGE_SIZES.indexOf(b))
+                        .map((s) => (
+                          <div key={s} className="flex items-center gap-3">
+                            <span className="w-14 text-xs font-bold text-gray-700">{s}:</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={ageSizeInventory[s]}
+                              onChange={(e) => setAgeSizeQty(s, Number(e.target.value))}
+                              className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-dark focus:border-brand-dark"
+                            />
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

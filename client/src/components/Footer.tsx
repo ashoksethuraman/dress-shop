@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from "react-router-dom";
-import { FaWhatsapp, FaInstagram, FaFacebook, FaTwitter } from "react-icons/fa";
+import { FaWhatsapp, FaInstagram, FaFacebook, FaYoutube } from "react-icons/fa";
 import { contactApi } from '../services/apiClient';
 
 export default function Footer() {
@@ -9,7 +9,7 @@ export default function Footer() {
         whatsapp: 'https://wa.me/xxxxxxxxxx',
         instagram: 'https://instagram.com/yourbrand',
         facebook: 'https://facebook.com/yourbrand',
-        twitter: 'https://twitter.com/yourbrand'
+        youtube: 'https://youtube.com/@yourbrand'
     });
 
     useEffect(() => {
@@ -29,7 +29,7 @@ export default function Footer() {
                     whatsapp: data.socialMedia.whatsapp || 'https://wa.me/xxxxxxxxxx',
                     instagram: data.socialMedia.instagram || 'https://instagram.com/yourbrand',
                     facebook: data.socialMedia.facebook || 'https://facebook.com/yourbrand',
-                    twitter: data.socialMedia.twitter || 'https://twitter.com/yourbrand'
+                    youtube: data.socialMedia.youtube || 'https://youtube.com/@yourbrand'
                 });
             })
             .catch((err) => {
@@ -93,7 +93,7 @@ export default function Footer() {
                 </div>
 
                 { /* UPDATED NEWSLETTER SECTION */}
-                <div className="flex flex-col items-center lg:items-start text-center md:text-left">
+                <div className="flex flex-col items-center lg:items-start text-center lg:text-left w-full">
                     <h3 className="text-lg font-semibold">Stay Updated</h3>
 
                     <p className="mt-4 text-sm text-[#d6c5be] max-w-xs leading-6">
@@ -101,17 +101,18 @@ export default function Footer() {
                     </p>
 
                     {/* RESPONSIVE INPUT + BUTTON */}
-                    <div
-                        className=" mt-6 w-full max-w-sm flex flex-col md:flex-row  items-center md:items-start  gap-3 " >
+                    <div className="mt-6 w-full max-w-sm flex flex-col sm:flex-row items-stretch gap-3">
                         {/* INPUT — full width always */}
                         <input
                             type="email"
                             placeholder="Enter your email"
-                            className=" w-full md:flex-1 rounded-md px-5 py-3 text-black focus:outline-none "/>
+                            className="w-full sm:flex-1 rounded-md px-4 py-3 text-sm text-black focus:outline-none focus:ring-2 focus:ring-white/30 transition-all"
+                        />
 
-                        {/* BUTTON — desktop inline, mobile centered below */}
+                        {/* BUTTON — desktop inline, mobile full width */}
                         <button
-                            className="bg-white text-black font-semibold px-6 py-3 rounded-full hover:bg-[#e8e8e8] transition md:ml-2  mx-auto md:mx-0 " >
+                            className="w-full sm:w-auto bg-white text-black font-semibold px-6 py-3 rounded-full hover:bg-[#e8e8e8] transition-all flex-shrink-0"
+                        >
                             Join
                         </button>
                     </div>
@@ -120,10 +121,8 @@ export default function Footer() {
 
             {/* SOCIAL ICONS */}
             <div className="border-t border-white/10 py-4">
-                <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 
-                    flex items-center justify-between">
-
-                    <div className="flex gap-6 text-xl">
+                <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 flex items-center justify-between flex-wrap gap-4">
+                    <div className="flex gap-4 sm:gap-6 text-lg sm:text-xl">
                         <a 
                             href={socialUrls.whatsapp.startsWith('http') ? socialUrls.whatsapp : `https://wa.me/${socialUrls.whatsapp}`} 
                             target="_blank" 
@@ -152,17 +151,15 @@ export default function Footer() {
                             <FaFacebook />
                         </a>
                         <a 
-                            href={socialUrls.twitter} 
+                            href={socialUrls.youtube} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="hover:text-[#1DA1F2] transition"
-                            title="Twitter"
+                            className="hover:text-[#FF0000] transition"
+                            title="YouTube"
                         >
-                            <FaTwitter />
+                            <FaYoutube />
                         </a>
                     </div>
-
-                    <div></div>
                 </div>
             </div>
 

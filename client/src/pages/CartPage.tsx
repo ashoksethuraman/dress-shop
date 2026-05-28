@@ -67,7 +67,7 @@ export default function CartPage() {
           {/* ══ LEFT: Item list ══ */}
           <div className="flex flex-col gap-4">
             {items.map((it) => {
-              const key = `${it.productId}-${it.size ?? 'none'}`;
+              const key = `${it.productId}-${it.size ?? it.ageSize ?? 'none'}`;
               return (
                 <div key={key} className="bg-white rounded-2xl px-4 py-4 shadow-sm">
                   {/* Row 1: thumbnail + info + remove */}
@@ -83,6 +83,11 @@ export default function CartPage() {
                             Size: {it.size}
                           </span>
                         )}
+                        {it.ageSize && (
+                          <span className="text-xs bg-sky-50 text-sky-600 border border-sky-200 font-semibold px-2 py-0.5 rounded">
+                            Age: {it.ageSize} years
+                          </span>
+                        )}
                         <span className="text-xs text-gray-400">{formatPrice(it.price)} each</span>
                       </div>
                       {it.stock === 'out_of_stock' && (
@@ -95,7 +100,7 @@ export default function CartPage() {
                       )}
                     </div>
                     <button
-                      onClick={() => dispatch(removeFromCart({ productId: it.productId, size: it.size }))}
+                      onClick={() => dispatch(removeFromCart({ productId: it.productId, size: it.size, ageSize: it.ageSize }))}
                       className="text-red-400 hover:text-red-600 transition-colors p-1 flex-shrink-0"
                       title="Remove item"
                     >
@@ -110,7 +115,7 @@ export default function CartPage() {
                         onClick={() => {
                           const newQty = it.qty - 1;
                           if (newQty < 1) return;
-                          dispatch(setQty({ productId: it.productId, size: it.size, qty: newQty }));
+                          dispatch(setQty({ productId: it.productId, size: it.size, ageSize: it.ageSize, qty: newQty }));
                         }}
                         disabled={it.qty <= 1}
                         className="px-3 py-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-30 transition-colors font-bold"
@@ -126,7 +131,7 @@ export default function CartPage() {
                             return;
                           }
                           setQtyErrors((prev) => { const n = { ...prev }; delete n[key]; return n; });
-                          dispatch(setQty({ productId: it.productId, size: it.size, qty: newQty }));
+                          dispatch(setQty({ productId: it.productId, size: it.size, ageSize: it.ageSize, qty: newQty }));
                         }}
                         disabled={it.maxQty !== undefined && it.qty >= it.maxQty}
                         className="px-3 py-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-30 transition-colors font-bold"
@@ -177,11 +182,11 @@ export default function CartPage() {
                   : <span>{formatPrice(shippingFee)}</span>
                 }
               </div>
-              {subtotal < FREE_SHIPPING && (
+              {/* {subtotal < FREE_SHIPPING && (
                 <p className="text-xs text-gray-400">
                   Add {formatPrice(FREE_SHIPPING - subtotal)} more for free shipping
                 </p>
-              )}
+              )} */}
               <div className="flex justify-between font-extrabold text-base text-gray-900 pt-2 border-t border-gray-100">
                 <span>Total</span>
                 <span className="text-brand-dark">{formatPrice(totalAmount)}</span>

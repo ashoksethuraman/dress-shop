@@ -4,19 +4,20 @@ import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { addToCart } from '../store/cartSlice';
 import { toggleWishlist } from '../store/wishlistSlice';
 import { FiTrash2, FiEye, FiEdit2, FiHeart, FiShoppingCart, FiCheck } from 'react-icons/fi';
-import { Product } from '../utils/types';
+import { Product, AgeSize } from '../utils/types';
 import { resolveImageUrl } from '../config/imageConfig';
 
-/** Sum all values in sizeInventory; returns null when no inventory data exists */
-function totalStock(sizeInventory?: Record<string, number>): number | null {
-  if (!sizeInventory) return null;
-  const vals = Object.values(sizeInventory);
+/** Sum all values in inventory; returns null when no inventory data exists */
+function totalStock(inventory?: Record<string, number>): number | null {
+  if (!inventory) return null;
+  const vals = Object.values(inventory);
   if (vals.length === 0) return null;
   return vals.reduce((a, b) => a + b, 0);
 }
 
-function stockLabel(p: { stock?: string; sizeInventory?: Record<string, number> }): { text: string; color: string } | null {
-  const total = totalStock(p.sizeInventory);
+function stockLabel(p: { stock?: string; sizeInventory?: Record<string, number>; ageSizeInventory?: Record<AgeSize, number> }): { text: string; color: string } | null {
+  const inventory = p.ageSizeInventory || p.sizeInventory;
+  const total = totalStock(inventory);
   if (total === null) return p.stock === 'out_of_stock' ? { text: 'Out of Stock', color: 'text-red-500' } : null;
   if (total === 0) return { text: 'Out of Stock', color: 'text-red-500' };
   if (total < 3)   return { text: `Only ${total} item${total !== 1 ? 's' : ''} left!`, color: 'text-red-500' };
@@ -65,22 +66,31 @@ export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
   }, [hovered, hasMultiple, images.length]);
 
   const isOutOfStock = p.stock === 'out_of_stock';
-  const hasSizes     = (p.sizes?.length ?? 0) > 0;
+  const isChildProduct = p.category === 'boys' || p.category === 'girls';
+  const hasSizes = isChildProduct ? (p.ageSizes?.length ?? 0) > 0 : (p.sizes?.length ?? 0) > 0;
 
   const handleAddToCart = () => {
     if (isOutOfStock) return;
     if (hasSizes && !selectedSize) { setSizeError(true); return; }
 
-    if (selectedSize && p.sizeInventory) {
-      const available = p.sizeInventory[selectedSize];
-      if (available !== undefined) {
-        if (available === 0) { setCartError(`Size ${selectedSize} is out of stock.`); return; }
-        const alreadyInCart = cartItems.find(
-          (i) => i.productId === p.id && i.size === selectedSize
-        )?.qty ?? 0;
-        if (alreadyInCart >= available) {
-          setCartError(`Only ${available} unit${available !== 1 ? 's' : ''} left in size ${selectedSize}.`);
-          return;
+    // Check inventory for age sizes (children) or regular sizes (adults)
+    if (selectedSize) {
+      const inventory = isChildProduct ? p.ageSizeInventory : p.sizeInventory;
+      if (inventory) {
+        const available = inventory[selectedSize as any];
+        if (available !== undefined) {
+          if (available === 0) { 
+            setCartError(`${isChildProduct ? 'Age' : 'Size'} ${selectedSize} is out of stock.`); 
+            return; 
+          }
+          const alreadyInCart = cartItems.find(
+            (i) => i.productId === p.id && 
+                   (isChildProduct ? i.ageSize === selectedSize : i.size === selectedSize)
+          )?.qty ?? 0;
+          if (alreadyInCart >= available) {
+            setCartError(`Only ${available} unit${available !== 1 ? 's' : ''} left in ${isChildProduct ? 'age' : 'size'} ${selectedSize}.`);
+            return;
+          }
         }
       }
     }
@@ -91,9 +101,11 @@ export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
       title: p.title,
       price: p.price,
       qty: 1,
-      size: selectedSize,
+      category: p.category,
+      size: isChildProduct ? null : selectedSize,
+      ageSize: isChildProduct ? (selectedSize as AgeSize) : null,
       stock: p.stock ?? 'available',
-      maxQty: selectedSize ? p.sizeInventory?.[selectedSize] : undefined,
+      maxQty: selectedSize ? (isChildProduct ? p.ageSizeInventory?.[selectedSize as AgeSize] : p.sizeInventory?.[selectedSize]) : undefined,
     }));
     setAdding(true);
     setSelectedSize(null);
@@ -182,17 +194,20 @@ export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
 
         <h4 className="font-semibold text-xs sm:text-sm text-primary leading-snug truncate">{p.title}</h4>
 
-        {/* Category + sizes */}
+        {/* Category + sizes/ages */}
         <div className="flex items-center gap-0.5 sm:gap-1 flex-wrap">
           {p.category && (
             <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold capitalize shrink-0 ${
-              p.category === 'women' ? 'bg-pink-50 text-pink-500' : 'bg-blue-50 text-blue-500'
+              p.category === 'women' ? 'bg-pink-50 text-pink-600' : 
+              p.category === 'men' ? 'bg-blue-50 text-blue-600' :
+              p.category === 'girls' ? 'bg-rose-50 text-rose-600' :
+              'bg-sky-50 text-sky-600'
             }`}>
-              {p.category}
+              {p.category === 'women' ? '👗' : p.category === 'men' ? '👔' : p.category === 'girls' ? '👧' : '👦'} {p.category}
             </span>
           )}
-          {hasSizes && p.sizes!.map((sz) => {
-            const inv     = p.sizeInventory?.[sz];
+          {hasSizes && (isChildProduct ? p.ageSizes! : p.sizes!).map((sz) => {
+            const inv = isChildProduct ? p.ageSizeInventory?.[sz as AgeSize] : p.sizeInventory?.[sz];
             const sizeOos = inv !== undefined && inv === 0;
             return (
               <button
@@ -217,7 +232,7 @@ export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
         </div>
 
         {/* Inline messages */}
-        {sizeError && <p className="text-[10px] text-red-500 leading-none">Please select a size</p>}
+        {sizeError && <p className="text-[10px] text-red-500 leading-none">Please select a {isChildProduct ? 'age' : 'size'}</p>}
         {cartError && <p className="text-[10px] text-red-500 leading-none truncate">{cartError}</p>}
         {stock     && <p className={`text-[10px] font-semibold leading-none ${stock.color}`}>{stock.text}</p>}
 
@@ -236,7 +251,7 @@ export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
                   title="Edit product"
                   className="flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
                 >
-                   <FiEdit2 size={12} className={wishlisted ? 'fill-rose-500' : ''} />
+                   <FiEdit2 size={12} />
                 </button>
               </div>
             )}

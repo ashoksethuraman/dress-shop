@@ -86,8 +86,8 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-132px)] sm:min-h-[calc(100vh-90px)] flex items-center justify-center bg-brand-border/10 px-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
+    <div className="min-h-[calc(100vh-132px)] sm:min-h-[calc(100vh-90px)] flex items-center justify-center bg-brand-border/10 px-4 py-8 overflow-x-hidden">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-6 sm:p-8">
         <h1 className="text-2xl font-extrabold text-primary text-center mb-1 tracking-tight">Halley Comet</h1>
         <p className="text-center text-sm text-gray-500 mb-6">
           Don't have an account?{' '}
@@ -142,15 +142,15 @@ export default function Login() {
           {/* Password */}
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Password</label>
-            <div className="flex items-center border border-gray-200 rounded-xl bg-gray-50 focus-within:border-brand-dark focus-within:ring-2 focus-within:ring-brand transition-all">
-              <span className="pl-3 text-gray-400"><FiLock size={16} /></span>
+            <div className="flex items-center border border-gray-200 rounded-xl bg-gray-50 focus-within:border-brand-dark focus-within:ring-2 focus-within:ring-brand transition-all overflow-hidden">
+              <span className="pl-3 text-gray-400 flex-shrink-0"><FiLock size={16} /></span>
               <input
                 type="password"
                 placeholder="Type your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={loading}
-                className="flex-1 bg-transparent px-3 py-2.5 text-sm outline-none text-gray-800 placeholder-gray-400"
+                className="flex-1 bg-transparent px-3 py-2.5 text-sm outline-none text-gray-800 placeholder-gray-400 min-w-0"
               />
             </div>
           </div>

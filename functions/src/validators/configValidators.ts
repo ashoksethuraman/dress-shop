@@ -33,7 +33,7 @@ export function validateHomeBannerUpload(body: unknown): ValidationResult {
     "data:image/jpg",
     "image/png",
     "image/webp",
-    "data:image/webp"
+    "data:image/webp",
   ];
 
   logger.info("[validateHomeBannerUpload] Checking against supported formats", {
@@ -50,7 +50,7 @@ export function validateHomeBannerUpload(body: unknown): ValidationResult {
     // Extract what format was actually provided
     const dataUrlMatch = base64.match(/^([^;,]+)/);
     const detectedFormat = dataUrlMatch ? dataUrlMatch[1] : "unknown";
-    
+
     logger.error("[validateHomeBannerUpload] Invalid format detected", {
       detectedFormat,
       base64Prefix,

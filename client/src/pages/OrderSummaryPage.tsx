@@ -93,6 +93,11 @@ export default function OrderSummaryPage() {
                           Size: {it.size}
                         </span>
                       )}
+                      {it.ageSize && (
+                        <span className="text-xs bg-purple-100 text-purple-700 border border-purple-200 font-semibold px-2 py-0.5 rounded">
+                          Age: {it.ageSize} years
+                        </span>
+                      )}
                       <span className="text-xs text-gray-400">₹{it.price.toFixed(2)} each</span>
                     </div>
                   </div>
@@ -177,11 +182,11 @@ export default function OrderSummaryPage() {
                   : <span>{formatPrice(shippingFee)}</span>
                 }
               </div>
-              {subtotal < FREE_SHIPPING && (
+              {/* {subtotal < FREE_SHIPPING && (
                 <p className="text-xs text-gray-400">
                   Add {formatPrice(FREE_SHIPPING - subtotal)} more for free shipping
                 </p>
-              )}
+              )} */}
               <div className="flex justify-between font-extrabold text-base text-gray-900 pt-2 border-t border-gray-100">
                 <span>Total</span>
                 <span className="text-brand-dark">{formatPrice(totalAmount)}</span>

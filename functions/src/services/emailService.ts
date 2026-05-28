@@ -12,6 +12,7 @@ interface OrderEmailItem {
   unitPrice?: number;
   total?: number;
   size?: string | null;
+  ageSize?: string | null;
 }
 
 interface OrderEmailAddress {
@@ -114,7 +115,9 @@ function itemsTable(items?: OrderEmailItem[]) {
     .map(
       (i) => `
         <tr>
-          <td style="padding:6px;border-bottom:1px solid #eee;">${i.title}${i.size ? ` (${i.size})` : ""}</td>
+          <td style="padding:6px;border-bottom:1px solid #eee;">
+            ${i.title}${i.size ? ` (Size: ${i.size})` : ""}${i.ageSize ? ` (Age: ${i.ageSize} years)` : ""}
+          </td>
           <td style="padding:6px;text-align:center;border-bottom:1px solid #eee;">${i.qty}</td>
           <td style="padding:6px;text-align:right;border-bottom:1px solid #eee;">INR ${i.unitPrice?.toFixed(2)}</td>
           <td style="padding:6px;text-align:right;border-bottom:1px solid #eee;">INR ${(i.total ?? (i.qty ?? 0) * (i.unitPrice ?? 0)).toFixed(2)}</td>

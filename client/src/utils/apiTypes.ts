@@ -34,6 +34,7 @@ export interface OrderItemPayload {
   qty:       number;
   // unitPrice and total omitted — server fetches authoritative prices from Firestore
   size?:     string | null;
+  ageSize?:  string | null;
 }
 
 
@@ -147,6 +148,7 @@ export interface StoredOrderItem {
   unitPrice: number;
   total:     number;
   size?:     string | null;
+  ageSize?:  string | null;
 }
 
 export interface TimelineEntry {
@@ -219,6 +221,7 @@ export interface StockValidationIssue {
   title: string;
   reason: 'not_found' | 'out_of_stock' | 'size_unavailable' | 'insufficient_stock';
   size?: string | null;
+  ageSize?: string | null;
   requestedQty?: number;
   availableQty?: number;
 }

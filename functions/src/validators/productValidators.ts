@@ -45,8 +45,48 @@ function validateProductFields(
   const imagesErr = optionalStringArray(b, "images");
   if (imagesErr) return imagesErr;
 
+  // Determine if this is a children's category
+  const category = b.category as string | undefined;
+  const isChildCategory = category === "boys" || category === "girls";
+  const isAdultCategory = category === "men" || category === "women";
+
+  // Validate sizes based on category
   const sizesErr = optionalStringArray(b, "sizes");
   if (sizesErr) return sizesErr;
+
+  const ageSizesErr = optionalStringArray(b, "ageSizes");
+  if (ageSizesErr) return ageSizesErr;
+
+  // Category-specific size validation
+  if (isChildCategory) {
+    // Boys/Girls should use ageSizes, not sizes
+    if (b.sizes !== undefined && Array.isArray(b.sizes) && (b.sizes as unknown[]).length > 0) {
+      return fail("Boys/Girls products should use ageSizes, not sizes.", "sizes");
+    }
+    if (b.sizeInventory !== undefined && isObject(b.sizeInventory) && Object.keys(b.sizeInventory as object).length > 0) {
+      return fail("Boys/Girls products should use ageSizeInventory, not sizeInventory.", "sizeInventory");
+    }
+  } else if (isAdultCategory) {
+    // Men/Women should use sizes, not ageSizes
+    if (b.ageSizes !== undefined && Array.isArray(b.ageSizes) && (b.ageSizes as unknown[]).length > 0) {
+      return fail("Men/Women products should use sizes, not ageSizes.", "ageSizes");
+    }
+    if (b.ageSizeInventory !== undefined && isObject(b.ageSizeInventory) && Object.keys(b.ageSizeInventory as object).length > 0) {
+      return fail("Men/Women products should use sizeInventory, not ageSizeInventory.", "ageSizeInventory");
+    }
+  }
+
+  // Validate ageSizeInventory if present
+  if (b.ageSizeInventory !== undefined) {
+    if (!isObject(b.ageSizeInventory) || Array.isArray(b.ageSizeInventory)) {
+      return fail("ageSizeInventory must be an object mapping age size to quantity.", "ageSizeInventory");
+    }
+    for (const [k, v] of Object.entries(b.ageSizeInventory as Record<string, unknown>)) {
+      if (typeof v !== "number" || !Number.isInteger(v) || v < 0) {
+        return fail(`ageSizeInventory["${k}"] must be a non-negative integer.`, "ageSizeInventory");
+      }
+    }
+  }
 
   if (b.sizeChart !== undefined && b.sizeChart !== null && b.sizeChart !== "") {
     if (typeof b.sizeChart !== "string") return fail("sizeChart must be a string URL.", "sizeChart");
@@ -89,6 +129,7 @@ export function validateUpdateProduct(body: unknown): ValidationResult {
   const allowed: Array<keyof UpdateProductBody> = [
     "title", "description", "price", "category",
     "images", "sizes", "stock", "sizeInventory", "sizeChart", "shippingAndDelivery", "exchangeAndReturns",
+    "ageSizes", "ageSizeInventory",
   ];
   if (!allowed.some((k) => body[k] !== undefined)) {
     return fail("At least one field to update is required.");

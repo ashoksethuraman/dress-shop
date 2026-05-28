@@ -16,6 +16,7 @@ export interface OrderItemInput {
   title: string;
   qty: number;
   size?: string | null;
+  ageSize?: string | null;
 }
 
 export interface CreateOrderBody {

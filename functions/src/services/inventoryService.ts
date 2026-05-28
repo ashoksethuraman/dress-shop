@@ -4,48 +4,60 @@ import {db} from "../config/firebase";
 import {FieldValue} from "firebase-admin/firestore";
 
 /**
- * Decrements sizeInventory for each item after a confirmed payment.
+ * Decrements sizeInventory OR ageSizeInventory for each item after a confirmed payment.
  * Non-fatal — failure is logged but does not affect the payment response.
  */
 export async function deductInventory(
   orderId: string,
-  items: Array<{productId?: unknown; size?: unknown; qty?: unknown}>
+  items: Array<{productId?: unknown; size?: unknown; ageSize?: unknown; qty?: unknown}>
 ): Promise<void> {
-  const byProduct = new Map<string, Array<{size: string | null; qty: number}>>();
+  const byProduct = new Map<string, Array<{size: string | null; ageSize: string | null; qty: number}>>();
 
   for (const item of items) {
     const productId = typeof item.productId === "string" ? item.productId : null;
     if (!productId) continue;
     const size = typeof item.size === "string" ? item.size : null;
+    const ageSize = typeof item.ageSize === "string" ? item.ageSize : null;
     const qty = typeof item.qty === "number" && item.qty > 0 ? item.qty : 0;
     if (!qty) continue;
     if (!byProduct.has(productId)) byProduct.set(productId, []);
-    byProduct.get(productId)!.push({size, qty});
+    byProduct.get(productId)!.push({size, ageSize, qty});
   }
 
   await Promise.all(
-    Array.from(byProduct.entries()).map(async ([productId, sizeQtys]) => {
+    Array.from(byProduct.entries()).map(async ([productId, itemQtys]) => {
       const ref = db.doc(`products/${productId}`);
       try {
         await db.runTransaction(async (tx) => {
           const snap = await tx.get(ref);
           if (!snap.exists) return;
           const data = snap.data()!;
-          const inv: Record<string, number> = {...(data.sizeInventory ?? {})};
+          const sizeInv: Record<string, number> = {...(data.sizeInventory ?? {})};
+          const ageSizeInv: Record<string, number> = {...(data.ageSizeInventory ?? {})};
 
-          for (const {size, qty} of sizeQtys) {
-            if (size === null) {
-              if (typeof inv["__noSize"] === "number") {
-                inv["__noSize"] = Math.max(0, inv["__noSize"] - qty);
+          for (const {size, ageSize, qty} of itemQtys) {
+            // Handle adult products with sizes
+            if (size !== null) {
+              if (size === "") {
+                // No size specified
+                if (typeof sizeInv["__noSize"] === "number") {
+                  sizeInv["__noSize"] = Math.max(0, sizeInv["__noSize"] - qty);
+                }
+              } else if (typeof sizeInv[size] === "number") {
+                sizeInv[size] = Math.max(0, sizeInv[size] - qty);
               }
-            } else if (typeof inv[size] === "number") {
-              inv[size] = Math.max(0, inv[size] - qty);
+            } else if (ageSize !== null) {
+              // Handle children products with age sizes
+              if (typeof ageSizeInv[ageSize] === "number") {
+                ageSizeInv[ageSize] = Math.max(0, ageSizeInv[ageSize] - qty);
+              }
             }
           }
 
-          const unitsSold = sizeQtys.reduce((s, x) => s + x.qty, 0);
+          const unitsSold = itemQtys.reduce((s, x) => s + x.qty, 0);
           tx.update(ref, {
-            sizeInventory: inv,
+            sizeInventory: sizeInv,
+            ageSizeInventory: ageSizeInv,
             salesCount: ((data.salesCount as number | undefined) ?? 0) + unitsSold,
             updatedAt: FieldValue.serverTimestamp(),
           });

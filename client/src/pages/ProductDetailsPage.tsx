@@ -11,11 +11,13 @@ import {
   FiMinus, FiPlus, FiZoomIn, FiChevronDown, FiX, FiEdit2, FiTruck, FiClock, FiSend
 } from 'react-icons/fi';
 import { resolveImageUrl } from '../config/imageConfig';
+import { AgeSize } from '../utils/types';
 
-/** Sum all values in sizeInventory; returns null when no inventory data exists */
-function totalStock(sizeInventory?: Record<string, number>): number | null {
-  if (!sizeInventory) return null;
-  const vals = Object.values(sizeInventory);
+/** Sum all values in inventory; handles both sizeInventory and ageSizeInventory */
+function totalStock(sizeInventory?: Record<string, number>, ageSizeInventory?: Record<string, number>): number | null {
+  const inventory = sizeInventory || ageSizeInventory;
+  if (!inventory) return null;
+  const vals = Object.values(inventory);
   if (vals.length === 0) return null;
   return vals.reduce((a, b) => a + b, 0);
 }
@@ -90,6 +92,7 @@ export default function ProductDetailsPage() {
   const navigate = useNavigate();
   const [activeImg, setActiveImg] = useState(0);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [selectedAgeSize, setSelectedAgeSize] = useState<AgeSize | null>(null);
   const [sizeError, setSizeError] = useState(false);
   const [added, setAdded] = useState(false);
   const [qty, setQty] = useState(1);
@@ -128,29 +131,60 @@ export default function ProductDetailsPage() {
   const prevImg = () => setActiveImg((i) => (i - 1 + images.length) % images.length);
   const nextImg = () => setActiveImg((i) => (i + 1) % images.length);
 
+  // Determine product type
+  const isChildrenProduct = product.category === 'boys' || product.category === 'girls';
+  const isAdultProduct = product.category === 'men' || product.category === 'women';
+
   /** Returns an error string or null if stock is fine.
    *  forBuyNow=true skips the alreadyInCart check so Buy Now always
    *  proceeds based purely on what the user wants to buy right now. */
   const stockCheck = (forBuyNow = false): string | null => {
-    const hasSizes = product.sizes && product.sizes.length > 0;
-    if (hasSizes && !selectedSize) return '__size';
-    if (selectedSize && product.sizeInventory) {
-      const available = product.sizeInventory[selectedSize];
-      if (available !== undefined) {
-        if (available === 0) return `Size ${selectedSize} is currently out of stock.`;
-        const alreadyInCart = forBuyNow
-          ? 0
-          : (cartItems.find(
-            (i) => i.productId === product.id && i.size === selectedSize
-          )?.qty ?? 0);
-        if (alreadyInCart + qty > available)
-          return `Only ${available} unit${available !== 1 ? 's' : ''} available in size ${selectedSize}.`;
+    // Check for children products (age sizes)
+    if (isChildrenProduct && product.ageSizes && product.ageSizes.length > 0) {
+      if (!selectedAgeSize) return '__size';
+      if (product.ageSizeInventory) {
+        const available = product.ageSizeInventory[selectedAgeSize];
+        if (available !== undefined) {
+          if (available === 0) return `Age ${selectedAgeSize} years is currently out of stock.`;
+          const alreadyInCart = forBuyNow
+            ? 0
+            : (cartItems.find(
+              (i) => i.productId === product.id && i.ageSize === selectedAgeSize
+            )?.qty ?? 0);
+          if (alreadyInCart + qty > available)
+            return `Only ${available} unit${available !== 1 ? 's' : ''} available for age ${selectedAgeSize} years.`;
+        }
+      }
+      return null;
+    }
+
+    // Check for adult products (regular sizes)
+    if (isAdultProduct && product.sizes && product.sizes.length > 0) {
+      if (!selectedSize) return '__size';
+      if (product.sizeInventory) {
+        const available = product.sizeInventory[selectedSize];
+        if (available !== undefined) {
+          if (available === 0) return `Size ${selectedSize} is currently out of stock.`;
+          const alreadyInCart = forBuyNow
+            ? 0
+            : (cartItems.find(
+              (i) => i.productId === product.id && i.size === selectedSize
+            )?.qty ?? 0);
+          if (alreadyInCart + qty > available)
+            return `Only ${available} unit${available !== 1 ? 's' : ''} available in size ${selectedSize}.`;
+        }
       }
     }
     return null;
   };
 
   const maxAvailable = (): number => {
+    // For children products
+    if (selectedAgeSize && product.ageSizeInventory) {
+      const av = product.ageSizeInventory[selectedAgeSize];
+      if (av !== undefined) return av;
+    }
+    // For adult products
     if (selectedSize && product.sizeInventory) {
       const av = product.sizeInventory[selectedSize];
       if (av !== undefined) return av;
@@ -163,10 +197,24 @@ export default function ProductDetailsPage() {
     if (err === '__size') { setSizeError(true); return; }
     if (err) { setCartError(err); return; }
     setCartError(null);
-    const available = selectedSize ? (product.sizeInventory?.[selectedSize]) : undefined;
+    
+    // Determine which inventory to use
+    const available = isChildrenProduct && selectedAgeSize
+      ? product.ageSizeInventory?.[selectedAgeSize]
+      : selectedSize
+      ? product.sizeInventory?.[selectedSize]
+      : undefined;
+
     dispatch(addToCart({
-      productId: product.id, title: product.title, price: product.price, qty,
-      size: selectedSize, stock: product.stock ?? 'available', maxQty: available,
+      productId: product.id,
+      title: product.title,
+      price: product.price,
+      qty,
+      category: product.category,
+      size: isAdultProduct ? selectedSize : undefined,
+      ageSize: isChildrenProduct ? selectedAgeSize : undefined,
+      stock: product.stock ?? 'available',
+      maxQty: available,
     }));
     setAdded(true);
     setTimeout(() => setAdded(false), 1200);
@@ -178,13 +226,27 @@ export default function ProductDetailsPage() {
     if (err === '__size') { setSizeError(true); return; }
     if (err) { setCartError(err); return; }
     setCartError(null);
-    const available = selectedSize ? (product.sizeInventory?.[selectedSize]) : undefined;
+    
+    // Determine which inventory to use
+    const available = isChildrenProduct && selectedAgeSize
+      ? product.ageSizeInventory?.[selectedAgeSize]
+      : selectedSize
+      ? product.sizeInventory?.[selectedSize]
+      : undefined;
+
     // Go to order summary with only this item — don't touch the cart
     navigate('/order-summary', {
       state: {
         buyNowItem: {
-          productId: product.id, title: product.title, price: product.price, qty,
-          size: selectedSize ?? null, stock: product.stock ?? 'available', maxQty: available,
+          productId: product.id,
+          title: product.title,
+          price: product.price,
+          qty,
+          category: product.category,
+          size: isAdultProduct ? (selectedSize ?? null) : undefined,
+          ageSize: isChildrenProduct ? (selectedAgeSize ?? null) : undefined,
+          stock: product.stock ?? 'available',
+          maxQty: available,
         },
       },
     });
@@ -243,11 +305,11 @@ export default function ProductDetailsPage() {
     setShowShareMenu(false);
   };
 
-  // Derive overall OOS from sizeInventory (more accurate than product.stock field)
-  const totalStockVal = totalStock(product.sizeInventory);
+  // Derive overall OOS from inventory (handles both size and age size)
+  const totalStockVal = totalStock(product.sizeInventory, product.ageSizeInventory);
   const isProductOos = totalStockVal === 0 || (totalStockVal === null && product.stock === 'out_of_stock');
 
-  // Per-selected-size stock for inline warning
+  // Per-selected-size stock for inline warning (not used for age sizes as they have their own inline warnings)
   const selectedSizeStock: number | undefined =
     selectedSize && product.sizeInventory ? product.sizeInventory[selectedSize] : undefined;
   const selectedSizeFew = selectedSizeStock !== undefined && selectedSizeStock > 0 && selectedSizeStock < 3;
@@ -398,8 +460,17 @@ export default function ProductDetailsPage() {
           {product.category && (
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-gray-600">Category:</span>
-              <span className={`text-sm px-3 py-0.5 rounded-full font-semibold capitalize ${product.category === 'women' ? 'bg-pink-50 text-pink-500' : 'bg-blue-50 text-blue-500'
-                }`}>{product.category}</span>
+              <span className={`text-sm px-3 py-0.5 rounded-full font-semibold capitalize ${
+                product.category === 'women' 
+                  ? 'bg-pink-50 text-pink-600' 
+                  : product.category === 'men'
+                  ? 'bg-blue-50 text-blue-600'
+                  : product.category === 'boys'
+                  ? 'bg-sky-50 text-sky-600'
+                  : 'bg-rose-50 text-rose-600'
+                }`}>
+                {product.category === 'boys' ? '👦 ' : product.category === 'girls' ? '👧 ' : ''}{product.category}
+              </span>
             </div>
           )}
 
@@ -411,8 +482,71 @@ export default function ProductDetailsPage() {
             </div>
           )}
 
-          {/* Size selector */}
-          {product.sizes && product.sizes.length > 0 && (
+          {/* Age Size selector (for boys/girls) */}
+          {isChildrenProduct && product.ageSizes && product.ageSizes.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-gray-700">Select Age</h3>
+                {sizeChartUrl ? (
+                  <button type="button" onClick={() => setSizeChartOpen(true)}
+                    className="flex items-center gap-1 text-xs text-brand-dark hover:text-brand-hover font-medium transition-colors">
+                    <FiZoomIn size={13} /> Size Chart
+                  </button>
+                ) : (
+                  <span className="text-xs text-gray-400">Size Chart</span>
+                )}
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                {product.ageSizes.map((age) => {
+                  const inv = product.ageSizeInventory?.[age];
+                  const ageOos = inv !== undefined && inv === 0;
+                  return (
+                    <button
+                      key={age}
+                      type="button"
+                      disabled={ageOos}
+                      onClick={() => { if (!ageOos) { setSelectedAgeSize(age); setSizeError(false); setCartError(null); setQty(1); } }}
+                      className={`min-w-[60px] h-12 px-3 rounded-full border-2 text-sm font-semibold transition-all duration-150 ${ageOos
+                        ? 'border-gray-200 bg-gray-50 text-gray-300 cursor-not-allowed line-through'
+                        : selectedAgeSize === age
+                          ? 'border-brand-dark bg-brand-dark text-white shadow-md scale-105'
+                          : sizeError
+                            ? 'border-red-400 text-gray-700 hover:border-brand-dark'
+                            : 'border-gray-300 text-gray-700 hover:border-brand-dark hover:text-brand-dark'
+                        }`}
+                      title={ageOos ? 'Out of stock' : undefined}
+                    >
+                      {age}
+                    </button>
+                  );
+                })}
+              </div>
+              {sizeError && (
+                <p className="text-xs text-red-500 font-medium mt-1.5">Please select an age before adding to bag.</p>
+              )}
+              {/* Per-age stock warnings */}
+              {!sizeError && selectedAgeSize && product.ageSizeInventory && (() => {
+                const stock = product.ageSizeInventory[selectedAgeSize];
+                const isFew = stock !== undefined && stock > 0 && stock < 3;
+                if (isFew) return (
+                  <p className="flex items-center gap-1.5 text-xs text-orange-600 font-semibold mt-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500 shrink-0 animate-pulse" />
+                    Only {stock} item{stock !== 1 ? 's' : ''} left for age {selectedAgeSize} years!
+                  </p>
+                );
+                if (stock === 0) return (
+                  <p className="flex items-center gap-1.5 text-xs text-red-600 font-semibold mt-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                    Age {selectedAgeSize} years is out of stock.
+                  </p>
+                );
+                return null;
+              })()}
+            </div>
+          )}
+
+          {/* Size selector (for men/women) */}
+          {isAdultProduct && product.sizes && product.sizes.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-sm font-semibold text-gray-700">Select Size</h3>
@@ -471,7 +605,7 @@ export default function ProductDetailsPage() {
 
           {/* Out-of-stock / low-stock banner */}
           {(() => {
-            const total = totalStock(product.sizeInventory);
+            const total = totalStock(product.sizeInventory, product.ageSizeInventory);
             const isOos = total === 0 || (total === null && product.stock === 'out_of_stock');
             const isLow = total !== null && total > 0 && total < 3;
             const isFew = total !== null && total >= 3 && total < 5;

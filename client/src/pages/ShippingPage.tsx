@@ -72,19 +72,19 @@ export default function ShippingPage() {
   }
 
   return (
-    <div className="bg-bg pt-20 md:pt-20">
+    <div className="bg-bg pt-20 md:pt-20 overflow-x-hidden">
       {/* Page header */}
-      <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 pb-2">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-12 pb-2">
         <div className="flex items-center gap-3">
           <FiTruck size={22} className="text-brand-dark" />
           <h1 className="text-2xl font-bold text-gray-900 font-display">Shipping / Tracking</h1>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 py-6">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-12 py-6">
 
         {/* ── Search bar ── */}
-        <div className="bg-brand rounded-2xl border border-brand-border shadow-sm px-5 py-5 mb-6">
+        <div className="bg-brand rounded-2xl border border-brand-border shadow-sm px-4 sm:px-5 py-4 sm:py-5 mb-6">
           <label className="block text-sm font-semibold text-gray-700 mb-2">
             Enter your order number
           </label>
@@ -270,43 +270,43 @@ export default function ShippingPage() {
 
             {/* ── Addresses Section ── */}
             <div className="bg-brand rounded-2xl border border-brand-border shadow-sm overflow-hidden">
-              <p className="px-5 py-3 text-xs font-bold text-gray-400 uppercase tracking-wide border-b border-gray-100">
+              <p className="px-4 sm:px-5 py-3 text-xs font-bold text-gray-400 uppercase tracking-wide border-b border-gray-100">
                 Delivery Information
               </p>
-              <div className="grid sm:grid-cols-2 gap-4 p-5">
+              <div className="grid sm:grid-cols-2 gap-4 p-4 sm:p-5">
                 {/* Shipping Address */}
-                <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-4">
-                  <p className="flex items-center gap-1.5 text-sm font-bold text-gray-800 mb-3">
-                    <FiMapPin size={14} className="text-brand-dark" /> Shipping Address
+                <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-4 break-words">
+                  <p className="flex items-center gap-1.5 text-sm font-bold text-gray-800 mb-3 flex-shrink-0">
+                    <FiMapPin size={14} className="text-brand-dark flex-shrink-0" /> Shipping Address
                   </p>
-                  <div className="text-sm text-gray-600 flex flex-col gap-0.5">
-                    <p className="font-semibold text-gray-800">{addr.name}</p>
-                    <p>{addr.line1}</p>
-                    {addr.line2 && <p>{addr.line2}</p>}
-                    <p>{addr.city}, {addr.state} {addr.pincode}</p>
-                    <p>{addr.country || 'India'}</p>
-                    {addr.phone && <p className="text-gray-400 text-xs mt-2 flex items-center gap-1">📞 {addr.phone}</p>}
+                  <div className="text-sm text-gray-600 flex flex-col gap-0.5 overflow-wrap-anywhere">
+                    <p className="font-semibold text-gray-800 break-words">{addr.name}</p>
+                    <p className="break-words">{addr.line1}</p>
+                    {addr.line2 && <p className="break-words">{addr.line2}</p>}
+                    <p className="break-words">{addr.city}, {addr.state} {addr.pincode}</p>
+                    <p className="break-words">{addr.country || 'India'}</p>
+                    {addr.phone && <p className="text-gray-400 text-xs mt-2 flex items-center gap-1 break-all">📞 {addr.phone}</p>}
                   </div>
                 </div>
 
                 {/* Billing Address */}
-                <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-4">
-                  <p className="flex items-center gap-1.5 text-sm font-bold text-gray-800 mb-3">
-                    <FiMapPin size={14} className="text-brand-dark" /> Billing Address
+                <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-4 break-words">
+                  <p className="flex items-center gap-1.5 text-sm font-bold text-gray-800 mb-3 flex-shrink-0">
+                    <FiMapPin size={14} className="text-brand-dark flex-shrink-0" /> Billing Address
                   </p>
                   {order.billingAndShippingSame ? (
                     <div className="text-sm text-gray-500 italic flex items-center gap-2 py-4">
-                      <FiCheckCircle size={16} className="text-green-500" />
+                      <FiCheckCircle size={16} className="text-green-500 flex-shrink-0" />
                       Same as shipping address
                     </div>
                   ) : order.billingAddress ? (
-                    <div className="text-sm text-gray-600 flex flex-col gap-0.5">
-                      <p className="font-semibold text-gray-800">{order.billingAddress.name}</p>
-                      <p>{order.billingAddress.line1}</p>
-                      {order.billingAddress.line2 && <p>{order.billingAddress.line2}</p>}
-                      <p>{order.billingAddress.city}, {order.billingAddress.state} {order.billingAddress.pincode}</p>
-                      <p>{order.billingAddress.country || 'India'}</p>
-                      {order.billingAddress.phone && <p className="text-gray-400 text-xs mt-2 flex items-center gap-1">📞 {order.billingAddress.phone}</p>}
+                    <div className="text-sm text-gray-600 flex flex-col gap-0.5 overflow-wrap-anywhere">
+                      <p className="font-semibold text-gray-800 break-words">{order.billingAddress.name}</p>
+                      <p className="break-words">{order.billingAddress.line1}</p>
+                      {order.billingAddress.line2 && <p className="break-words">{order.billingAddress.line2}</p>}
+                      <p className="break-words">{order.billingAddress.city}, {order.billingAddress.state} {order.billingAddress.pincode}</p>
+                      <p className="break-words">{order.billingAddress.country || 'India'}</p>
+                      {order.billingAddress.phone && <p className="text-gray-400 text-xs mt-2 flex items-center gap-1 break-all">📞 {order.billingAddress.phone}</p>}
                     </div>
                   ) : (
                     <div className="text-sm text-gray-500 italic">No billing address available</div>
@@ -316,11 +316,11 @@ export default function ShippingPage() {
             </div>
 
             {/* ── Order Info ── */}
-            <div className="bg-brand rounded-2xl border border-brand-border shadow-sm px-5 py-5">
+            <div className="bg-brand rounded-2xl border border-brand-border shadow-sm px-4 sm:px-5 py-4 sm:py-5">
               <p className="flex items-center gap-1.5 text-sm font-bold text-gray-800 mb-4">
-                <FiInfo size={14} className="text-brand-dark" /> Order Information
+                <FiInfo size={14} className="text-brand-dark flex-shrink-0" /> Order Information
               </p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 <div className="flex flex-col gap-1">
                   <span className="text-xs text-gray-400 uppercase tracking-wide">Payment Method</span>
                   <span className="font-semibold text-gray-800 text-sm">
@@ -428,6 +428,7 @@ export default function ShippingPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-gray-800 truncate">{it.title}</p>
+                      <p className="text-sm font-semibold text-blue-800 truncate">size : {it.size || it.ageSize}</p>
                       <p className="text-xs text-gray-400">Qty: {it.qty} · ₹{it.unitPrice?.toFixed(2)} each</p>
                     </div>
                     <p className="text-sm font-bold text-gray-800 flex-shrink-0">

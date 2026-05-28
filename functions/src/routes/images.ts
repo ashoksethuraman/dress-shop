@@ -14,7 +14,8 @@ const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
 function getExtension(mimeType: string): string {
   if (mimeType === "image/png") return "png";
   if (mimeType === "image/webp") return "webp";
-  return "jpg";
+  if (mimeType === "image/jpeg") return "jpg";
+  return "jpg"; // fallback
 }
 
 imagesRouter.post("/upload", authenticate, requireAdmin, (req: Request, res: Response) => {
@@ -27,7 +28,9 @@ imagesRouter.post("/upload", authenticate, requireAdmin, (req: Request, res: Res
   // Validate MIME type from the data-URI prefix before decoding anything
   const mimeMatch = base64.match(/^data:([^;]+);base64,/);
   const mimeType = mimeMatch?.[1] ?? "";
+
   if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
+    logger.error(`[POST /images/upload] Invalid MIME type: "${mimeType}". Allowed types: ${ALLOWED_MIME_TYPES.join(", ")}`);
     res.status(400).json({error: `Unsupported image type "${mimeType}". Allowed: JPEG, PNG, WebP.`});
     return;
   }
@@ -48,9 +51,7 @@ imagesRouter.post("/upload", authenticate, requireAdmin, (req: Request, res: Res
     contentType: mimeType,
     metadata: {
       cacheControl: "public,max-age=31536000,immutable",
-      metadata: {
-        firebaseStorageDownloadTokens: downloadToken,
-      },
+      firebaseStorageDownloadTokens: downloadToken,
     },
   }).then(() => {
     const encodedPath = encodeURIComponent(objectPath);
@@ -62,4 +63,3 @@ imagesRouter.post("/upload", authenticate, requireAdmin, (req: Request, res: Res
     res.status(500).json({error: "Failed to upload image to Firebase Storage."});
   });
 });
-
