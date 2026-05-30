@@ -85,7 +85,7 @@ export default function HomePage() {
               className="overflow-hidden border border-black/10 shadow-2xl bg-white w-full max-w-[360px] mx-auto lg:ml-auto lg:mr-0 order-1 lg:order-2"
               style={{ borderRadius: '130px 30px', height: '460px' }}
             >
-              {heroImage ? (
+              {!configLoading && heroImage ? (
                 <img
                   src={heroImage}
                   alt="Hero product"

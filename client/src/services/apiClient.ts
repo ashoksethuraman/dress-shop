@@ -245,7 +245,7 @@ type ProductFields = {
 };
 
 export const productsApi = {
-  list: (params?: { limit?: number; lastDocId?: string; q?: string; sortBy?: string; category?: string; availability?: string }) => {
+  list: (params?: { limit?: number; lastDocId?: string; q?: string; sortBy?: string; category?: string; availability?: string; type?: string }) => {
     const qs = buildQuery(params || {});
     return apiClient.get<{ products: Product[]; hasMore?: boolean; lastDocId?: string }>(`products${qs ? `?${qs}` : ''}`);
   },

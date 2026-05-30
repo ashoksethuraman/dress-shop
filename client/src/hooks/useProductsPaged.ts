@@ -5,9 +5,13 @@ import type { Product } from '../utils/types';
 interface UseProductsPagedOptions {
   includeAll?: boolean;
   pageSize?: number;
+  category?: string;
+  availability?: string;
+  q?: string;
+  type?: string;
   sortBy?: string;
 }
-export function useProductsPaged({ includeAll = false, pageSize = 10, sortBy, category, availability, q }: UseProductsPagedOptions & { category?: string; availability?: string; q?: string } = {}) {
+export function useProductsPaged({ includeAll = false, pageSize = 10, category, availability, q, type, sortBy }: UseProductsPagedOptions = {}) {
   const [pages, setPages] = useState<Product[][]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<any>(null);
@@ -26,8 +30,8 @@ export function useProductsPaged({ includeAll = false, pageSize = 10, sortBy, ca
   // Assign current params synchronously on each render so callers that
   // trigger fetch immediately (e.g. refresh() after a filter change)
   // will observe the up-to-date values.
-  const paramsRef = useRef<{ includeAll: boolean; q?: string; sortBy?: string; category?: string; availability?: string; pageSize: number }>({ includeAll, q, sortBy, category, availability, pageSize });
-  paramsRef.current = { includeAll, q, sortBy, category, availability, pageSize };
+  const paramsRef = useRef<{ includeAll: boolean; q?: string; category?: string; availability?: string; pageSize: number; type?: string; sortBy?: string }>({ includeAll, q, category, availability, pageSize, type, sortBy });
+  paramsRef.current = { includeAll, q, category, availability, pageSize, type, sortBy };
 
   const fetchNext = useCallback(async () => {
     if (fetching.current || !hasMore) return;
@@ -42,7 +46,7 @@ export function useProductsPaged({ includeAll = false, pageSize = 10, sortBy, ca
       // eslint-disable-next-line no-console
       console.debug('fetchNext params', { lastDocId, ...p });
 
-      const res = await trigger({ includeAll: p.includeAll, limit: p.pageSize, lastDocId, q: p.q, sortBy: p.sortBy, category: p.category, availability: p.availability }).unwrap();
+      const res = await trigger({ includeAll: p.includeAll, limit: p.pageSize, lastDocId, q: p.q, category: p.category, availability: p.availability, type: p.type, sortBy: p.sortBy }).unwrap();
       const newProducts: Product[] = res.products ?? [];
 
       // record last response count for debug overlay
@@ -80,6 +84,34 @@ export function useProductsPaged({ includeAll = false, pageSize = 10, sortBy, ca
     }, 0);
   }, [fetchNext]);
 
+  // Fetch first page using explicit params (bypasses paramsRef). Useful when caller
+  // wants to immediately fetch with a new set of filters without relying on hook
+  // render ordering.
+  const fetchWithParams = useCallback(async (p: { includeAll?: boolean; q?: string; category?: string; availability?: string; pageSize?: number; type?: string; sortBy?: string } = {}) => {
+    try {
+      setPages([]);
+      setHasMore(true);
+      setLastDocId(undefined);
+      fetching.current = true;
+      setError(null);
+      setLoading(true);
+
+      const limit = p.pageSize ?? 10;
+      setLastFetchParams({ lastDocId: undefined, ...p, pageSize: limit });
+      const res = await trigger({ includeAll: !!p.includeAll, limit, lastDocId: undefined, q: p.q, category: p.category, availability: p.availability, type: p.type, sortBy: p.sortBy }).unwrap();
+      const newProducts: Product[] = res.products ?? [];
+      setLastFetchCount(res.products?.length ?? 0);
+      setPages([newProducts]);
+      setHasMore(Boolean(res.hasMore));
+      setLastDocId(res.lastDocId);
+    } catch (err) {
+      setError(err);
+    } finally {
+      fetching.current = false;
+      setLoading(false);
+    }
+  }, [trigger]);
+
   const removeProduct = useCallback((productId: string) => {
     // Optimistically remove the product from the current state
     setPages((prev) => {
@@ -102,6 +134,7 @@ export function useProductsPaged({ includeAll = false, pageSize = 10, sortBy, ca
     fetchNext,
     hasMore,
     refresh,
+    fetchWithParams,
     removeProduct,
     // debug info
     lastFetchParams,

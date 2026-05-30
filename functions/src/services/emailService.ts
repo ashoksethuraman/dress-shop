@@ -48,7 +48,8 @@ const smtpUser = process.env.MAIL_SMTP_USER ?? "";
 const smtpPass = process.env.MAIL_SMTP_PASS ?? "";
 const mailFromEmail = process.env.MAIL_FROM_EMAIL ?? "";
 const mailFromName = process.env.MAIL_FROM_NAME ?? "Halley Comet";
-const appBaseUrl = process.env.APP_BASE_URL ?? "";
+const appBaseUrl = "https://halleycomet.in/shipping";
+const adminEmail = "halleycomet.business@gmail.com";
 
 let cachedTransporter: nodemailer.Transporter | null = null;
 
@@ -184,6 +185,7 @@ export async function sendOrderEmail(
   await transporter.sendMail({
     from: `"${mailFromName}" <${mailFromEmail}>`,
     to: recipient,
+    bcc: adminEmail,
     subject: `${meta.subject} – ${order.orderId}`,
     html,
   });

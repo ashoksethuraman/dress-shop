@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { productsApi } from '../services/apiClient';
 import { FiPackage } from 'react-icons/fi';
 import type { Product } from '../utils/types';
+import { getProductImage } from '../utils/imageHelper';
 import { formatPrice } from '../utils/format';
 
 
@@ -60,29 +61,29 @@ export default function SearchDropdown({ searchQuery, isOpen, onClose }: Props) 
               <div className="flex items-center gap-5">
                 {/* Product Image */}
                 <div className="relative w-24 h-24 flex-shrink-0 bg-gray-100 rounded-xl overflow-hidden shadow-sm group-hover:shadow-md transition-shadow duration-200">
-                  {product.images?.[0] ? (
-                    <img
-                      src={product.images[0]}
-                      alt={product.title}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                        const parent = e.currentTarget.parentElement;
-                        if (parent) {
-                          const placeholder = parent.querySelector('.placeholder-icon');
-                          if (placeholder) {
-                            (placeholder as HTMLElement).style.display = 'flex';
+                  {(() => {
+                    const imgMeta = getProductImage(product as any);
+                    const [showPlaceholder, setShowPlaceholder] = [imgMeta.isPlaceholder, false];
+                    return !imgMeta.isPlaceholder ? (
+                      <img
+                        src={imgMeta.src!}
+                        alt={product.title}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).style.display = 'none';
+                          const parent = e.currentTarget.parentElement;
+                          if (parent) {
+                            const placeholder = parent.querySelector('.placeholder-icon');
+                            if (placeholder) (placeholder as HTMLElement).style.display = 'flex';
                           }
-                        }
-                      }}
-                    />
-                  ) : null}
-                  <div 
-                    className="placeholder-icon absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#f5e6e4] to-[#f9ebe9]"
-                    style={{ display: product.images?.[0] ? 'none' : 'flex' }}
-                  >
-                    <FiPackage className="w-10 h-10 text-[#D9B3AF]" strokeWidth={1.5} />
-                  </div>
+                        }}
+                      />
+                    ) : (
+                      <div className="placeholder-icon absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#f5e6e4] to-[#f9ebe9]">
+                        <FiPackage className="w-10 h-10 text-[#D9B3AF]" strokeWidth={1.5} />
+                      </div>
+                    );
+                  })()}
                 </div>
                 
                 {/* Product Info */}

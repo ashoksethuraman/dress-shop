@@ -26,6 +26,10 @@ function validateProductFields(
     return fail("description must be a string.", "description");
   }
 
+  if (b.type !== undefined && !isNonEmptyString(b.type)) {
+    return fail("type must be a non-empty string.", "type");
+  }
+
   if (requireTitle && b.price === undefined) return fail("price is required.", "price");
   if (b.price !== undefined) {
     const e = requireNonNegNum(b, "price");
@@ -130,6 +134,7 @@ export function validateUpdateProduct(body: unknown): ValidationResult {
     "title", "description", "price", "category",
     "images", "sizes", "stock", "sizeInventory", "sizeChart", "shippingAndDelivery", "exchangeAndReturns",
     "ageSizes", "ageSizeInventory",
+    "type",
   ];
   if (!allowed.some((k) => body[k] !== undefined)) {
     return fail("At least one field to update is required.");

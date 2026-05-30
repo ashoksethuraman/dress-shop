@@ -4,6 +4,7 @@ import { productsApi } from '../services/apiClient';
 import { uploadImages, uploadSizeChart, checkImageSize } from '../services/imageService';
 import { resolveImageUrl } from '../config/imageConfig';
 import { StockStatus } from '../utils/types';
+import { PRODUCT_TYPES, ProductType } from '../config/productTypes';
 import { useAppDispatch } from '../store/hooks';
 import { dressShopApi } from '../store/apiSlice';
 import AlertModal from './AlertModal';
@@ -76,6 +77,7 @@ export default function AddProductForm({ onAdded, productToEdit, onSaved }: Prop
   const [sizeInventory, setSizeInventory] = useState<Record<string, number>>({});
   const [ageSizeInventory, setAgeSizeInventory] = useState<Record<string, number>>({});
   const [stockMode, setStockMode] = useState<'available' | 'out_of_stock'>('available');
+  const [productType, setProductType] = useState<ProductType>(PRODUCT_TYPES[0]);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [existingImages, setExistingImages] = useState<string[]>([]);
@@ -107,6 +109,7 @@ export default function AddProductForm({ onAdded, productToEdit, onSaved }: Prop
     setExchangeAndReturns(productToEdit.exchangeAndReturns ?? '');
     setPrice(productToEdit.price ? String(productToEdit.price) : '');
     setCategory(productToEdit.category ?? 'women');
+    setProductType(productToEdit.type ?? PRODUCT_TYPES[0]);
     setSizeInventory(productToEdit.sizeInventory ?? {});
     setAgeSizeInventory(productToEdit.ageSizeInventory ?? {});
     setStockMode(productToEdit.stock ?? 'available');
@@ -350,10 +353,11 @@ export default function AddProductForm({ onAdded, productToEdit, onSaved }: Prop
           category,
           images: [...existingImages, ...(uploadedImages || [])],
           stock: stockValue,
+          type: productType,
           productCode: productCode.trim(),
           ...(uploadedSizeChart ? { sizeChart: uploadedSizeChart } : {}),
         };
-        
+
         // Add appropriate size fields based on category
         if (isChildCategory) {
           payload.ageSizes = Object.keys(ageSizeInventory);
@@ -362,7 +366,7 @@ export default function AddProductForm({ onAdded, productToEdit, onSaved }: Prop
           payload.sizes = Object.keys(sizeInventory);
           payload.sizeInventory = sizeInventory;
         }
-        
+
         await productsApi.update(productToEdit.id, payload);
         dispatch(dressShopApi.util.invalidateTags([
           { type: 'Product', id: 'LIST' },
@@ -381,10 +385,11 @@ export default function AddProductForm({ onAdded, productToEdit, onSaved }: Prop
           category,
           images: uploadedImages,
           stock: stockValue,
+          type: productType,
           productCode: productCode.trim(),
           ...(uploadedSizeChart ? { sizeChart: uploadedSizeChart } : {}),
         };
-        
+
         // Add appropriate size fields based on category
         if (isChildCategory) {
           payload.ageSizes = Object.keys(ageSizeInventory);
@@ -393,7 +398,7 @@ export default function AddProductForm({ onAdded, productToEdit, onSaved }: Prop
           payload.sizes = Object.keys(sizeInventory);
           payload.sizeInventory = sizeInventory;
         }
-        
+
         const res = await productsApi.add(payload);
         const addedId = res.id;
         // Bust RTK Query caches so public listing and admin view refresh immediately
@@ -425,7 +430,7 @@ export default function AddProductForm({ onAdded, productToEdit, onSaved }: Prop
   const errMsg = (msg?: string) =>
     msg ? <p className="mt-1 text-xs text-red-500">{msg}</p> : null;
 
-    return (
+  return (
     <>
       {/* Full-page loader overlay covering all upload + save activity */}
       {loading && <Loader fullPage label={loadingLabel} />}
@@ -575,7 +580,7 @@ export default function AddProductForm({ onAdded, productToEdit, onSaved }: Prop
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
               Category <span className="text-red-400">*</span>
             </label>
-            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+            <div className="grid grid-cols-2 gap-x-2 gap-y-8 sm:gap-x-3">
               {(['women', 'men', 'girls', 'boys'] as const).map((cat) => (
                 <label
                   key={cat}
@@ -606,20 +611,45 @@ export default function AddProductForm({ onAdded, productToEdit, onSaved }: Prop
             </div>
           </div>
 
-          {/* Stock */}
+          {/* Stock status (left half) + Product Type (right half) share the same grid cell */}
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
-              Stock Status <span className="text-red-400">*</span>
-            </label>
-            <select
-              value={stockMode}
-              onChange={(e) => setStockMode(e.target.value as 'available' | 'out_of_stock')}
-              className={inputCls(!!fieldErrors.stock)}
-            >
-              <option value="available">Available</option>
-              <option value="out_of_stock">Out of Stock</option>
-            </select>
-            {errMsg(fieldErrors.stock)}
+            <div>
+              <label className="block text-xs font-bold text-pink-500 uppercase tracking-wide mb-1">
+                Product Type <span className="text-red-400">*</span>
+              </label>
+              <select
+                value={productType}
+                onChange={(e) => setProductType(e.target.value as ProductType)}
+                className={inputCls(false)}
+              >
+                {PRODUCT_TYPES.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="mt-4">
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                Stock Status <span className="text-red-400">*</span>
+              </label>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setStockMode('available')}
+                  className={`w-full px-3 py-2 rounded-md border-2 text-sm font-semibold transition-all ${stockMode === 'available' ? 'border-brand-dark bg-brand text-brand-dark' : 'border-gray-200 text-gray-600 hover:border-brand-dark'}`}
+                >
+                  Available
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStockMode('out_of_stock')}
+                  className={`w-full px-3 py-2 rounded-md border-2 text-sm font-semibold transition-all ${stockMode === 'out_of_stock' ? 'border-brand-dark bg-brand text-brand-dark' : 'border-gray-200 text-gray-600 hover:border-brand-dark'}`}
+                >
+                  Out of Stock
+                </button>
+              </div>
+              {errMsg(fieldErrors.stock)}
+            </div>
           </div>
 
           {/* ── Left col: Image + Size Chart  |  Right col: Sizes + Qty ── */}

@@ -4,22 +4,46 @@ import {db} from "../config/firebase";
 import {FieldValue} from "firebase-admin/firestore";
 import {sendOrderEmail} from "../services/emailService";
 import * as logger from "firebase-functions/logger";
+import {
+  razorpayKeyId,
+  razorpayKeySecret,
+} from "../secrets";
 
-// Initialize Razorpay with validation
-let razorpay: Razorpay | null = null;
+let _razorpayInstance: Razorpay | null = null;
 
-try {
-  if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
-    razorpay = new Razorpay({
-      key_id: process.env.RAZORPAY_KEY_ID,
-      key_secret: process.env.RAZORPAY_KEY_SECRET,
-    });
-    logger.info("Razorpay initialized successfully for refund module");
-  } else {
-    logger.error("Razorpay credentials missing in refund module");
+async function getRazorpayInstance() {
+  if (_razorpayInstance) return _razorpayInstance;
+
+  let keyId = process.env.RAZORPAY_KEY_ID ?? "";
+  let keySecret = process.env.RAZORPAY_KEY_SECRET ?? "";
+
+  try {
+    const v = await razorpayKeyId.value();
+    if (v) keyId = v;
+  } catch (e) {
+    // ignore
   }
-} catch (error) {
-  logger.error("Failed to initialize Razorpay in refund module", error);
+
+  try {
+    const v = await razorpayKeySecret.value();
+    if (v) keySecret = v;
+  } catch (e) {
+    // ignore
+  }
+
+  if (!keyId || !keySecret) {
+    logger.error("Razorpay credentials missing in refund module");
+    return null;
+  }
+
+  try {
+    _razorpayInstance = new Razorpay({key_id: keyId, key_secret: keySecret});
+    logger.info("Razorpay initialized successfully for refund module");
+    return _razorpayInstance;
+  } catch (err) {
+    logger.error("Failed to initialize Razorpay in refund module", err);
+    return null;
+  }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -31,9 +55,7 @@ export async function initiateRefund(
   paymentId: string,
   amount?: number
 ) {
-  if (!razorpay) {
-    throw new Error("Razorpay not initialized - check credentials");
-  }
+  // initialization is lazy via getRazorpayInstance()
 
   logger.info(`Initiating refund for order ${orderId}`, {
     paymentId,
@@ -59,7 +81,10 @@ export async function initiateRefund(
       refundParams.amount = Math.round(amount * 100);
     }
 
-    const refund = await razorpay.payments.refund(paymentId, refundParams);
+    const rp = await getRazorpayInstance();
+    if (!rp) throw new Error("Razorpay not configured");
+
+    const refund = await rp.payments.refund(paymentId, refundParams);
 
     logger.info("Refund created successfully", {
       refundId: refund.id,

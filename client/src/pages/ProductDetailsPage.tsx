@@ -215,6 +215,7 @@ export default function ProductDetailsPage() {
       ageSize: isChildrenProduct ? selectedAgeSize : undefined,
       stock: product.stock ?? 'available',
       maxQty: available,
+      image: product.images?.[0] ?? product.image ?? null,
     }));
     setAdded(true);
     setTimeout(() => setAdded(false), 1200);
@@ -247,6 +248,7 @@ export default function ProductDetailsPage() {
           ageSize: isChildrenProduct ? (selectedAgeSize ?? null) : undefined,
           stock: product.stock ?? 'available',
           maxQty: available,
+          image: product.images?.[0] ?? product.image ?? null,
         },
       },
     });

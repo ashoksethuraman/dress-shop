@@ -85,6 +85,11 @@ export async function initRazorpayPayment(opts: RazorpayPaymentOptions): Promise
     theme: {
       color: '#6366f1',
     },
+    display: {
+      hide: [
+        { method: 'paylater' },
+      ],
+    },
     handler: (response: any) => {
       opts.onSuccess(response);
     },

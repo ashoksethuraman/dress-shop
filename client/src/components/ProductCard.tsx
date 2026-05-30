@@ -106,6 +106,7 @@ export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
       ageSize: isChildProduct ? (selectedSize as AgeSize) : null,
       stock: p.stock ?? 'available',
       maxQty: selectedSize ? (isChildProduct ? p.ageSizeInventory?.[selectedSize as AgeSize] : p.sizeInventory?.[selectedSize]) : undefined,
+      image: p.images?.[0] ?? p.image ?? null,
     }));
     setAdding(true);
     setSelectedSize(null);
@@ -195,9 +196,9 @@ export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
         <h4 className="font-semibold text-xs sm:text-sm text-primary leading-snug truncate">{p.title}</h4>
 
         {/* Category + sizes/ages */}
-        <div className="flex items-center gap-0.5 sm:gap-1 flex-wrap">
+        <div className="flex items-end gap-0.5 sm:gap-1 flex-wrap">
           {p.category && (
-            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold capitalize shrink-0 ${
+            <span className={`text-[9px] px-1 py-0.5 rounded-full font-semibold capitalize shrink-0 self-end ${
               p.category === 'women' ? 'bg-pink-50 text-pink-600' : 
               p.category === 'men' ? 'bg-blue-50 text-blue-600' :
               p.category === 'girls' ? 'bg-rose-50 text-rose-600' :

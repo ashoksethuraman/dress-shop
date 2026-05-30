@@ -6,6 +6,7 @@ import {
 } from 'react-icons/fi';
 import { useLazyTrackOrderQuery } from '../store/apiSlice';
 import { formatPrice } from '../utils/format';
+import { getProductImage } from '../utils/imageHelper';
 
 /* ─── Tracking steps definition ─────────────────────────── */
 const STEPS = [
@@ -417,14 +418,21 @@ export default function ShippingPage() {
                 Items in this order
               </p>
               <div className="divide-y divide-gray-100">
-                {order.items?.map((it: any) => (
+                {order.items?.map((it: any) => {
+                  const key = `${it.productId}-${it.size ?? it.ageSize ?? 'none'}`;
+                  const imgMeta = getProductImage(it);
+                  return (
                   <Link
                     key={it.productId}
                     to={`/product/${it.productId}`}
                     className="flex items-center gap-4 px-5 py-4 hover:bg-brand transition-colors no-underline"
                   >
-                    <div className="w-12 h-12 rounded-xl bg-brand flex items-center justify-center flex-shrink-0 border border-brand-border">
-                      <FiPackage size={18} className="text-brand-dark" />
+                    <div className="w-12 h-12 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 border border-brand-border bg-gray-100">
+                      {!imgMeta.isPlaceholder ? (
+                        <img src={imgMeta.src!} alt={it.title} className="w-full h-full object-cover" loading="lazy" />
+                      ) : (
+                        <FiPackage size={18} className="text-brand-dark" />
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-gray-800 truncate">{it.title}</p>
@@ -435,7 +443,8 @@ export default function ShippingPage() {
                       ₹{it.total?.toFixed(2)}
                     </p>
                   </Link>
-                ))}
+                  );
+                })}
               </div>
             </div>
 

@@ -43,6 +43,24 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
   next();
 });
 
+// -------------------- NO-CACHE FOR DYNAMIC API RESPONSES --------------------
+// Prevent CDN / browser caching for API responses that serve dynamic product data.
+// app.use((req: Request, res: Response, next: NextFunction) => {
+//   try {
+//     const url = req.originalUrl || req.url || '';
+//     const isApiPath = url.startsWith('/api/') || url.startsWith('/products') || url.startsWith('/orders');
+//     if (isApiPath && req.method === 'GET') {
+//       // Strongly discourage any caching in browsers, proxies, or CDN
+//       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0, s-maxage=0');
+//       res.setHeader('Pragma', 'no-cache');
+//       res.setHeader('Expires', '0');
+//     }
+//   } catch (e) {
+//     // ignore header setting issues
+//   }
+//   next();
+// });
+
 // -------------------- ROUTES --------------------
 // IMPORTANT: Routes must include /api prefix because Firebase Hosting forwards the full path
 
@@ -64,6 +82,5 @@ app.use((err: Error, _req: Request, res: Response) => {
   res.status(500).json({error: "Internal server error."});
 });
 
-console.log("KEY app.ts:", process.env.RAZORPAY_KEY_ID);
 
 export default app;

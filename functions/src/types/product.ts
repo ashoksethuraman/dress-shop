@@ -8,6 +8,7 @@ export interface CreateProductBody {
   description?: string;
   price: number;
   category?: ProductCategory;
+  type?: string;
   images?: string[];
   // Adult products (men/women) use sizes
   sizes?: string[];
@@ -26,6 +27,7 @@ export interface UpdateProductBody {
   description?: string;
   price?: number;
   category?: ProductCategory;
+  type?: string;
   images?: string[];
   sizes?: string[];
   sizeInventory?: Record<string, number>;

@@ -9,6 +9,7 @@ export type Product = {
   description?: string;
   price: number;
   category?: ProductCategory;
+  type?: string;
   images?: string[];
   // Adult products use sizes
   sizes?: string[];
@@ -42,6 +43,8 @@ export type CartItem = {
   ageSize?: AgeSize | null;
   stock?: StockStatus;
   maxQty?: number;
+  // optional thumbnail/image reference (first image or image path)
+  image?: string | null;
 };
 
 export type User = {

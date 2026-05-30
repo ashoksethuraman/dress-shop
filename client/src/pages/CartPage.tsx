@@ -4,6 +4,7 @@ import { removeFromCart, setQty } from '../store/cartSlice';
 import { Link, useNavigate } from 'react-router-dom';
 import { FiTrash2, FiShoppingBag, FiArrowLeft, FiChevronRight, FiTruck, FiShield, FiRefreshCw } from 'react-icons/fi';
 import { formatPrice } from '../utils/format';
+import { getProductImage } from '../utils/imageHelper';
 import { calcOrderTotals, FREE_SHIPPING } from '../utils/priceLevel';
 
 export default function CartPage() {
@@ -12,6 +13,7 @@ export default function CartPage() {
   const navigate = useNavigate();
   const [stockError, setStockError] = useState<string | null>(null);
   const [qtyErrors,  setQtyErrors]  = useState<Record<string, string>>({});
+  const [imgErrors, setImgErrors] = useState<Record<string, boolean>>({});
 
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
   const { taxAmount, shippingFee, totalAmount } = calcOrderTotals(subtotal);
@@ -72,9 +74,26 @@ export default function CartPage() {
                 <div key={key} className="bg-white rounded-2xl px-4 py-4 shadow-sm">
                   {/* Row 1: thumbnail + info + remove */}
                   <div className="flex items-start gap-3">
-                    <div className="w-14 h-14 rounded-xl bg-brand flex items-center justify-center flex-shrink-0 border border-brand-border">
-                      <FiShoppingBag size={20} className="text-brand-dark" />
-                    </div>
+                    {(() => {
+                      const imgMeta = getProductImage(it);
+                      return (
+                        <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 border border-brand-border bg-gray-100">
+                          {!imgErrors[key] && !imgMeta.isPlaceholder ? (
+                            <img
+                              src={imgMeta.src!}
+                              alt={it.title || 'product image'}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                              onError={() => setImgErrors((p) => ({ ...p, [key]: true }))}
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-brand">
+                              <FiShoppingBag size={20} className="text-brand-dark" />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-sm text-gray-800 line-clamp-2 leading-snug">{it.title}</p>
                       <div className="flex items-center gap-2 mt-1 flex-wrap">

@@ -5,8 +5,9 @@ import { useProductsPaged } from '../hooks/useProductsPaged';
 import { useDeleteProductMutation } from '../store/apiSlice';
 import { useAppSelector } from '../store/hooks';
 import Loader from '../components/Loader';
-
-type SortOption = 'newest' | 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc';
+import Filter from '../components/Filters/Filter';
+import useFilters from '../hooks/useFilters';
+import { PRODUCT_TYPE_ITEMS } from '../config/productTypes';
 
 interface FilterState {
   availability: 'all' | 'available' | 'out_of_stock';
@@ -27,14 +28,14 @@ export default function ProductsPage() {
   // const isCollections = location.pathname === '/collections';
   const isAdmin = useAppSelector((s) => s.user.user?.isAdmin ?? false);
 
-  const [sortBy, setSortBy] = useState<SortOption>('price-asc');
-  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [deleteProduct] = useDeleteProductMutation();
 
 
 
+  // keep availability and priceRange client-side; centralize category/type/q
+  const filterStore = useFilters();
+  const { filters: sharedFilters, setFilters: setSharedFilters } = filterStore;
   const [filters, setFilters] = useState<FilterState>({
     availability: 'all',
     priceRange: { min: 0, max: 10000 },
@@ -44,8 +45,24 @@ export default function ProductsPage() {
 
   // map availability to server-expected values ('available' | 'out_of_stock')
   const availabilityParam = filters.availability === 'all' ? undefined : filters.availability;
-  const categoryParam = !filters.category || filters.category === 'all' ? undefined : filters.category;
-  const { products, loading, error, fetchNext, hasMore, refresh, removeProduct, lastFetchParams, lastFetchCount } = useProductsPaged({ pageSize: INITIAL_COUNT, q: filters.searchQuery, availability: availabilityParam, category: categoryParam, sortBy });
+  const categoryParam = !sharedFilters.category || sharedFilters.category === 'ALL' ? undefined : sharedFilters.category.toLowerCase();
+  const typeParam = (() => {
+    if (!sharedFilters.type || sharedFilters.type === 'ALL') return undefined;
+    // If the shared filter holds the key (e.g. 'PYJAMA' or 'T-SHIRT'), map it to the stored label
+    const item = PRODUCT_TYPE_ITEMS.find((it) => it.key === sharedFilters.type);
+    if (item) return item.label.toLowerCase();
+    // Otherwise assume the filter already contains the label
+    return sharedFilters.type.toLowerCase();
+  })();
+  // Send the `type` param exactly as stored in DB (labels like 'Pyjama Set' or 'T-Shirt')
+  const typeParamExact = (() => {
+    if (!sharedFilters.type || sharedFilters.type === 'ALL') return undefined;
+    const item = PRODUCT_TYPE_ITEMS.find((it) => it.key === sharedFilters.type);
+    if (item) return item.label;
+    return sharedFilters.type;
+  })();
+
+  const { products, loading, error, fetchNext, hasMore, refresh, fetchWithParams, removeProduct, lastFetchParams, lastFetchCount } = useProductsPaged({ pageSize: INITIAL_COUNT, q: sharedFilters.q, availability: availabilityParam, category: categoryParam, type: typeParamExact });
 
   // Ensure products is always an array
   const safeProducts = products ?? [];
@@ -56,36 +73,40 @@ export default function ProductsPage() {
     return { min: Math.floor(Math.min(...prices)), max: Math.ceil(Math.max(...prices)) };
   }, [safeProducts]);
 
-// NOTE: Do not auto-set `filters.priceRange` from the currently-fetched products.
-// Auto-setting here caused newly-fetched pages containing higher-priced items
-// to be excluded because the price filter was narrowed to the first page's range.
-// Keep the default broad range (0..10000) so pagination returns all items.
+  // NOTE: Do not auto-set `filters.priceRange` from the currently-fetched products.
+  // Auto-setting here caused newly-fetched pages containing higher-priced items
+  // to be excluded because the price filter was narrowed to the first page's range.
+  // Keep the default broad range (0..10000) so pagination returns all items.
+
+  // initial sync from URL query params (so external search/navigation works)
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(location.search);
+      const q = params.get('q') ?? '';
+      const category = params.get('category') ? params.get('category')!.toUpperCase() : 'ALL';
+      const type = params.get('type') ? params.get('type')!.toUpperCase() : 'ALL';
+      setSharedFilters({ q, category, type });
+    } catch (e) {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search]);
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setOpenDropdown(null);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    // when filters change, nothing is persisted — user can refresh to reset pages
+  }, [filters]);
 
   useEffect(() => {
-    // when filters/sort change, nothing is persisted — user can refresh to reset pages
-  }, [filters, sortBy]);
-
-  useEffect(() => {
-    // when server-backed filters or server-side sort change, reload pages from first page
-    console.log('ProductsPage: Refreshing due to filter/sort change', {
-      searchQuery: filters.searchQuery,
-      availability: filters.availability,
-      category: filters.category,
-      sortBy
+    // when server-backed filters change, reload pages from first page
+    console.log('ProductsPage: Refreshing due to filter change', {
+      searchQuery: sharedFilters.q,
+      type: sharedFilters.type,
+      category: sharedFilters.category,
+      availability: filters.availability
     });
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.searchQuery, filters.availability, filters.category, sortBy]);
+  }, [sharedFilters.q, sharedFilters.type, sharedFilters.category, filters.availability]);
 
   // Debug log for products state
   useEffect(() => {
@@ -102,24 +123,13 @@ export default function ProductsPage() {
     if (filters.availability === 'available') result = result.filter(p => p.stock === 'available');
     else if (filters.availability === 'out_of_stock') result = result.filter(p => p.stock === 'out_of_stock');
     result = result.filter(p => p.price >= filters.priceRange.min && p.price <= filters.priceRange.max);
-    if (filters.searchQuery.trim()) {
-      const query = filters.searchQuery.toLowerCase();
+    if (sharedFilters.q && sharedFilters.q.trim()) {
+      const query = sharedFilters.q.toLowerCase();
       result = result.filter(p => p.title.toLowerCase().includes(query) || (p.description && p.description.toLowerCase().includes(query)));
     }
-    // Only apply client-side sorting for options not handled by backend
-    if (sortBy !== 'newest') {
-      result.sort((a, b) => {
-        switch (sortBy) {
-          case 'name-asc': return a.title.localeCompare(b.title);
-          case 'name-desc': return b.title.localeCompare(a.title);
-          case 'price-asc': return a.price - b.price;
-          case 'price-desc': return b.price - a.price;
-          default: return 0;
-        }
-      });
-    }
+    // Products are already sorted by backend (createdAt desc - newest first)
     return result;
-  }, [safeProducts, filters, sortBy]);
+  }, [safeProducts, filters, sharedFilters.q]);
 
   useEffect(() => {
     if (loading || error) return;
@@ -137,16 +147,15 @@ export default function ProductsPage() {
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [loading, error, fetchNext]);
+  }, [loading, error, fetchNext, filteredAndSortedProducts.length]);
 
   const visibleProducts = filteredAndSortedProducts;
 
-  const hasActiveFilters = filters.availability !== 'all' || filters.searchQuery.trim() !== '' ||
-    filters.priceRange.min !== priceRange.min || filters.priceRange.max !== priceRange.max || (filters.category && filters.category !== 'all');
+  const hasActiveFilters = filters.availability !== 'all' || (sharedFilters.q && sharedFilters.q.trim() !== '') ||
+    filters.priceRange.min !== priceRange.min || filters.priceRange.max !== priceRange.max || (sharedFilters.category && sharedFilters.category !== 'ALL') || (sharedFilters.type && sharedFilters.type !== 'ALL');
 
   const resetFilters = () => {
     setFilters({ availability: 'all', priceRange: { min: 0, max: 10000 }, searchQuery: '', category: 'all' });
-    setSortBy('newest');
   };
 
   function extractStoragePath(url: string): string {
@@ -187,109 +196,98 @@ export default function ProductsPage() {
 
   return (
     <>
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 md:pt-18 pb-5 min-h-[calc(100vh-120px)] sm:min-h-[calc(100vh-90px)]">
-      <div className="flex items-center justify-center h-14 mb-2">
-        <h1 className="text-3xl sm:text-4xl font-semibold text-primary">Collections</h1>
-        {/* <div className="flex flex-wrap gap-3">
-          <Link to="/best-sellers" className={`inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-semibold transition ${isBest ? 'border border-[#1a1a1a] bg-[#1a1a1a] text-white' : 'border border-[#1a1a1a] bg-white text-[#1a1a1a] hover:bg-[#f5e9e5]'}`}>
-            Best Sellers
-          </Link>
-          <Link to="/collections" className={`inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-semibold transition ${isCollections ? 'border border-[#1a1a1a] bg-[#1a1a1a] text-white' : 'border border-[#1a1a1a] bg-white text-[#1a1a1a] hover:bg-[#f5e9e5]'}`}>
-            Collections
-          </Link>
-        </div> */}
-      </div>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 md:pt-18 pb-5 min-h-[calc(100vh-120px)] sm:min-h-[calc(100vh-90px)]">
+        <div className="text-center mb-8">
+          <div className="flex flex-col items-center justify-center gap-2">
 
-      {!loading && !error && (
-        <div className="mb-6" ref={dropdownRef}>
-          {/* <div className="bg-white rounded-2xl shadow-sm p-4">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-              <select
-                value={filters.availability}
-                onChange={e => setFilters(prev => ({ ...prev, availability: e.target.value as any }))}
-                className={`min-w-[160px] px-4 py-3 border rounded-xl text-sm font-medium transition ${filters.availability !== 'all' ? 'bg-[#f8fbff] border-blue-100 text-blue-700' : 'bg-white border-gray-200 text-gray-700'}`}
-              >
-                <option value="all">All Products</option>
-                <option value="available">In Stock</option>
-                <option value="out_of_stock">Out of Stock</option>
-              </select>
-              <select
-                value={filters.category}
-                onChange={e => setFilters(prev => ({ ...prev, category: e.target.value as any }))}
-                className="min-w-[160px] px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700"
-              >
-                <option value="all">All Categories</option>
-                <option value="women">Women</option>
-                <option value="men">Men</option>
-              </select>
-              <select
-                value={sortBy}
-                onChange={e => setSortBy(e.target.value as SortOption)}
-                className="min-w-[180px] px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700"
-              >
-                <option value="name-asc">Name (A-Z)</option>
-                <option value="name-desc">Name (Z-A)</option>
-                <option value="price-asc">Price: Low to High</option>
-                <option value="price-desc">Price: High to Low</option>
-              </select>
-              <div className="hidden sm:block text-sm text-gray-600 text-[#8f7a74]">{filteredAndSortedProducts.length} products</div>
+            {/* Title */}
+            <h1 className="text-3xl sm:text-4xl font-bold text-primary tracking-tight">
+              Collections
+            </h1>
 
-              {hasActiveFilters && (
-                <button onClick={resetFilters} className="px-4 py-2.5 text-sm font-medium text-red-600 hover:text-red-700 transition">
-                  Reset
-                </button>
+            {/* Line Divider */}
+            <div className="w-16 h-1 bg-primary rounded-full"></div>
+
+            {/* Product Count */}
+            <span className="text-sm sm:text-base text-gray-600 font-medium">
+              {filteredAndSortedProducts.length} products
+            </span>
+          </div>
+        </div>
+
+        {!error && (
+          <div className="mb-6">
+            <div className="mb-4">
+              <Filter value={sharedFilters} onChange={(f) => {
+                // Update shared filters state
+                setSharedFilters(f);
+                // Compute params for immediate fetch
+                const catParam = !f.category || f.category === 'ALL' ? undefined : f.category.toLowerCase();
+                const typeParamImmediate = (() => {
+                  if (!f.type || f.type === 'ALL') return undefined;
+                  const item = PRODUCT_TYPE_ITEMS.find((it) => it.key === f.type);
+                  if (item) return item.label;
+                  return f.type;
+                })();
+                // Fire an immediate fetch with the new params to avoid race with effect
+                fetchWithParams({ pageSize: INITIAL_COUNT, q: f.q, availability: availabilityParam, category: catParam, type: typeParamImmediate });
+              }} />
+            </div>
+
+            <div className="flex items-center justify-between">
+              {loading && (
+                <div className="ml-4">
+                  <Loader size="sm" label="Loading..." />
+                </div>
               )}
             </div>
-            <div className="mt-4 sm:hidden text-sm text-gray-600">Showing {visibleProducts.length} of {filteredAndSortedProducts.length} products</div>
-          </div> */}
-          <div className="text-sm text-gray-600 font-semibold text-[#D9B3AF] text-right">{filteredAndSortedProducts.length} products</div>
-        </div>
-      )}
-
-      {error ? (
-        <div className="rounded-3xl border border-[#dadada] bg-white px-6 py-10 text-center">
-          <p className="text-lg font-medium text-primary">Unable to load products.</p>
-          <p className="text-sm text-[#6b7280] mt-2">Please try again or refresh the page.</p>
-          <button onClick={() => refresh()} className="mt-6 inline-flex items-center justify-center rounded-full bg-[#1a1a1a] px-5 py-3 text-sm font-semibold text-white hover:bg-[#333333] transition">
-            Retry
-          </button>
-        </div>
-      ) : filteredAndSortedProducts.length === 0 ? (
-        <div className="rounded-3xl border border-[#dadada] bg-white px-6 py-10 text-center text-[#6b7280]">
-          <p className="text-lg font-medium">No products found</p>
-          <p className="text-sm mt-2">Try adjusting your filters or search query.</p>
-        </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-            {visibleProducts.map((product) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                isAdmin={isAdmin}
-                onDelete={handleAdminDelete}
-              />
-            ))}
           </div>
+        )}
 
-          {!loading && !error && filteredAndSortedProducts.length > 0 && (
-            <div ref={sentinelRef} className="h-4" />
-          )}
-
-          {!loading && !error && hasMore && (
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6 mt-6">
-              {Array.from({ length: INITIAL_COUNT }).map((_, i) => (
-                <SkeletonCard key={i} />
+        {error ? (
+          <div className="rounded-3xl border border-[#dadada] bg-white px-6 py-10 text-center">
+            <p className="text-lg font-medium text-primary">Unable to load products.</p>
+            <p className="text-sm text-[#6b7280] mt-2">Please try again or refresh the page.</p>
+            <button onClick={() => refresh()} className="mt-6 inline-flex items-center justify-center rounded-full bg-[#1a1a1a] px-5 py-3 text-sm font-semibold text-white hover:bg-[#333333] transition">
+              Retry
+            </button>
+          </div>
+        ) : filteredAndSortedProducts.length === 0 ? (
+          <div className="rounded-3xl border border-[#dadada] bg-white px-6 py-10 text-center text-[#6b7280]">
+            <p className="text-lg font-medium">No products found</p>
+            <p className="text-sm mt-2">Try adjusting your filters or search query.</p>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+              {visibleProducts.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  isAdmin={isAdmin}
+                  onDelete={handleAdminDelete}
+                />
               ))}
             </div>
-          )}
 
-          {!loading && !error && !hasMore && filteredAndSortedProducts.length > 0 && (
-            <p className="text-center text-xs text-gray-400 mt-8">All products loaded</p>
-          )}
-        </>
-      )}
-    </div>
+            {!loading && !error && filteredAndSortedProducts.length > 0 && (
+              <div ref={sentinelRef} className="h-4" />
+            )}
+
+            {!loading && !error && hasMore && (
+              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6 mt-6">
+                {Array.from({ length: INITIAL_COUNT }).map((_, i) => (
+                  <SkeletonCard key={i} />
+                ))}
+              </div>
+            )}
+
+            {!loading && !error && !hasMore && filteredAndSortedProducts.length > 0 && (
+              <p className="text-center text-xs text-gray-400 mt-8">All products loaded</p>
+            )}
+          </>
+        )}
+      </div>
       {/* Debug overlay - development only */}
       {/* {process.env.NODE_ENV !== 'production' && (
         <div style={{ position: 'fixed', right: 12, bottom: 12, zIndex: 9999 }}>

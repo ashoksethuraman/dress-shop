@@ -6,6 +6,7 @@ import {
   FiShoppingBag, FiTrash2, FiChevronRight, FiArrowLeft,
   FiTruck, FiShield, FiRefreshCw,
 } from 'react-icons/fi';
+import { getProductImage } from '../utils/imageHelper';
 import { formatPrice } from '../utils/format';
 import type { CartItem } from '../utils/types';
 import { calcOrderTotals, FREE_SHIPPING } from '../utils/priceLevel';
@@ -15,6 +16,8 @@ export default function OrderSummaryPage() {
   const dispatch  = useAppDispatch();
   const navigate  = useNavigate();
   const location  = useLocation();
+
+  const [imgErrors, setImgErrors] = React.useState<Record<string, boolean>>({});
 
   // Buy Now flow: single item passed via route state, never added to cart yet
   const buyNowItem = (location.state as { buyNowItem?: CartItem } | null)?.buyNowItem ?? null;
@@ -82,9 +85,21 @@ export default function OrderSummaryPage() {
               >
                 {/* Row 1: thumbnail + info + remove */}
                 <div className="flex items-start gap-3">
-                  <div className="w-14 h-14 rounded-xl bg-brand flex items-center justify-center flex-shrink-0 border border-brand-border">
-                    <FiShoppingBag size={20} className="text-brand-dark" />
-                  </div>
+                  {(() => {
+                    const key = `${it.productId}-${it.size ?? it.ageSize ?? 'none'}`;
+                    const imgMeta = getProductImage(it as any);
+                    return (
+                      <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 border border-brand-border bg-gray-100">
+                        {!imgErrors[key] && !imgMeta.isPlaceholder ? (
+                          <img src={imgMeta.src} alt={it.title} className="w-full h-full object-cover" loading="lazy" onError={() => setImgErrors((p) => ({ ...p, [key]: true }))} />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <FiShoppingBag size={20} className="text-brand-dark" />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-sm text-gray-800 line-clamp-2 leading-snug">{it.title}</p>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">

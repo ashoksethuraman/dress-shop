@@ -22,7 +22,7 @@ function parseStorageObjectPathFromUrl(url: string): string | null {
   }
 }
 
-function deriveImageRefs(images: string[]): {imagePaths: string[]; imageNames: string[]} {
+function deriveImageRefs(images: string[]): { imagePaths: string[]; imageNames: string[] } {
   const imagePaths = images
     .map(parseStorageObjectPathFromUrl)
     .filter((p): p is string => !!p);
@@ -34,7 +34,7 @@ function deriveImageRefs(images: string[]): {imagePaths: string[]; imageNames: s
   return {imagePaths, imageNames};
 }
 
-function deriveSingleRef(url?: string | null): {path: string | null; name: string | null} {
+function deriveSingleRef(url?: string | null): { path: string | null; name: string | null } {
   if (!url) return {path: null, name: null};
   const path = parseStorageObjectPathFromUrl(url);
   if (!path) return {path: null, name: null};
@@ -44,96 +44,139 @@ function deriveSingleRef(url?: string | null): {path: string | null; name: strin
 
 productsRouter.get("/", async (req: Request, res: Response) => {
   try {
-    const q = typeof req.query.q === "string" ? req.query.q.trim().toLowerCase() : "";
-    const limit = Number(req.query.limit) || 10;
-    const lastDocId = typeof req.query.lastDocId === "string" ? req.query.lastDocId : undefined;
-    const sortBy = typeof req.query.sortBy === "string" ? req.query.sortBy : undefined;
+    const q =
+      typeof req.query.q === "string" ?
+        req.query.q.trim().toLowerCase() :
+        "";
 
-    // support server-side sorting. default: createdAt desc.
-    // client may pass: 'newest', 'sales', 'name-asc', 'name-desc', 'price-asc', 'price-desc'
-    let baseQuery: FirebaseFirestore.Query = db.collection("products");
-    let direction: FirebaseFirestore.OrderByDirection = "desc";
-    if (typeof sortBy === "string") {
-      if (sortBy === "newest") {
-        baseQuery = baseQuery.orderBy("createdAt", "desc");
-      } else if (sortBy === "sales") {
-        baseQuery = baseQuery.orderBy("salesCount", "desc");
-      } else if (sortBy.startsWith("price")) {
-        direction = sortBy.endsWith("asc") ? "asc" : "desc";
-        baseQuery = baseQuery.orderBy("price", direction);
-      } else if (sortBy.startsWith("name")) {
-        direction = sortBy.endsWith("asc") ? "asc" : "desc";
-        baseQuery = baseQuery.orderBy("title", direction);
-      } else {
-        baseQuery = baseQuery.orderBy("createdAt", "desc");
-      }
-    } else {
-      baseQuery = baseQuery.orderBy("createdAt", "desc");
+    const requestedLimit = Number(req.query.limit);
+
+    const limit =
+      Number.isFinite(requestedLimit) && requestedLimit > 0 ?
+        Math.min(requestedLimit, 50) :
+        10;
+
+    const lastDocId =
+      typeof req.query.lastDocId === "string" ?
+        req.query.lastDocId :
+        undefined;
+
+    const sortBy =
+      typeof req.query.sortBy === "string" ?
+        req.query.sortBy :
+        undefined;
+
+    const category =
+      typeof req.query.category === "string" ?
+        req.query.category.trim().toLowerCase() :
+        undefined;
+
+    const type =
+      typeof req.query.type === "string" ?
+        req.query.type.trim() :
+        undefined;
+
+    const availability =
+      typeof req.query.availability === "string" ?
+        req.query.availability.trim().toLowerCase() :
+        undefined;
+
+    let query: FirebaseFirestore.Query = db.collection("products");
+
+    // Category
+    if (category) {
+      query = query.where("category", "==", category);
     }
 
-    let query = baseQuery.limit(limit + 1);
+    // Type
+    if (type) {
+      query = query.where("type", "==", type);
+    }
+
+    // Availability
+    if (availability) {
+      const stockVal =
+        availability === "in-stock" ?
+          "available" :
+          availability === "out-of-stock" ?
+            "out_of_stock" :
+            null;
+
+      if (stockVal) {
+        query = query.where("stock", "==", stockVal);
+      }
+    }
+
+    // Search
+    if (q) {
+      query = query
+        .where("titleLower", ">=", q)
+        .where("titleLower", "<=", q + "\uf8ff")
+        .orderBy("titleLower")
+        .orderBy("createdAt", "desc");
+    } else {
+      if (sortBy === "bestsellers") {
+        query = query
+          .orderBy("salesCount", "desc")
+          .orderBy("createdAt", "desc");
+      } else {
+        query = query.orderBy("createdAt", "desc");
+      }
+    }
+
+    let firestoreQuery = query.limit(limit + 1);
 
     if (lastDocId) {
       const lastSnap = await db.doc(`products/${lastDocId}`).get();
+
       if (lastSnap.exists) {
-        query = (query as FirebaseFirestore.Query).startAfter(lastSnap);
+        firestoreQuery = firestoreQuery.startAfter(lastSnap);
+        // startAfter( lastSnap.get("titleLower"),  lastSnap.get("createdAt"))
       }
     }
 
-    const snap = await query.get();
+    const snap = await firestoreQuery.get();
+
     const docs = snap.docs;
+
     const hasMore = docs.length > limit;
+
     const take = hasMore ? docs.slice(0, limit) : docs;
 
-    const all = take.map((d) => ({
-      id: d.id, ...d.data(),
-      createdAt: (d.data().createdAt as FirebaseFirestore.Timestamp)?.toDate?.()?.toISOString() ?? null,
+    const products = take.map((d) => ({
+      id: d.id,
+      ...d.data(),
+      createdAt:
+        (d.data().createdAt as FirebaseFirestore.Timestamp)
+          ?.toDate?.()
+          ?.toISOString() ?? null,
     }));
 
-    // apply server-side filters (category, availability) and q
-    const category = typeof req.query.category === "string" ? req.query.category : undefined;
-    const availability = typeof req.query.availability === "string" ? req.query.availability : undefined;
+    const lastVisibleId =
+      take.length > 0 ?
+        take[take.length - 1].id :
+        undefined;
 
-    interface ProductData {
-      stock?: string;
-      category?: string;
-      title?: string;
-      description?: string;
-      [key: string]: unknown;
-    }
+    res.setHeader(
+      "Cache-Control",
+      "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
+    );
 
-    let products = all;
+    logger.info(
+      `[GET /products] q="${q}" category="${category}" type="${type}" returned=${products.length} hasMore=${hasMore}`
+    );
 
-    if (availability === "in-stock") {
-      products = products.filter((p) => (p as ProductData).stock === "available");
-    } else if (availability === "out-of-stock") {
-      products = products.filter((p) => (p as ProductData).stock === "out_of_stock");
-    }
-    // else: show all products (available + out_of_stock) by default
-
-    if (category) {
-      products = products.filter((p) => {
-        const prod = p as ProductData;
-        return ((prod.category ?? "") as string).toLowerCase() === category.toLowerCase();
-      });
-    }
-
-    if (q) {
-      products = products.filter((p) => {
-        const prod = p as ProductData;
-        return (prod.title ?? "").toLowerCase().includes(q) ||
-          (prod.description ?? "").toLowerCase().includes(q) ||
-          (prod.category ?? "").toLowerCase().includes(q);
-      });
-    }
-
-    const lastVisibleId = take.length > 0 ? take[take.length - 1].id : undefined;
-
-    logger.info(`[GET /products] q="${q}" limit=${limit} lastDocId=${lastDocId} returned=${products.length} hasMore=${hasMore}`);
-    res.json({products, hasMore, lastDocId: lastVisibleId});
+    res.json({
+      products,
+      hasMore,
+      lastDocId: lastVisibleId,
+    });
   } catch (err) {
     logger.error("[GET /products] error", err);
-    res.status(500).json({error: "Failed to fetch products."});
+
+    res.status(500).json({
+      error: "Failed to fetch products.",
+    });
   }
 });
 
@@ -178,10 +221,12 @@ productsRouter.post("/", authenticate, requireAdmin, validate(validateCreateProd
     await ref.set({
       id: ref.id,
       title: body.title,
+      titleLower: body.title.toLowerCase(),
       productCode: body.productCode,
       description: body.description ?? "",
       price: Number(body.price),
-      category: body.category ?? "women",
+      category: (body.category ?? "women").toString().trim().toLowerCase(),
+      type: body.type ?? null,
       images,
       sizes: body.sizes ?? [],
       // imagePaths,
@@ -196,6 +241,7 @@ productsRouter.post("/", authenticate, requireAdmin, validate(validateCreateProd
       exchangeAndReturns: body.exchangeAndReturns ?? null,
       // sizeChartPath: sizeChartRef.path,
       // sizeChartName: sizeChartRef.name,
+      salesCount: 0,
       createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
     });
     logger.info(`[POST /products] Added: ${ref.id} by ${req.user!.uid}`);
@@ -211,9 +257,11 @@ productsRouter.put("/:id", authenticate, requireAdmin, sanitizeParam("id"), vali
   const body = req.body as UpdateProductBody;
   const updates: Record<string, unknown> = {updatedAt: FieldValue.serverTimestamp()};
   if (body.title !== undefined) updates.title = body.title;
+  if (body.title !== undefined) updates.titleLower = body.title.toLowerCase();
   if (body.description !== undefined) updates.description = body.description;
   if (body.price !== undefined) updates.price = Number(body.price);
-  if (body.category !== undefined) updates.category = body.category;
+  if (body.category !== undefined && body.category !== null) updates.category = String(body.category).trim().toLowerCase();
+  if (body.type !== undefined) updates.type = body.type;
   if (body.images !== undefined) {
     const {imagePaths, imageNames} = deriveImageRefs(body.images);
     updates.images = body.images;

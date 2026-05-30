@@ -96,7 +96,7 @@ export const dressShopApi = createApi({
     ----------------------------------------------------------- */
     getProductsPaged: builder.query<
       { products: Product[]; hasMore?: boolean; lastDocId?: string },
-      { includeAll?: boolean; limit?: number; lastDocId?: string; q?: string; sortBy?: string; category?: string; availability?: string }
+      { includeAll?: boolean; limit?: number; lastDocId?: string; q?: string; sortBy?: string; category?: string; availability?: string; type?: string }
     >({
       keepUnusedDataFor: 300,
       async queryFn(arg) {
@@ -108,6 +108,7 @@ export const dressShopApi = createApi({
             sortBy: arg?.sortBy,
             category: arg?.category,
             availability: arg?.availability,
+            type: arg?.type,
           });
           return { data: res };
         } catch (err: any) {
