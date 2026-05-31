@@ -24,9 +24,26 @@ export interface RazorpayPaymentOptions {
 }
 
 let scriptPromise: Promise<void> | null = null;
+let scriptLoadError: Error | null = null;
 
-export function preloadRazorpayScript(): void {
-  if (!scriptPromise) scriptPromise = loadRazorpayScript();
+export function preloadRazorpayScript(): Promise<void> {
+  if (!scriptPromise) {
+    scriptPromise = loadRazorpayScript().catch((err) => {
+      scriptLoadError = err;
+      throw err;
+    });
+  }
+  return scriptPromise;
+}
+
+export function getRazorpayLoadError(): Error | null {
+  return scriptLoadError;
+}
+
+export function retryRazorpayScript(): Promise<void> {
+  scriptPromise = null;
+  scriptLoadError = null;
+  return preloadRazorpayScript();
 }
 
 function loadRazorpayScript(): Promise<void> {
@@ -42,11 +59,13 @@ function loadRazorpayScript(): Promise<void> {
 
 export async function initRazorpayPayment(opts: RazorpayPaymentOptions): Promise<void> {
   try {
-    await (scriptPromise ?? (scriptPromise = loadRazorpayScript()));
-  } catch {
-    alert('Razorpay SDK failed to load. Please check your connection and try again.');
-    opts.onDismiss();
-    return;
+    await (scriptPromise ?? (scriptPromise = loadRazorpayScript().catch((err) => {
+      scriptLoadError = err;
+      throw err;
+    })));
+  } catch (err) {
+    scriptLoadError = err instanceof Error ? err : new Error('Failed to load Razorpay SDK');
+    throw scriptLoadError;
   }
 
   const amountInPaise = Math.round(opts.amount * 100);
@@ -65,6 +84,11 @@ export async function initRazorpayPayment(opts: RazorpayPaymentOptions): Promise
     },
     theme: {
       color: '#6366f1',
+    },
+    display: {
+      hide: [
+        { method: 'paylater' },
+      ],
     },
     handler: (response: any) => {
       opts.onSuccess(response);

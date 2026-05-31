@@ -3,6 +3,10 @@ import type {Request, Response, NextFunction} from "express";
 
 const ALLOWED_ORIGINS = [
   "http://localhost:3000",
+  "https://halleycomet.in",
+  "https://www.halleycomet.in",
+  "https://halleycomet-7cd48.web.app",
+  "https://halleycomet-7cd48.firebaseapp.com",
   `https://${process.env.GCLOUD_PROJECT}.web.app`,
   `https://${process.env.GCLOUD_PROJECT}.firebaseapp.com`,
 ];

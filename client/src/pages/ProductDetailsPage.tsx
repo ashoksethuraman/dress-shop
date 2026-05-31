@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useGetProductByIdQuery } from '../store/apiSlice';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
@@ -7,15 +7,17 @@ import { toggleWishlist } from '../store/wishlistSlice';
 import { getPriceLevel, BADGE_COLORS } from '../utils/priceLevel';
 import { formatPrice } from '../utils/format';
 import {
-  FiChevronLeft, FiChevronRight, FiShoppingCart, FiStar, FiHeart,
-  FiMinus, FiPlus, FiZoomIn, FiChevronDown, FiX,
+  FiChevronLeft, FiChevronRight, FiShoppingCart, FiHash, FiHeart, FiShare2,
+  FiMinus, FiPlus, FiZoomIn, FiChevronDown, FiX, FiEdit2, FiTruck, FiClock, FiSend
 } from 'react-icons/fi';
 import { resolveImageUrl } from '../config/imageConfig';
+import { AgeSize } from '../utils/types';
 
-/** Sum all values in sizeInventory; returns null when no inventory data exists */
-function totalStock(sizeInventory?: Record<string, number>): number | null {
-  if (!sizeInventory) return null;
-  const vals = Object.values(sizeInventory);
+/** Sum all values in inventory; handles both sizeInventory and ageSizeInventory */
+function totalStock(sizeInventory?: Record<string, number>, ageSizeInventory?: Record<string, number>): number | null {
+  const inventory = sizeInventory || ageSizeInventory;
+  if (!inventory) return null;
+  const vals = Object.values(inventory);
   if (vals.length === 0) return null;
   return vals.reduce((a, b) => a + b, 0);
 }
@@ -88,54 +90,101 @@ function SizeChartModal({ url, onClose }: { url: string; onClose: () => void }) 
 export default function ProductDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [activeImg, setActiveImg]         = useState(0);
-  const [selectedSize, setSelectedSize]   = useState<string | null>(null);
-  const [sizeError, setSizeError]         = useState(false);
-  const [added, setAdded]                 = useState(false);
-  const [qty, setQty]                     = useState(1);
+  const [activeImg, setActiveImg] = useState(0);
+  const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [selectedAgeSize, setSelectedAgeSize] = useState<AgeSize | null>(null);
+  const [sizeError, setSizeError] = useState(false);
+  const [added, setAdded] = useState(false);
+  const [qty, setQty] = useState(1);
   const [sizeChartOpen, setSizeChartOpen] = useState(false);
-  const [cartError, setCartError]         = useState<string | null>(null);
+  const [cartError, setCartError] = useState<string | null>(null);
 
-  const dispatch   = useAppDispatch();
+  const dispatch = useAppDispatch();
   const wishlisted = useAppSelector((s) => s.wishlist.ids.includes(id ?? ''));
-  const cartItems  = useAppSelector((s) => s.cart.items);
+  const cartItems = useAppSelector((s) => s.cart.items);
+  const isAdmin = useAppSelector((s) => s.user.user?.isAdmin ?? false);
 
   const { data: product, isLoading } = useGetProductByIdQuery(id!, { skip: !id });
+
+  // Share menu state (hooks must be called unconditionally before any early return)
+  const [showShareMenu, setShowShareMenu] = useState(false);
+  const shareRef = React.useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (showShareMenu && shareRef.current && !shareRef.current.contains(e.target as Node)) {
+        setShowShareMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [showShareMenu]);
 
   if (isLoading || !product) return (
     <div className="flex items-center justify-center h-64 text-gray-400 animate-pulse text-lg">Loading…</div>
   );
 
   const images: string[] = (product.images?.length ? product.images : product.image ? [product.image] : []).map(resolveImageUrl);
-  const level      = getPriceLevel(product.price);
+  const level = getPriceLevel(product.price);
   const hasMultiple = images.length > 1;
 
   const prevImg = () => setActiveImg((i) => (i - 1 + images.length) % images.length);
   const nextImg = () => setActiveImg((i) => (i + 1) % images.length);
 
+  // Determine product type
+  const isChildrenProduct = product.category === 'boys' || product.category === 'girls';
+  const isAdultProduct = product.category === 'men' || product.category === 'women';
+
   /** Returns an error string or null if stock is fine.
    *  forBuyNow=true skips the alreadyInCart check so Buy Now always
    *  proceeds based purely on what the user wants to buy right now. */
   const stockCheck = (forBuyNow = false): string | null => {
-    const hasSizes = product.sizes && product.sizes.length > 0;
-    if (hasSizes && !selectedSize) return '__size';
-    if (selectedSize && product.sizeInventory) {
-      const available = product.sizeInventory[selectedSize];
-      if (available !== undefined) {
-        if (available === 0) return `Size ${selectedSize} is currently out of stock.`;
-        const alreadyInCart = forBuyNow
-          ? 0
-          : (cartItems.find(
+    // Check for children products (age sizes)
+    if (isChildrenProduct && product.ageSizes && product.ageSizes.length > 0) {
+      if (!selectedAgeSize) return '__size';
+      if (product.ageSizeInventory) {
+        const available = product.ageSizeInventory[selectedAgeSize];
+        if (available !== undefined) {
+          if (available === 0) return `Age ${selectedAgeSize} years is currently out of stock.`;
+          const alreadyInCart = forBuyNow
+            ? 0
+            : (cartItems.find(
+              (i) => i.productId === product.id && i.ageSize === selectedAgeSize
+            )?.qty ?? 0);
+          if (alreadyInCart + qty > available)
+            return `Only ${available} unit${available !== 1 ? 's' : ''} available for age ${selectedAgeSize} years.`;
+        }
+      }
+      return null;
+    }
+
+    // Check for adult products (regular sizes)
+    if (isAdultProduct && product.sizes && product.sizes.length > 0) {
+      if (!selectedSize) return '__size';
+      if (product.sizeInventory) {
+        const available = product.sizeInventory[selectedSize];
+        if (available !== undefined) {
+          if (available === 0) return `Size ${selectedSize} is currently out of stock.`;
+          const alreadyInCart = forBuyNow
+            ? 0
+            : (cartItems.find(
               (i) => i.productId === product.id && i.size === selectedSize
             )?.qty ?? 0);
-        if (alreadyInCart + qty > available)
-          return `Only ${available} unit${available !== 1 ? 's' : ''} available in size ${selectedSize}.`;
+          if (alreadyInCart + qty > available)
+            return `Only ${available} unit${available !== 1 ? 's' : ''} available in size ${selectedSize}.`;
+        }
       }
     }
     return null;
   };
 
   const maxAvailable = (): number => {
+    // For children products
+    if (selectedAgeSize && product.ageSizeInventory) {
+      const av = product.ageSizeInventory[selectedAgeSize];
+      if (av !== undefined) return av;
+    }
+    // For adult products
     if (selectedSize && product.sizeInventory) {
       const av = product.sizeInventory[selectedSize];
       if (av !== undefined) return av;
@@ -148,10 +197,25 @@ export default function ProductDetailsPage() {
     if (err === '__size') { setSizeError(true); return; }
     if (err) { setCartError(err); return; }
     setCartError(null);
-    const available = selectedSize ? (product.sizeInventory?.[selectedSize]) : undefined;
+    
+    // Determine which inventory to use
+    const available = isChildrenProduct && selectedAgeSize
+      ? product.ageSizeInventory?.[selectedAgeSize]
+      : selectedSize
+      ? product.sizeInventory?.[selectedSize]
+      : undefined;
+
     dispatch(addToCart({
-      productId: product.id, title: product.title, price: product.price, qty,
-      size: selectedSize, stock: product.stock ?? 'available', maxQty: available,
+      productId: product.id,
+      title: product.title,
+      price: product.price,
+      qty,
+      category: product.category,
+      size: isAdultProduct ? selectedSize : undefined,
+      ageSize: isChildrenProduct ? selectedAgeSize : undefined,
+      stock: product.stock ?? 'available',
+      maxQty: available,
+      image: product.images?.[0] ?? product.image ?? null,
     }));
     setAdded(true);
     setTimeout(() => setAdded(false), 1200);
@@ -163,13 +227,28 @@ export default function ProductDetailsPage() {
     if (err === '__size') { setSizeError(true); return; }
     if (err) { setCartError(err); return; }
     setCartError(null);
-    const available = selectedSize ? (product.sizeInventory?.[selectedSize]) : undefined;
+    
+    // Determine which inventory to use
+    const available = isChildrenProduct && selectedAgeSize
+      ? product.ageSizeInventory?.[selectedAgeSize]
+      : selectedSize
+      ? product.sizeInventory?.[selectedSize]
+      : undefined;
+
     // Go to order summary with only this item — don't touch the cart
     navigate('/order-summary', {
       state: {
         buyNowItem: {
-          productId: product.id, title: product.title, price: product.price, qty,
-          size: selectedSize ?? null, stock: product.stock ?? 'available', maxQty: available,
+          productId: product.id,
+          title: product.title,
+          price: product.price,
+          qty,
+          category: product.category,
+          size: isAdultProduct ? (selectedSize ?? null) : undefined,
+          ageSize: isChildrenProduct ? (selectedAgeSize ?? null) : undefined,
+          stock: product.stock ?? 'available',
+          maxQty: available,
+          image: product.images?.[0] ?? product.image ?? null,
         },
       },
     });
@@ -181,30 +260,77 @@ export default function ProductDetailsPage() {
 
   const sizeChartUrl = product.sizeChart ? resolveImageUrl(product.sizeChart) : null;
 
-  // Derive overall OOS from sizeInventory (more accurate than product.stock field)
-  const totalStockVal = totalStock(product.sizeInventory);
-  const isProductOos  = totalStockVal === 0 || (totalStockVal === null && product.stock === 'out_of_stock');
+  const tryNativeShare = async () => {
+    const payload = {
+      title: product?.title ?? '',
+      text: product?.description ?? product?.title ?? '',
+      url: window.location.href,
+    };
+    if ((navigator as any).share) {
+      try {
+        await (navigator as any).share(payload);
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+    return false;
+  };
 
-  // Per-selected-size stock for inline warning
+  const handleShareClick = async () => {
+    const ok = await tryNativeShare();
+    if (!ok) setShowShareMenu((s) => !s);
+  };
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setShowShareMenu(false);
+    } catch (e) {
+      // fallback: prompt
+      // eslint-disable-next-line no-alert
+      window.prompt('Copy link', window.location.href);
+      setShowShareMenu(false);
+    }
+  };
+
+  const shareEmail = () => {
+    const subject = encodeURIComponent(product?.title ?? '');
+    const body = encodeURIComponent(`${product?.description ?? ''}\n\n${window.location.href}`);
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+    setShowShareMenu(false);
+  };
+
+  const shareWhatsApp = () => {
+    const text = encodeURIComponent(`${product?.title ?? ''} - ${window.location.href}`);
+    window.open(`https://wa.me/?text=${text}`, '_blank');
+    setShowShareMenu(false);
+  };
+
+  // Derive overall OOS from inventory (handles both size and age size)
+  const totalStockVal = totalStock(product.sizeInventory, product.ageSizeInventory);
+  const isProductOos = totalStockVal === 0 || (totalStockVal === null && product.stock === 'out_of_stock');
+
+  // Per-selected-size stock for inline warning (not used for age sizes as they have their own inline warnings)
   const selectedSizeStock: number | undefined =
     selectedSize && product.sizeInventory ? product.sizeInventory[selectedSize] : undefined;
   const selectedSizeFew = selectedSizeStock !== undefined && selectedSizeStock > 0 && selectedSizeStock < 3;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pt-20 md:pt-20">
       {/* Size chart modal */}
       {sizeChartOpen && sizeChartUrl && (
         <SizeChartModal url={sizeChartUrl} onClose={() => setSizeChartOpen(false)} />
       )}
 
       {/* Back nav */}
-      <div className="max-w-6xl mx-auto px-4 pt-6">
+      <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12">
         <Link to="/" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-brand-dark no-underline transition-colors">
           <FiChevronLeft size={16} /> Back to shop
         </Link>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-2 gap-10">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-10 py-6 grid grid-cols-1 lg:grid-cols-2 gap-10">
 
         {/* ── LEFT: Image Gallery ── */}
         <div className="flex flex-col gap-4">
@@ -216,9 +342,8 @@ export default function ProductDetailsPage() {
                     key={idx}
                     src={src}
                     alt={`${product.title} view ${idx + 1}`}
-                    className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-500 ${
-                      idx === activeImg ? 'opacity-100' : 'opacity-0'
-                    }`}
+                    className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-500 ${idx === activeImg ? 'opacity-100' : 'opacity-0'
+                      }`}
                   />
                 ))}
                 {hasMultiple && (
@@ -258,9 +383,8 @@ export default function ProductDetailsPage() {
             <div className="flex gap-2 overflow-x-auto pb-1">
               {images.map((src, idx) => (
                 <button key={idx} type="button" onClick={() => setActiveImg(idx)}
-                  className={`flex-shrink-0 w-20 h-24 rounded-xl overflow-hidden border-2 transition-all duration-200 ${
-                    idx === activeImg ? 'border-brand-dark shadow-md scale-105' : 'border-transparent hover:border-brand-border opacity-70 hover:opacity-100'
-                  }`}
+                  className={`flex-shrink-0 w-20 h-24 rounded-xl overflow-hidden border-2 transition-all duration-200 ${idx === activeImg ? 'border-brand-dark shadow-md scale-105' : 'border-transparent hover:border-brand-border opacity-70 hover:opacity-100'
+                    }`}
                 >
                   <img src={src} alt={`thumb ${idx + 1}`} className="w-full h-full object-cover" />
                 </button>
@@ -276,29 +400,62 @@ export default function ProductDetailsPage() {
           <div>
             <div className="flex items-start justify-between gap-3 mb-1">
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 leading-tight">{product.title}</h1>
-              <span className={`flex-shrink-0 text-xs font-semibold px-3 py-1 rounded-full mt-1 ${BADGE_COLORS[level.className] ?? 'bg-gray-100 text-gray-600'}`}>
-                {level.level}
-              </span>
+              <div className="relative flex items-center gap-2">
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/admin/product/${product.id}`)}
+                    title="Edit product"
+                    className="mr-2 mt-1 w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 transition-colors"
+                  >
+                    <FiEdit2 size={14} className={wishlisted ? 'fill-rose-500' : ''} />
+                  </button>
+                )}
+                {/* <span className={`flex-shrink-0 text-xs font-semibold px-3 py-1 rounded-full mt-1 ${BADGE_COLORS[level.className] ?? 'bg-gray-100 text-gray-600'}`}>
+                  {level.level}
+                </span> */}
+
+                <div ref={shareRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={handleShareClick}
+                    title="Share"
+                    className="ml-1 mt-1 w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 transition-colors"
+                  >
+                    <FiShare2 size={21} />
+                  </button>
+
+                  {showShareMenu && (
+                    <div className="absolute right-0 mt-2 w-44 bg-white border rounded-lg shadow-lg text-sm z-50">
+                      <button onClick={copyLink} className="w-full text-left px-3 py-2 hover:bg-gray-50">Copy link</button>
+                      <button onClick={shareEmail} className="w-full text-left px-3 py-2 hover:bg-gray-50">Share via Email</button>
+                      <button onClick={shareWhatsApp} className="w-full text-left px-3 py-2 hover:bg-gray-50">Share to WhatsApp</button>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
             <div className="flex items-center gap-1.5 text-sm text-gray-500">
-              <FiStar className="text-yellow-400 fill-yellow-400" size={14} />
-              <span className="font-semibold text-gray-700">4.4</span>
-              <span>· 486 ratings</span>
+              <FiHash className="text-yellow-400 fill-yellow-400" size={14} />
+              <span className="font-semibold text-gray-700">SKU : </span>
+              <span> {product.productCode}</span>
             </div>
           </div>
 
           {/* Price */}
           <div>
             <div className="flex items-baseline gap-3">
-              <span className="text-3xl font-extrabold text-brand-dark">{formatPrice(product.price)}</span>
-              {level.className === 'premium' && (
+              <span className="text-3xl font-extrabold text-brand-dark">
+                {formatPrice(product.price)} <span className="text-xs text-gray-500 font-normal ml-2">(GST included)</span>
+              </span>
+              {/* {level.className === 'premium' && (
                 <>
                   <span className="text-sm text-gray-400 line-through">₹{(product.price * 1.43).toFixed(0)}</span>
                   <span className="text-sm font-semibold text-orange-500">43% OFF</span>
                 </>
-              )}
+              )} */}
             </div>
-            <p className="text-xs text-green-600 font-medium mt-0.5">Inclusive of all taxes</p>
+            <p className="text-xs text-green-600 font-medium mt-0.5">Shipping calculated at checkout.</p>
           </div>
 
           {/* Category */}
@@ -306,8 +463,16 @@ export default function ProductDetailsPage() {
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-gray-600">Category:</span>
               <span className={`text-sm px-3 py-0.5 rounded-full font-semibold capitalize ${
-                product.category === 'women' ? 'bg-pink-50 text-pink-500' : 'bg-blue-50 text-blue-500'
-              }`}>{product.category}</span>
+                product.category === 'women' 
+                  ? 'bg-pink-50 text-pink-600' 
+                  : product.category === 'men'
+                  ? 'bg-blue-50 text-blue-600'
+                  : product.category === 'boys'
+                  ? 'bg-sky-50 text-sky-600'
+                  : 'bg-rose-50 text-rose-600'
+                }`}>
+                {product.category === 'boys' ? '👦 ' : product.category === 'girls' ? '👧 ' : ''}{product.category}
+              </span>
             </div>
           )}
 
@@ -319,8 +484,71 @@ export default function ProductDetailsPage() {
             </div>
           )}
 
-          {/* Size selector */}
-          {product.sizes && product.sizes.length > 0 && (
+          {/* Age Size selector (for boys/girls) */}
+          {isChildrenProduct && product.ageSizes && product.ageSizes.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-gray-700">Select Age</h3>
+                {sizeChartUrl ? (
+                  <button type="button" onClick={() => setSizeChartOpen(true)}
+                    className="flex items-center gap-1 text-xs text-brand-dark hover:text-brand-hover font-medium transition-colors">
+                    <FiZoomIn size={13} /> Size Chart
+                  </button>
+                ) : (
+                  <span className="text-xs text-gray-400">Size Chart</span>
+                )}
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                {product.ageSizes.map((age) => {
+                  const inv = product.ageSizeInventory?.[age];
+                  const ageOos = inv !== undefined && inv === 0;
+                  return (
+                    <button
+                      key={age}
+                      type="button"
+                      disabled={ageOos}
+                      onClick={() => { if (!ageOos) { setSelectedAgeSize(age); setSizeError(false); setCartError(null); setQty(1); } }}
+                      className={`min-w-[60px] h-12 px-3 rounded-full border-2 text-sm font-semibold transition-all duration-150 ${ageOos
+                        ? 'border-gray-200 bg-gray-50 text-gray-300 cursor-not-allowed line-through'
+                        : selectedAgeSize === age
+                          ? 'border-brand-dark bg-brand-dark text-white shadow-md scale-105'
+                          : sizeError
+                            ? 'border-red-400 text-gray-700 hover:border-brand-dark'
+                            : 'border-gray-300 text-gray-700 hover:border-brand-dark hover:text-brand-dark'
+                        }`}
+                      title={ageOos ? 'Out of stock' : undefined}
+                    >
+                      {age}
+                    </button>
+                  );
+                })}
+              </div>
+              {sizeError && (
+                <p className="text-xs text-red-500 font-medium mt-1.5">Please select an age before adding to bag.</p>
+              )}
+              {/* Per-age stock warnings */}
+              {!sizeError && selectedAgeSize && product.ageSizeInventory && (() => {
+                const stock = product.ageSizeInventory[selectedAgeSize];
+                const isFew = stock !== undefined && stock > 0 && stock < 3;
+                if (isFew) return (
+                  <p className="flex items-center gap-1.5 text-xs text-orange-600 font-semibold mt-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500 shrink-0 animate-pulse" />
+                    Only {stock} item{stock !== 1 ? 's' : ''} left for age {selectedAgeSize} years!
+                  </p>
+                );
+                if (stock === 0) return (
+                  <p className="flex items-center gap-1.5 text-xs text-red-600 font-semibold mt-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                    Age {selectedAgeSize} years is out of stock.
+                  </p>
+                );
+                return null;
+              })()}
+            </div>
+          )}
+
+          {/* Size selector (for men/women) */}
+          {isAdultProduct && product.sizes && product.sizes.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-sm font-semibold text-gray-700">Select Size</h3>
@@ -335,7 +563,7 @@ export default function ProductDetailsPage() {
               </div>
               <div className="flex gap-2 flex-wrap">
                 {product.sizes.map((sz: string) => {
-                  const inv    = product.sizeInventory?.[sz];
+                  const inv = product.sizeInventory?.[sz];
                   const sizeOos = inv !== undefined && inv === 0;
                   return (
                     <button
@@ -343,15 +571,14 @@ export default function ProductDetailsPage() {
                       type="button"
                       disabled={sizeOos}
                       onClick={() => { if (!sizeOos) { setSelectedSize(sz); setSizeError(false); setCartError(null); setQty(1); } }}
-                      className={`w-12 h-12 rounded-full border-2 text-sm font-semibold transition-all duration-150 ${
-                        sizeOos
-                          ? 'border-gray-200 bg-gray-50 text-gray-300 cursor-not-allowed line-through'
-                          : selectedSize === sz
+                      className={`w-12 h-12 rounded-full border-2 text-sm font-semibold transition-all duration-150 ${sizeOos
+                        ? 'border-gray-200 bg-gray-50 text-gray-300 cursor-not-allowed line-through'
+                        : selectedSize === sz
                           ? 'border-brand-dark bg-brand-dark text-white shadow-md scale-105'
                           : sizeError
-                          ? 'border-red-400 text-gray-700 hover:border-brand-dark'
-                          : 'border-gray-300 text-gray-700 hover:border-brand-dark hover:text-brand-dark'
-                      }`}
+                            ? 'border-red-400 text-gray-700 hover:border-brand-dark'
+                            : 'border-gray-300 text-gray-700 hover:border-brand-dark hover:text-brand-dark'
+                        }`}
                       title={sizeOos ? 'Out of stock' : undefined}
                     >
                       {sz}
@@ -380,7 +607,7 @@ export default function ProductDetailsPage() {
 
           {/* Out-of-stock / low-stock banner */}
           {(() => {
-            const total = totalStock(product.sizeInventory);
+            const total = totalStock(product.sizeInventory, product.ageSizeInventory);
             const isOos = total === 0 || (total === null && product.stock === 'out_of_stock');
             const isLow = total !== null && total > 0 && total < 3;
             const isFew = total !== null && total >= 3 && total < 5;
@@ -430,11 +657,10 @@ export default function ProductDetailsPage() {
               <button
                 type="button"
                 onClick={handleAddToCart}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all duration-200 ${
-                  added
-                    ? 'bg-brand-border text-white scale-95'
-                    : 'bg-brand-dark hover:bg-brand-hover text-white'
-                }`}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all duration-200 ${added
+                  ? 'bg-brand-border text-white scale-95'
+                  : 'bg-brand-dark hover:bg-brand-hover text-white'
+                  }`}
               >
                 <FiShoppingCart size={16} />
                 {added ? '✓ Added' : 'Add to cart'}
@@ -454,11 +680,10 @@ export default function ProductDetailsPage() {
             <button
               type="button"
               onClick={() => dispatch(toggleWishlist(product.id))}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 font-bold text-sm transition-all duration-200 ${
-                wishlisted
-                  ? 'bg-rose-50 border-rose-300 text-rose-500 hover:bg-rose-100'
-                  : 'border-gray-200 text-gray-500 hover:border-rose-300 hover:text-rose-500'
-              }`}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 font-bold text-sm transition-all duration-200 ${wishlisted
+                ? 'bg-rose-50 border-rose-300 text-rose-500 hover:bg-rose-100'
+                : 'border-gray-200 text-gray-500 hover:border-rose-300 hover:text-rose-500'
+                }`}
               title={wishlisted ? 'Remove from wishlist' : 'Save to wishlist'}
             >
               <FiHeart size={16} className={wishlisted ? 'fill-rose-500' : ''} />
@@ -468,20 +693,81 @@ export default function ProductDetailsPage() {
               type="button"
               onClick={handleBuyNow}
               disabled={isProductOos}
-              className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all duration-200 ${
-                isProductOos
-                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  : 'bg-brand-dark hover:bg-brand-hover text-white hover:shadow-lg'
-              }`}
+              className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all duration-200 ${isProductOos
+                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                : 'bg-brand-dark hover:bg-brand-hover text-white hover:shadow-lg'
+                }`}
             >
               Buy Now
             </button>
           </div>
 
+
+          {/* Shipping Features Panel - Compact & Refined */}
+          <div className="bg-black rounded-xl p-4 mt-5">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+
+              {/* Free Shipping */}
+              <div className="flex flex-col items-center text-center">
+                <div className="mb-2">
+                  <FiTruck className="w-8 h-8 text-white" />
+                </div>
+                <h4 className="font-semibold text-white text-xs mb-0.5">
+                  Fast Shipping
+                </h4>
+                <p className="text-[10px] text-gray-400 leading-tight">
+                  On all orders
+                </p>
+              </div>
+
+              {/* Same Day Dispatch */}
+              <div className="flex flex-col items-center text-center">
+                <div className="mb-2">
+                  <FiClock className="w-8 h-8 text-white" />
+                </div>
+                <h4 className="font-semibold text-white text-xs mb-0.5">
+                  Same Day Dispatch
+                </h4>
+                <p className="text-[10px] text-gray-400 leading-tight">
+                  Orders placed before 2 PM
+                </p>
+              </div>
+
+              {/* Express Delivery */}
+              <div className="flex flex-col items-center text-center">
+                <div className="mb-2">
+                  <FiSend className="w-8 h-8 text-white" />
+                </div>
+                <h4 className="font-semibold text-white text-xs mb-0.5">
+                  Express Delivery
+                </h4>
+                <p className="text-[10px] text-gray-400 leading-tight">
+                  Available on request
+                </p>
+              </div>
+
+            </div>
+          </div>
+
+
           {/* ── Info Accordions ── */}
           <div className="mt-2 rounded-2xl overflow-hidden border border-gray-200 shadow-sm divide-y divide-gray-100">
+            <Accordion title="Shipping Information" icon={<span>🚚</span>}>
+              <p className="text-gray-500 text-justify">
+                {product.shippingAndDelivery}
+                {/* Your order dispatches in 1–2 working days. Delivery typically takes 2–4 days for South India and 4–6 days for North India.
+                Tracking details are emailed once shipped. Please ensure your address is accurate to avoid delivery issues. */}
+              </p>
+            </Accordion>
+
+            <Accordion title="Return Policy" icon={<span>↩️</span>}>
+              <div className="space-y-2.5 text-gray-500 text-justify">
+                {product.exchangeAndReturns}
+
+              </div>
+            </Accordion>
             <Accordion title="Wash Care" icon={<span>🧺</span>}>
-              <ul className="space-y-2">
+              <ul className="space-y-2 text-justify">
                 {['30°C Machine Wash', 'Wash With Similar Colours', 'Do Not Bleach', 'Tumble Dry Medium', 'Iron Low'].map((item) => (
                   <li key={item} className="flex items-center gap-2.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-brand-dark flex-shrink-0" />
@@ -492,25 +778,12 @@ export default function ProductDetailsPage() {
             </Accordion>
 
             <Accordion title="Disclaimer" icon={<span>👁️</span>}>
-              <p className="text-gray-500">
+              <p className="text-gray-500 text-justify">
                 Actual color of the product may vary slightly due to photographic lighting sources or your device display settings.
               </p>
             </Accordion>
 
-            <Accordion title="Shipping Information" icon={<span>🚚</span>}>
-              <p className="text-gray-500">
-                Your order dispatches in 1–2 working days. Delivery typically takes 2–4 days for South India and 4–6 days for North India.
-                Tracking details are emailed once shipped. Please ensure your address is accurate to avoid delivery issues.
-              </p>
-            </Accordion>
 
-            <Accordion title="Return Policy" icon={<span>↩️</span>}>
-              <div className="space-y-2.5 text-gray-500">
-                <p>No returns. Sales are generally final. However, if you receive a damaged or incorrect item, please contact us within 2 days of delivery.</p>
-                <p><span className="font-semibold text-gray-700">Note:</span> A clear, continuous unboxing video is mandatory for any claim. Once approved, you will need to ship the product back; we will fully reimburse your courier charges and dispatch a replacement.</p>
-                <p><span className="font-semibold text-gray-700">Support: </span><a href="mailto:support@halleycomet.com" className="text-brand-dark hover:underline font-medium">support@halleycomet.com</a></p>
-              </div>
-            </Accordion>
           </div>
 
         </div>

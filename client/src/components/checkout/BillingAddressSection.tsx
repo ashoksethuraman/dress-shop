@@ -1,5 +1,5 @@
-import React from 'react';
-import { Controller, type Control, type FieldErrors, type UseFormRegister } from 'react-hook-form';
+import React, { useEffect } from 'react';
+import { Controller, type Control, type FieldErrors, type UseFormRegister, useWatch, type UseFormClearErrors } from 'react-hook-form';
 import type { CheckoutFormState } from '../../utils/types';
 import AddressSection from '../AddressSection';
 
@@ -7,6 +7,7 @@ type Props = {
   control: Control<CheckoutFormState>;
   register: UseFormRegister<CheckoutFormState>;
   errors: FieldErrors<CheckoutFormState>;
+  clearErrors: UseFormClearErrors<CheckoutFormState>;
 };
 
 const OPTIONS = [
@@ -14,7 +15,17 @@ const OPTIONS = [
   { label: 'Use a different billing address', value: false },
 ] as const;
 
-export default function BillingAddressSection({ control, register, errors }: Props) {
+export default function BillingAddressSection({ control, register, errors, clearErrors }: Props) {
+  // Watch the billing option to clear errors when switching to "Same as shipping"
+  const billingOptionSame = useWatch({ control, name: 'billingOptionSame', defaultValue: true });
+  
+  // Clear billing address errors when switching to "Same as shipping"
+  useEffect(() => {
+    if (billingOptionSame) {
+      clearErrors('billingAddress');
+    }
+  }, [billingOptionSame, clearErrors]);
+
   return (
     <Controller
       name="billingOptionSame"
@@ -59,7 +70,12 @@ export default function BillingAddressSection({ control, register, errors }: Pro
             >
               <section className="pt-6">
                 <h2 className="text-lg font-bold text-gray-900 mb-3">Billing address</h2>
-                <AddressSection prefix="billingAddress" register={register} errors={errors} />
+                <AddressSection 
+                  prefix="billingAddress" 
+                  register={register} 
+                  errors={errors}
+                  isRequired={!billingAddressSame}
+                />
               </section>
             </div>
           </>

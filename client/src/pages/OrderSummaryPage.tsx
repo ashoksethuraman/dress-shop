@@ -6,6 +6,7 @@ import {
   FiShoppingBag, FiTrash2, FiChevronRight, FiArrowLeft,
   FiTruck, FiShield, FiRefreshCw,
 } from 'react-icons/fi';
+import { getProductImage } from '../utils/imageHelper';
 import { formatPrice } from '../utils/format';
 import type { CartItem } from '../utils/types';
 import { calcOrderTotals, FREE_SHIPPING } from '../utils/priceLevel';
@@ -15,6 +16,8 @@ export default function OrderSummaryPage() {
   const dispatch  = useAppDispatch();
   const navigate  = useNavigate();
   const location  = useLocation();
+
+  const [imgErrors, setImgErrors] = React.useState<Record<string, boolean>>({});
 
   // Buy Now flow: single item passed via route state, never added to cart yet
   const buyNowItem = (location.state as { buyNowItem?: CartItem } | null)?.buyNowItem ?? null;
@@ -58,8 +61,8 @@ export default function OrderSummaryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-5xl mx-auto px-4 py-8">
+    <div className="min-h-screen bg-gray-50 pt-20 md:pt-20">
+      <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 pb-4">
 
         {/* Back link */}
         <button
@@ -82,15 +85,32 @@ export default function OrderSummaryPage() {
               >
                 {/* Row 1: thumbnail + info + remove */}
                 <div className="flex items-start gap-3">
-                  <div className="w-14 h-14 rounded-xl bg-brand flex items-center justify-center flex-shrink-0 border border-brand-border">
-                    <FiShoppingBag size={20} className="text-brand-dark" />
-                  </div>
+                  {(() => {
+                    const key = `${it.productId}-${it.size ?? it.ageSize ?? 'none'}`;
+                    const imgMeta = getProductImage(it as any);
+                    return (
+                      <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 border border-brand-border bg-gray-100">
+                        {!imgErrors[key] && !imgMeta.isPlaceholder ? (
+                          <img src={imgMeta.src} alt={it.title} className="w-full h-full object-cover" loading="lazy" onError={() => setImgErrors((p) => ({ ...p, [key]: true }))} />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <FiShoppingBag size={20} className="text-brand-dark" />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-sm text-gray-800 line-clamp-2 leading-snug">{it.title}</p>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       {it.size && (
                         <span className="text-xs bg-brand text-brand-dark border border-brand-border font-semibold px-2 py-0.5 rounded">
                           Size: {it.size}
+                        </span>
+                      )}
+                      {it.ageSize && (
+                        <span className="text-xs bg-purple-100 text-purple-700 border border-purple-200 font-semibold px-2 py-0.5 rounded">
+                          Age: {it.ageSize} years
                         </span>
                       )}
                       <span className="text-xs text-gray-400">₹{it.price.toFixed(2)} each</span>
@@ -142,8 +162,8 @@ export default function OrderSummaryPage() {
             {/* Trust badges */}
             <div className="grid grid-cols-3 gap-3 mt-2">
               {[
-                { icon: <FiTruck size={16} />, label: 'Free Shipping', sub: 'Orders above ₹999' },
-                { icon: <FiRefreshCw size={16} />, label: 'Easy Returns', sub: '7-day policy' },
+                { icon: <FiTruck size={16} />, label: 'Fast Shipping', sub: 'On all orders' },
+                { icon: <FiRefreshCw size={16} />, label: 'No Returns', sub: '' },
                 { icon: <FiShield size={16} />, label: 'Secure Payment', sub: 'Razorpay encrypted' },
               ].map(({ icon, label, sub }) => (
                 <div key={label} className="flex flex-col items-center text-center bg-white rounded-xl px-3 py-3 shadow-sm gap-1">
@@ -166,10 +186,10 @@ export default function OrderSummaryPage() {
                 <span>Subtotal ({items.reduce((a, i) => a + i.qty, 0)} items)</span>
                 <span>{formatPrice(subtotal)}</span>
               </div>
-              <div className="flex justify-between text-gray-600">
+              {/* <div className="flex justify-between text-gray-600">
                 <span>GST (18%)</span>
                 <span>{formatPrice(taxAmount)}</span>
-              </div>
+              </div> */}
               <div className="flex justify-between text-gray-600">
                 <span>Shipping</span>
                 {shippingFee === 0
@@ -177,11 +197,11 @@ export default function OrderSummaryPage() {
                   : <span>{formatPrice(shippingFee)}</span>
                 }
               </div>
-              {subtotal < FREE_SHIPPING && (
+              {/* {subtotal < FREE_SHIPPING && (
                 <p className="text-xs text-gray-400">
                   Add {formatPrice(FREE_SHIPPING - subtotal)} more for free shipping
                 </p>
-              )}
+              )} */}
               <div className="flex justify-between font-extrabold text-base text-gray-900 pt-2 border-t border-gray-100">
                 <span>Total</span>
                 <span className="text-brand-dark">{formatPrice(totalAmount)}</span>

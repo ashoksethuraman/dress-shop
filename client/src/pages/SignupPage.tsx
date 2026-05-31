@@ -190,8 +190,8 @@ export default function SignupPage() {
   );
 
   return (
-    <div className="min-h-[calc(100vh-90px)] flex items-center justify-center bg-brand-border/10 px-4 py-10">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
+    <div className="min-h-[calc(100vh-90px)] flex items-center justify-center bg-brand-border/10 px-4 py-10 overflow-x-hidden">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-6 sm:p-8">
         <h1 className="text-2xl font-extrabold text-primary text-center mb-1 tracking-tight">
           Create Account
         </h1>
@@ -223,12 +223,12 @@ export default function SignupPage() {
             <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
               Password *
             </label>
-            <div className={`flex items-center border rounded-xl bg-gray-50 focus-within:ring-2 transition-all ${
+            <div className={`flex items-center border rounded-xl bg-gray-50 focus-within:ring-2 transition-all overflow-hidden ${
               errors.password
                 ? 'border-red-400 focus-within:ring-red-100'
                 : 'border-gray-200 focus-within:border-brand-dark focus-within:ring-brand'
             }`}>
-              <span className="pl-3 text-gray-400 shrink-0"><FiLock size={16} /></span>
+              <span className="pl-3 text-gray-400 flex-shrink-0"><FiLock size={16} /></span>
               <input
                 type={showPwd ? 'text' : 'password'}
                 placeholder="Min 8 chars, uppercase, digit, symbol"
@@ -236,13 +236,14 @@ export default function SignupPage() {
                 onChange={(e) => handleChange('password', e.target.value)}
                 onBlur={() => handleBlur('password')}
                 disabled={loading}
-                className="flex-1 bg-transparent px-3 py-2.5 text-sm outline-none text-gray-800 placeholder-gray-400"
+                className="flex-1 bg-transparent px-3 py-2.5 text-sm outline-none text-gray-800 placeholder-gray-400 min-w-0"
               />
               <button
                 type="button"
                 tabIndex={-1}
                 onClick={() => setShowPwd((v) => !v)}
-                className="pr-3 text-gray-400 hover:text-gray-600 border-none bg-transparent cursor-pointer"
+                className="pr-3 pl-2 text-gray-400 hover:text-gray-600 border-none bg-transparent cursor-pointer flex-shrink-0"
+                aria-label={showPwd ? 'Hide password' : 'Show password'}
               >
                 {showPwd ? <FiEyeOff size={16} /> : <FiEye size={16} />}
               </button>
@@ -257,12 +258,12 @@ export default function SignupPage() {
             <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
               Confirm Password *
             </label>
-            <div className={`flex items-center border rounded-xl bg-gray-50 focus-within:ring-2 transition-all ${
+            <div className={`flex items-center border rounded-xl bg-gray-50 focus-within:ring-2 transition-all overflow-hidden ${
               errors.confirmPassword
                 ? 'border-red-400 focus-within:ring-red-100'
                 : 'border-gray-200 focus-within:border-brand-dark focus-within:ring-brand'
             }`}>
-              <span className="pl-3 text-gray-400 shrink-0"><FiLock size={16} /></span>
+              <span className="pl-3 text-gray-400 flex-shrink-0"><FiLock size={16} /></span>
               <input
                 type={showConfirm ? 'text' : 'password'}
                 placeholder="Re-enter password"
@@ -270,13 +271,14 @@ export default function SignupPage() {
                 onChange={(e) => handleChange('confirmPassword', e.target.value)}
                 onBlur={() => handleBlur('confirmPassword')}
                 disabled={loading}
-                className="flex-1 bg-transparent px-3 py-2.5 text-sm outline-none text-gray-800 placeholder-gray-400"
+                className="flex-1 bg-transparent px-3 py-2.5 text-sm outline-none text-gray-800 placeholder-gray-400 min-w-0"
               />
               <button
                 type="button"
                 tabIndex={-1}
                 onClick={() => setShowConfirm((v) => !v)}
-                className="pr-3 text-gray-400 hover:text-gray-600 border-none bg-transparent cursor-pointer"
+                className="pr-3 pl-2 text-gray-400 hover:text-gray-600 border-none bg-transparent cursor-pointer flex-shrink-0"
+                aria-label={showConfirm ? 'Hide password' : 'Show password'}
               >
                 {showConfirm ? <FiEyeOff size={16} /> : <FiEye size={16} />}
               </button>

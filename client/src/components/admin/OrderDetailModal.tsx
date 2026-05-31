@@ -236,7 +236,7 @@ export default function OrderDetailModal({ order, onClose, onStatusUpdated }: Pr
                   <div>
                     <p className="font-semibold text-sm text-primary">{item.title}</p>
                     <p className="text-xs text-muted">
-                      Qty: {item.qty}{item.size ? ` · Size: ${item.size}` : ''} · {formatPrice(item.unitPrice)} each
+                      Qty: {item.qty}{item.size ? ` · Size: ${item.size}` : item.ageSize ? ` · Age: ${item.ageSize} years` : ''} · {formatPrice(item.unitPrice)} each
                     </p>
                   </div>
                   <span className="font-extrabold text-sm text-accent shrink-0">{formatPrice(item.total)}</span>

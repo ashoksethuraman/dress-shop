@@ -1,21 +1,17 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import ProductCard from '../components/ProductCard';
+import { useProducts } from '../hooks/useProducts';
 import { useDeleteProductMutation, useSearchProductsQuery } from '../store/apiSlice';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAppSelector } from '../store/hooks';
 import { FiTrendingUp, FiGrid, FiSearch } from 'react-icons/fi';
-import ProductCard from '../components/ProductCard';
-import { useProducts } from '../hooks/useProducts';
+import { getSiteConfig } from '../services/configService';
+import type { SiteConfig } from '../types/config';
 
-const INITIAL_COUNT = 10;
-const LOAD_MORE_COUNT = 10;
-
-// Persist scroll depth across navigation
-let persistedVisibleCount = INITIAL_COUNT;
-
-function SkeletonCard() {
+function ProductPlaceholder() {
   return (
     <div className="bg-white rounded-2xl overflow-hidden shadow-sm animate-pulse">
-      <div className="h-56 bg-gray-200" />
+      <div className="h-64 bg-gray-200" />
       <div className="p-4 space-y-2">
         <div className="h-4 bg-gray-200 rounded w-4/5" />
         <div className="h-3 bg-gray-200 rounded w-3/5" />
@@ -26,214 +22,223 @@ function SkeletonCard() {
 }
 
 export default function HomePage() {
-  const { products, loading: productsLoading, error: productsError, refresh } = useProducts();
+  const { products, loading, error, refresh } = useProducts();
   const isAdmin = useAppSelector((s) => s.user.user?.isAdmin ?? false);
 
-  const [searchParams] = useSearchParams();
-  const filter = searchParams.get('filter');
-  const searchQuery = searchParams.get('q') ?? '';
+  // Config state for banner image
+  const [config, setConfig] = useState<SiteConfig | null>(null);
+  const [configLoading, setConfigLoading] = useState(true);
 
-  const isSearching = searchQuery.length > 0;
-  const isBestSellers = filter === 'bestsellers' && !isSearching;
-
-  const {
-    data: searchResults,
-    isLoading: searchLoading,
-    isError: searchError,
-  } = useSearchProductsQuery(searchQuery, { skip: !isSearching });
-
-  const loading = isSearching ? searchLoading : productsLoading;
-  const error = isSearching ? searchError : productsError;
-
-  // Derived products
-  const displayProducts = isSearching
-    ? (searchResults ?? [])
-    : isBestSellers
-      ? [...products]
-        .filter((p) => (p.salesCount ?? 0) > 0)
-        .sort((a, b) => (b.salesCount ?? 0) - (a.salesCount ?? 0))
-      : products;
-
-  const [visibleCount, setVisibleCount] = useState(persistedVisibleCount);
-  const sentinelRef = useRef<HTMLDivElement>(null);
-
-  // Reset pagination when filter/search changes
+  // Fetch site configuration on mount
   useEffect(() => {
-    persistedVisibleCount = INITIAL_COUNT;
-    setVisibleCount(INITIAL_COUNT);
-  }, [filter, searchQuery]);
+    const loadConfig = async () => {
+      try {
+        const data = await getSiteConfig();
+        setConfig(data);
+      } catch (err) {
+        console.error('Failed to load config:', err);
+      } finally {
+        setConfigLoading(false);
+      }
+    };
+    loadConfig();
+  }, []);
 
-  const [deleteProduct] = useDeleteProductMutation();
+  const allProducts = products ?? [];
+  const bestSellers = [...allProducts]
+    .filter((product) => (product.salesCount ?? 0) > 0)
+    .sort((a, b) => (b.salesCount ?? 0) - (a.salesCount ?? 0));
 
-  // Infinite scroll
-  useEffect(() => {
-    if (loading || error) return;
+  // Use uploaded banner if available, otherwise fallback to local asset
+  const heroImage = config?.bannerImage || '/assets/home-page-banner-image.jpg';
 
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
+  const featuredBestSellers = bestSellers.length > 0 ? bestSellers.slice(0, 4) : allProducts.slice(0, 4);
+  const featuredProducts = allProducts.slice(0, 4);
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          setVisibleCount((prev) => {
-            const next = Math.min(prev + LOAD_MORE_COUNT, displayProducts.length);
-            persistedVisibleCount = next;
-            return next;
-          });
-        }
-      },
-      { rootMargin: '300px' }
-    );
-
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [loading, error, displayProducts.length]);
-
-  const visibleProducts = displayProducts.slice(0, visibleCount);
-  const hasMore = visibleCount < displayProducts.length;
-
-  function extractStoragePath(url: string): string {
-    if (!url) return "";
-
-    const noQuery = url.split("?")[0];
-    const decoded = decodeURIComponent(noQuery);
-
-    return decoded; // returns "products/halleycomet_xxx.jpg"
-  }
-
-  const handleAdminDelete = async (
-    id: string,
-    title: string,
-    images?: string[],
-    sizeChart?: string
-  ): Promise<void> => {
-
-    if (!window.confirm(`Delete "${title}"?`)) return;
-
-    // Create a NEW mutable array (spread)
-    let allImages: string[] = [...(images ?? [])];
-
-    //  Add size chart only if exists
-    if (sizeChart) {
-      allImages = [...allImages, sizeChart];
-    }
-
-    // Convert download URL → storage path
-    const formattedImagePaths = allImages.map((img) =>
-      extractStoragePath(img)
-    );
-    
-    try {
-      await deleteProduct({
-        id,
-        images: formattedImagePaths,
-      }).unwrap();
-    } catch (err) {
-      console.error("Delete failed:", err);
-    }
-    
-    persistedVisibleCount = INITIAL_COUNT;
-    setVisibleCount(INITIAL_COUNT);
-    refresh({ bust: true });
-  };
+  const announceItems = [
+    'Limited Stock Available',
+    'Loved by 1000+ Women',
+    '10% Off on your first order',
+    'PAN India Shipping',
+  ];
 
   return (
-    <div>
-      <section className="max-w-7xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-2">
-          <div className="flex items-center gap-2 justify-end order-1 md:order-2">
-            <Link
-              to="/"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border ${!isBestSellers && !isSearching
-                ? 'bg-brand-dark border-brand-dark text-white'
-                : 'border-border text-muted'
-                }`}
+    <div className="text-primary overflow-x-hidden">
+      <section className="relative overflow-hidden bg-[#D9B3AF] text-[#1a1a1a] min-h-[calc(57vh-90px)] -mx-6 sm:-mx-8 lg:-mx-12">
+        <div className="max-w-6xl mx-auto w-full h-full flex items-center py-6 sm:py-8 px-6 sm:px-8 lg:px-12">
+          <div className="grid gap-6 lg:gap-10 lg:grid-cols-[1.3fr_0.7fr] items-center w-full">
+            <div className="text-center lg:text-left order-2 lg:order-1">
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold leading-tight">Wear comfort. Own your style.</h1>
+              <p className="mt-5 max-w-xl text-base sm:text-lg leading-7 text-[#333333]">
+                From cozy loungewear to everyday tees, find pieces designed for comfort, style, and everything in between. Made to move with you at home and beyond.
+              </p>
+              <div className="mt-6 sm:mt-8  flex flex-col gap-3 sm:gap-4 items-center md:items-start">
+                <Link
+                  to="/collections"
+                  className="inline-flex items-center justify-center !rounded-md bg-[#1a1a1a] px-7 py-3.5 text-sm font-semibold text-white shadow-lg transition hover:bg-[#333333] w-64 sm:w-auto"
+                >
+                  Explore Now
+                </Link>
+              </div>
+            </div>
+            <div
+              className="overflow-hidden border border-black/10 shadow-2xl bg-white w-full max-w-[360px] mx-auto lg:ml-auto lg:mr-0 order-1 lg:order-2"
+              style={{ borderRadius: '130px 30px', height: '460px' }}
             >
-              <FiGrid size={13} /> All Products
-            </Link>
-
-            <Link
-              to="/?filter=bestsellers"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border ${isBestSellers
-                ? 'bg-brand-dark border-brand-dark text-white'
-                : 'border-border text-muted'
-                }`}
-            >
-              <FiTrendingUp size={13} /> Best Sellers
-            </Link>
+              {!configLoading && heroImage ? (
+                <img
+                  src={heroImage}
+                  alt="Hero product"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-[#efe1dc]" />
+              )}
+            </div>
           </div>
+        </div>
+      </section>
 
-          <h2 className="text-2xl font-bold flex items-center gap-2 text-primary order-2 md:order-1">
-            {isSearching ? (
-              <>
-                <FiSearch size={20} /> Results for “{searchQuery}”
-              </>
-            ) : isBestSellers ? (
-              <>
-                <FiTrendingUp size={22} /> Best Sellers
-              </>
-            ) : (
-              <>
-                <FiGrid size={20} /> All Products
-              </>
-            )}
-          </h2>
+      <section className="bg-[#1a1a1a] border-t border-black/10 py-3 -mx-6 sm:-mx-8 lg:-mx-12">
+        <div className="max-w-full px-6 sm:px-8 lg:px-12 overflow-hidden">
+          <div className="flex whitespace-nowrap animate-marquee gap-8 text-xs sm:text-sm font-semibold tracking-wide text-white/90">
+            {announceItems.concat(announceItems).map((item, index) => (
+              <span key={`${item}-${index}`} className="inline-flex items-center gap-3 shrink-0">
+                <span className="text-nowrap">{item}</span>
+                <span className="text-white/40">|</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
+      {/* 
+      <section className="max-w-6xl mx-auto py-16">
+        <div className="text-center mb-10">
+          <h2 className="mt-3 text-3xl sm:text-4xl font-bold">Best Selling</h2>
+          <p className="mt-3 text-sm sm:text-base text-[#5f5f5f] max-w-2xl mx-auto">
+            Elevate your comfort with our curated selection of best-selling styles.
+          </p>
         </div>
 
-        {/* Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
+        {loading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <ProductPlaceholder key={index} />
+            ))}
+          </div>
+        ) : error ? (
+          <div className="rounded-[30px] border border-black/10 bg-white px-6 py-16 text-center shadow-sm">
+            <div className="w-20 h-20 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
+              <svg className="w-10 h-10 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-bold text-gray-800 mb-2">Unable to Load Products</h3>
+            <p className="text-sm text-gray-500 mb-6">We couldn't load the product list. Please try again.</p>
+            <button
+              onClick={() => refresh()}
+              className="inline-flex items-center justify-center rounded-none bg-[#1a1a1a] px-8 py-3 text-sm font-semibold text-white hover:bg-[#333333] transition w-64 sm:w-auto"
+            >
+              Retry
+            </button>
+          </div>
+        ) : featuredBestSellers.length === 0 ? (
+          <div className="rounded-[30px] border border-black/10 bg-white px-6 py-16 text-center shadow-sm">
+            <div className="w-20 h-20 rounded-full bg-[#f0e8e4] flex items-center justify-center mx-auto mb-4">
+              <svg className="w-10 h-10 text-[#8e6c69]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-bold text-gray-800 mb-2">No Best Sellers Yet</h3>
+            <p className="text-sm text-gray-500 mb-6">Check back soon for our most popular items!</p>
+            <Link
+              to="/products"
+              className="inline-flex items-center justify-center rounded-none border border-[#1a1a1a] bg-white px-6 py-3 text-sm font-semibold text-[#1a1a1a] transition hover:bg-[#f7ece8] w-64 sm:w-auto"
+            >
+              Browse All Products
+            </Link>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {featuredBestSellers.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+            <div className="flex justify-center mt-8">
+              <Link
+                to="/best-sellers"
+                className="inline-flex items-center justify-center rounded-none border border-[#1a1a1a] bg-white px-8 py-3 text-sm font-semibold text-[#1a1a1a] transition hover:bg-[#f7ece8] w-64 sm:w-auto"
+              >
+                View All Best Sellers
+              </Link>
+            </div>
+          </>
+        )}
+      </section> */}
+
+      <section className="bg-white py-16 -mx-6 sm:-mx-8 lg:-mx-12">
+        <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12">
+          <div className="text-center mb-10">
+            {/* <p className="text-sm uppercase tracking-[0.25em] text-[#8e6c69]">Featured collection</p> */}
+            <h2 className="text-3xl sm:text-4xl font-bold">Our Products</h2>
+            <p className="mt-3 text-sm sm:text-base text-[#5f5f5f] max-w-2xl mx-auto">
+              Explore a broader range of styles and everyday essentials from our dress shop.
+            </p>
+          </div>
+
           {loading ? (
-            Array.from({ length: INITIAL_COUNT }).map((_, i) => <SkeletonCard key={i} />)
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-6 px-2">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <ProductPlaceholder key={index} />
+              ))}
+            </div>
           ) : error ? (
-            <div className="col-span-full text-center py-12">
-              <p className="mb-3">Could not load products.</p>
+            <div className="rounded-[30px] border border-black/10 bg-white px-6 py-16 text-center shadow-sm">
+              <div className="w-20 h-20 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
+                <svg className="w-10 h-10 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-bold text-gray-800 mb-2">Unable to Load Products</h3>
+              <p className="text-sm text-gray-500 mb-6">We couldn't load the product list. Please try again.</p>
               <button
                 onClick={() => refresh()}
-                className="px-4 py-2 bg-brand-dark text-white rounded-lg"
+                className="inline-flex items-center justify-center rounded-none bg-[#1a1a1a] px-8 py-3 text-sm font-semibold text-white hover:bg-[#333333] transition w-64 sm:w-auto"
               >
                 Retry
               </button>
             </div>
-          ) : displayProducts.length === 0 ? (
-            <div className="col-span-full text-center py-12 text-gray-400">
-              No products found.
+          ) : featuredProducts.length === 0 ? (
+            <div className="rounded-[30px] border border-black/10 bg-white px-6 py-16 text-center shadow-sm">
+              <div className="w-20 h-20 rounded-full bg-[#f0e8e4] flex items-center justify-center mx-auto mb-4">
+                <svg className="w-10 h-10 text-[#8e6c69]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-bold text-gray-800 mb-2">No Products Available</h3>
+              <p className="text-sm text-gray-500">Check back soon for new arrivals!</p>
             </div>
           ) : (
-            visibleProducts.map((p) => (
-              <ProductCard
-                key={p.id}
-                product={p}
-                isAdmin={isAdmin}
-                onDelete={handleAdminDelete}
-              />
-            ))
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-6 px-2">
+                {featuredProducts.map((product) => (
+                  <ProductCard key={product.id} product={product} />
+                ))}
+              </div>
+              <div className="flex justify-center mt-8">
+                <Link
+                  to="/collections"
+                  className="inline-flex items-center justify-center rounded-md border border-[#1a1a1a] bg-white px-8 py-3 text-sm font-semibold text-[#1a1a1a] transition hover:bg-[#1a1a1a] hover:text-white w-64 sm:w-auto"
+                >
+                  View All Products
+                </Link>
+              </div>
+            </>
           )}
         </div>
-
-        {/* Infinite scroll trigger */}
-        {!loading && !error && displayProducts.length > 0 && (
-          <div ref={sentinelRef} className="h-4" />
-        )}
-
-        {/* Loading more */}
-        {!loading && !error && hasMore && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6 mt-6">
-            {Array.from({
-              length: Math.min(LOAD_MORE_COUNT, displayProducts.length - visibleCount),
-            }).map((_, i) => (
-              <SkeletonCard key={i} />
-            ))}
-          </div>
-        )}
-
-        {/* End */}
-        {!loading && !error && !hasMore && displayProducts.length > 0 && (
-          <p className="text-center text-xs text-gray-400 mt-8">
-            All products loaded
-          </p>
-        )}
       </section>
+
     </div>
   );
 }

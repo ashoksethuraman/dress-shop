@@ -84,7 +84,7 @@ export default function MyOrdersPage() {
   if (!user || user.isGuest) return null;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6">
+    <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 pt-20 md:pt-20 ">
 
       {/* ── Page header ── */}
       <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
@@ -271,7 +271,7 @@ export default function MyOrdersPage() {
                       className="text-xs text-muted bg-brand rounded-full px-2.5 py-0.5 border border-brand-border/40"
                     >
                       {item.title} ×{item.qty}
-                      {item.size ? ` (${item.size})` : ''}
+                      {item.size ? ` (${item.size})` : item.ageSize ? ` (${item.ageSize} yrs)` : ''}
                     </span>
                   ))}
                   {order.items.length > 4 && (

@@ -23,12 +23,14 @@ import {
 } from '../utils/apiTypes';
 
 import type { Product } from '../utils/types';
+import type { SiteConfig, ContactInfo } from '../types/config';
 
 /* =========================================================
    RE-EXPORTS
 ========================================================= */
 export type { SignupPayload, AuthUserInfo, AuthResponse, UserProfile };
 export type { ApiError };
+export type { ContactInfo };
 
 /* =========================================================
    CONFIG
@@ -41,12 +43,16 @@ const region = 'asia-south1';
 
 const isDev = process.env.NODE_ENV === 'development';
 
-const useEmulator =
-  process.env.REACT_APP_USE_EMULATOR === 'true' && isDev;
+const useEmulator = process.env.REACT_APP_USE_EMULATOR === 'true' && isDev;
+// DEV purpose  local should be enable:
+// export const API_BASE_URL = useEmulator
+//   ? '/api'
+//   : `https://${region}-${projectId}.cloudfunctions.net/api`;
 
-export const API_BASE_URL = useEmulator
-  ? '/api'
-  : `https://${region}-${projectId}.cloudfunctions.net/api`;
+// Always use relative path - Firebase Hosting rewrites /api/** to Cloud Functions
+// This ensures same-origin requests so cookies work properly 
+// prod should be enable
+export const API_BASE_URL = '/api';
 
 /* =========================================================
    HELPERS
@@ -225,6 +231,7 @@ export const apiClient = {
 /* PRODUCTS API */
 type ProductFields = {
   title: string;
+  productCode: string;
   description?: string;
   price: number;
   category?: 'men' | 'women';
@@ -233,10 +240,15 @@ type ProductFields = {
   stock?: 'available' | 'out_of_stock';
   sizeInventory?: Record<string, number>;
   sizeChart?: string;
+  shippingAndDelivery?: string;
+  exchangeAndReturns?: string;
 };
 
 export const productsApi = {
-  list: () => apiClient.get<{ products: Product[] }>('products'),
+  list: (params?: { limit?: number; lastDocId?: string; q?: string; sortBy?: string; category?: string; availability?: string; type?: string }) => {
+    const qs = buildQuery(params || {});
+    return apiClient.get<{ products: Product[]; hasMore?: boolean; lastDocId?: string }>(`products${qs ? `?${qs}` : ''}`);
+  },
 
   search: (q: string) =>
     apiClient.get<{ products: Product[] }>(
@@ -381,4 +393,25 @@ export const adminUsersApi = {
       targetUid,
       isAdmin,
     }),
+};
+
+/* CONFIG API */
+export const configApi = {
+  getSettings: () =>
+    apiClient.get<SiteConfig>('config'),
+
+  uploadHomeBanner: (base64: string) =>
+    apiClient.post<{ bannerImage: string }>('config', { base64 }),
+
+  deleteHomeBanner: () =>
+    apiClient.delete<{ success: boolean }>('config/banner'),
+};
+
+/* CONTACT API */
+export const contactApi = {
+  get: () =>
+    apiClient.get<ContactInfo>('config/contact'),
+
+  update: (info: ContactInfo) =>
+    apiClient.put<ContactInfo>('config/contact', info),
 };

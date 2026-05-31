@@ -49,7 +49,7 @@ const sections = [
 
 export default function AboutPage() {
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col pt-20 md:pt-20 pb-3">
       {/* Hero banner — keeps brand green, sits directly under navbar */}
       {/* <div className="bg-brand border-b border-brand-border px-6 py-10 text-center">
         <p className="text-xs font-bold tracking-[0.25em] uppercase text-brand-dark mb-2">Halley Comet</p>
@@ -60,7 +60,7 @@ export default function AboutPage() {
       </div> */}
 
       {/* Page header */}
-      <div className="px-6 pt-6 pb-2">
+      <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 pb-2">
         <div className="flex items-center gap-3">
           <FiInfo size={22} className="text-brand-dark" />
           <h1 className="text-2xl font-bold text-gray-900 font-display">Our Story</h1>
@@ -68,7 +68,7 @@ export default function AboutPage() {
       </div>
 
       {/* Content — pale bg-bg, each section in a white card */}
-      <div className="max-w-3xl mx-auto px-6 py-6 flex flex-col gap-6">
+      <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 py-6 flex flex-col gap-6">
         {sections.map(({ emoji, title, paragraphs, quote }) => (
           <div key={title} className="bg-brand rounded-2xl border border-brand-border shadow-sm px-6 py-5 flex gap-5 sm:gap-7">
             {/* Left accent line + emoji */}
@@ -96,7 +96,7 @@ export default function AboutPage() {
       </div>
 
       {/* Footer strip */}
-      <div className="border-t border-border text-center px-6 py-8">
+      <div className="border-t border-border text-center max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 py-8">
         <p className="text-xs text-muted tracking-widest uppercase">Halley Comet · Cozy Luna Wears</p>
         <p className="text-xs text-muted mt-1">Tirupur, India</p>
       </div>

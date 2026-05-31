@@ -12,6 +12,7 @@ interface OrderEmailItem {
   unitPrice?: number;
   total?: number;
   size?: string | null;
+  ageSize?: string | null;
 }
 
 interface OrderEmailAddress {
@@ -47,7 +48,8 @@ const smtpUser = process.env.MAIL_SMTP_USER ?? "";
 const smtpPass = process.env.MAIL_SMTP_PASS ?? "";
 const mailFromEmail = process.env.MAIL_FROM_EMAIL ?? "";
 const mailFromName = process.env.MAIL_FROM_NAME ?? "Halley Comet";
-const appBaseUrl = process.env.APP_BASE_URL ?? "";
+const appBaseUrl = "https://halleycomet.in/shipping";
+const adminEmail = "halleycomet.business@gmail.com";
 
 let cachedTransporter: nodemailer.Transporter | null = null;
 
@@ -114,7 +116,9 @@ function itemsTable(items?: OrderEmailItem[]) {
     .map(
       (i) => `
         <tr>
-          <td style="padding:6px;border-bottom:1px solid #eee;">${i.title}${i.size ? ` (${i.size})` : ""}</td>
+          <td style="padding:6px;border-bottom:1px solid #eee;">
+            ${i.title}${i.size ? ` (Size: ${i.size})` : ""}${i.ageSize ? ` (Age: ${i.ageSize} years)` : ""}
+          </td>
           <td style="padding:6px;text-align:center;border-bottom:1px solid #eee;">${i.qty}</td>
           <td style="padding:6px;text-align:right;border-bottom:1px solid #eee;">INR ${i.unitPrice?.toFixed(2)}</td>
           <td style="padding:6px;text-align:right;border-bottom:1px solid #eee;">INR ${(i.total ?? (i.qty ?? 0) * (i.unitPrice ?? 0)).toFixed(2)}</td>
@@ -181,6 +185,7 @@ export async function sendOrderEmail(
   await transporter.sendMail({
     from: `"${mailFromName}" <${mailFromEmail}>`,
     to: recipient,
+    bcc: adminEmail,
     subject: `${meta.subject} – ${order.orderId}`,
     html,
   });

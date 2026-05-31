@@ -62,7 +62,7 @@ usersRouter.post("/signup", validate(validateSignup), async (req: Request, res: 
     return;
   }
 
-  setAuthCookies(res, token, generateCsrfToken());
+  setAuthCookies(res, token);
   logger.info("[POST /users/signup] User created", {uid, email: normalizedEmail});
   res.status(201).json({success: true, user: {uid, username: username.trim(), email: normalizedEmail, role: "user"}});
 });
@@ -107,7 +107,7 @@ usersRouter.post("/login", validate(validateLogin), async (req: Request, res: Re
     return;
   }
 
-  setAuthCookies(res, token, generateCsrfToken());
+  setAuthCookies(res, token);
   logger.info("[POST /users/login] Successful login", {uid, email: normalizedEmail});
   res.json({success: true, user: {uid, username, email: normalizedEmail, role}});
 });

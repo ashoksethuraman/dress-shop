@@ -3,6 +3,7 @@
     "jimp": "^1.6.1"
   },
   "dependencies": {
-    "dotenv": "^17.4.2"
+    "dotenv": "^17.4.2",
+    "firebase-tools": "^15.18.0"
   }
 }

@@ -6,6 +6,11 @@ import {FieldValue} from "firebase-admin/firestore";
 import * as crypto from "crypto";
 import * as logger from "firebase-functions/logger";
 import fetch from "node-fetch";
+import {
+  razorpayKeyId,
+  razorpayKeySecret,
+  razorpayWebhookSecret,
+} from "../secrets";
 
 import {db} from "../config/firebase";
 import {optionalAuth, validate} from "../middleware";
@@ -24,6 +29,7 @@ import {
 import {
   validateVerifyPayment,
   validateCreateRazorpayOrder,
+  validateRefundOrder,
 } from "../validators";
 
 import Razorpay from "razorpay";
@@ -39,11 +45,56 @@ function timelineEvent(status: string, note?: string) {
 /** ------------------ ROUTER ------------------ **/
 export const paymentsRouter = Router();
 
-/** ------------------ ENV ------------------ **/
-const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID ?? "";
-const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET ?? "";
-const WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET ?? "";
-const enforceSignature = process.env.ENFORCE_RAZORPAY_SIGNATURE !== "false";
+/** ------------------ SECRETS / CONFIG ------------------ **/
+// Prefer Firebase Functions Secret Manager via `params`. Fall back to process.env for local/dev.
+
+let _cachedSecrets: {
+  keyId: string;
+  keySecret: string;
+  webhookSecret: string;
+  enforceSignature: boolean;
+} | null = null;
+
+async function getSecrets() {
+  if (_cachedSecrets) return _cachedSecrets;
+
+  // start with process.env (useful for local emulator / legacy setups)
+  let keyId = process.env.RAZORPAY_KEY_ID ?? "";
+  let keySecret = process.env.RAZORPAY_KEY_SECRET ?? "";
+  let webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET ?? "";
+  const enforceSignature = process.env.ENFORCE_RAZORPAY_SIGNATURE !== "false";
+
+  // attempt to read Secrets from the new params API; ignore failures and keep env fallbacks
+  try {
+    const v = await razorpayKeyId.value();
+    if (v) keyId = v;
+  } catch (e) {
+    // ignore - param not set in this environment
+  }
+
+  try {
+    const v = await razorpayKeySecret.value();
+    if (v) keySecret = v;
+  } catch (e) {
+    // ignore
+  }
+
+  try {
+    const v = await razorpayWebhookSecret.value();
+    if (v) webhookSecret = v;
+  } catch (e) {
+    // ignore
+  }
+
+  _cachedSecrets = {
+    keyId,
+    keySecret,
+    webhookSecret,
+    enforceSignature,
+  };
+
+  return _cachedSecrets;
+}
 
 /** ------------------ TYPES ------------------ **/
 interface RazorpayPayment {
@@ -53,6 +104,7 @@ interface RazorpayPayment {
   amount: number;
   currency: string;
   method?: string;
+  [key: string]: unknown;
 }
 
 /** ------------------ HELPERS ------------------ **/
@@ -63,7 +115,20 @@ function safeEqual(a: string, b: string) {
 
 function toEmailPayload(
   orderId: string,
-  data: any,
+  data: {
+    isGuest?: boolean;
+    contactEmail?: string;
+    email?: string;
+    userEmail?: string;
+    totalAmount?: number;
+    amount?: number;
+    paymentId?: string;
+    paymentStatus?: string;
+    orderStatus?: string;
+    items?: unknown[];
+    billingAddress?: unknown;
+    shippingAddress?: unknown;
+  },
   paymentId?: string
 ): OrderEmailPayload {
   return {
@@ -76,9 +141,9 @@ function toEmailPayload(
     paymentId: paymentId ?? data?.paymentId ?? null,
     paymentStatus: data?.paymentStatus ?? null,
     orderStatus: data?.orderStatus ?? null,
-    items: data?.items ?? [],
-    billingAddress: data?.billingAddress,
-    shippingAddress: data?.shippingAddress,
+    items: (data?.items ?? []) as never,
+    billingAddress: data?.billingAddress as never,
+    shippingAddress: data?.shippingAddress as never,
   };
 }
 
@@ -86,8 +151,9 @@ function toEmailPayload(
 async function validatePaymentFromRazorpay(
   paymentId: string
 ): Promise<RazorpayPayment> {
+  const secrets = await getSecrets();
   const auth = Buffer.from(
-    `${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`
+    `${secrets.keyId}:${secrets.keySecret}`
   ).toString("base64");
 
   const res = await fetch(
@@ -100,6 +166,16 @@ async function validatePaymentFromRazorpay(
 }
 
 /** ------------------ CONFIRM PAYMENT ------------------ **/
+interface RazorpayPaymentMeta {
+  id: string;
+  order_id?: string;
+  status?: string;
+  amount?: number;
+  currency?: string;
+  method?: string;
+  [key: string]: unknown;
+}
+
 async function confirmPayment({
   orderId,
   paymentId,
@@ -111,7 +187,7 @@ async function confirmPayment({
   paymentId: string;
   razorpayOrderId?: string;
   paymentMethod?: string;
-  paymentMeta?: any;
+  paymentMeta?: RazorpayPaymentMeta;
 }) {
   return db.runTransaction(async (tx) => {
     const orderRef = db.doc(`orders/${orderId}`);
@@ -175,6 +251,8 @@ paymentsRouter.post(
       const data = snap.data()!;
       const amount = data.totalAmount;
 
+      const secrets = await getSecrets();
+
       if (!amount || amount <= 0) {
         return res.status(422).json({error: "Invalid amount"});
       }
@@ -184,14 +262,13 @@ paymentsRouter.post(
           razorpayOrderId: data.razorpayOrderId,
           amount: Math.round(amount * 100),
           currency: "INR",
-          keyId: RAZORPAY_KEY_ID,
+          keyId: secrets.keyId,
         });
       }
 
       const auth = Buffer.from(
-        `${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`
+        `${secrets.keyId}:${secrets.keySecret}`
       ).toString("base64");
-
       const r = await fetch("https://api.razorpay.com/v1/orders", {
         method: "POST",
         headers: {
@@ -206,7 +283,16 @@ paymentsRouter.post(
         }),
       });
 
-      const json: any = await r.json();
+      interface RazorpayOrderResponse {
+        id: string;
+        amount: number;
+        currency: string;
+        receipt?: string;
+        status?: string;
+        [key: string]: unknown;
+      }
+
+      const json = await r.json() as RazorpayOrderResponse;
 
       if (!r.ok) {
         logger.error("Razorpay order creation failed", json);
@@ -222,7 +308,7 @@ paymentsRouter.post(
         razorpayOrderId: json.id,
         amount: json.amount,
         currency: json.currency,
-        keyId: RAZORPAY_KEY_ID,
+        keyId: secrets.keyId,
       });
     } catch (err) {
       logger.error("razorpay-order error", err);
@@ -240,9 +326,10 @@ paymentsRouter.post(
     try {
       const body = req.body as VerifyPaymentBody;
 
-      if (enforceSignature) {
+      const secrets = await getSecrets();
+      if (secrets.enforceSignature) {
         const expected = crypto
-          .createHmac("sha256", RAZORPAY_KEY_SECRET)
+          .createHmac("sha256", secrets.keySecret)
           .update(`${body.razorpay_order_id}|${body.razorpay_payment_id}`)
           .digest("hex");
 
@@ -307,7 +394,7 @@ paymentsRouter.post(
     } catch (err: unknown) {
       logger.error("VERIFY FAILED", err);
       const message = err instanceof Error ? err.message : "Unknown";
-      return res.status(500).json({error: "Verification failed" +message});
+      return res.status(500).json({error: "Verification failed" + message});
     }
   }
 );
@@ -334,54 +421,135 @@ paymentsRouter.post("/fail", optionalAuth, async (req, res) => {
 });
 
 /* REFUND (SAFE) */
-paymentsRouter.post("/refund", optionalAuth, async (req, res) => {
+paymentsRouter.post("/refund", optionalAuth, validate(validateRefundOrder), async (req, res) => {
   try {
-    const {orderId} = req.body;
+    const {orderId, reason} = req.body;
+
+    // Validate environment variables / secrets
+    const secrets = await getSecrets();
+    if (!secrets.keyId || !secrets.keySecret) {
+      logger.error("Razorpay credentials not configured");
+      return res.status(500).json({error: "Payment service not configured"});
+    }
 
     const snap = await db.doc(`orders/${orderId}`).get();
     if (!snap.exists) {
+      logger.error(`Order not found: ${orderId}`);
       return res.status(404).json({error: "Order not found"});
     }
 
     const data = snap.data()!;
 
-    if (data.paymentStatus !== "SUCCESS") {
-      return res.status(400).json({error: "No successful payment"});
-    }
-
+    // Check for refund status BEFORE checking for SUCCESS
     if (["REFUND_INITIATED", "REFUNDED"].includes(data.paymentStatus)) {
+      logger.warn(`Order already refunded: ${orderId}`);
       return res.status(400).json({error: "Already refunded"});
     }
 
+    if (data.paymentStatus !== "SUCCESS") {
+      logger.error(`Invalid payment status for refund: ${data.paymentStatus}`);
+      return res.status(400).json({error: "No successful payment to refund"});
+    }
+
     if (!data.paymentId) {
+      logger.error(`Missing paymentId for order: ${orderId}`);
       return res.status(400).json({error: "Missing paymentId"});
     }
 
-    // const Razorpay = require("razorpay");
-    const razorpay = new Razorpay({
-      key_id: RAZORPAY_KEY_ID,
-      key_secret: RAZORPAY_KEY_SECRET,
+    if (!data.totalAmount || data.totalAmount <= 0) {
+      logger.error(`Invalid amount for refund: ${data.totalAmount}`);
+      return res.status(400).json({error: "Invalid refund amount"});
+    }
+
+    logger.info(`Initiating refund for order ${orderId}`, {
+      paymentId: data.paymentId,
+      amount: data.totalAmount,
+      reason: reason || "No reason provided",
     });
 
-    const refund = await razorpay.payments.refund(data.paymentId, {
-      amount: data.totalAmount * 100,
-      notes: {orderId},
+    const razorpay = new Razorpay({
+      key_id: (await getSecrets()).keyId,
+      key_secret: (await getSecrets()).keySecret,
     });
+
+    // Razorpay expects amount in paise (smallest currency unit)
+    const refundAmount = Math.round(data.totalAmount * 100);
+
+    logger.info("Calling Razorpay refund API", {
+      paymentId: data.paymentId,
+      amount: refundAmount,
+    });
+
+    // Build refund notes with reason if provided
+    const refundNotes: Record<string, string> = {orderId};
+    if (reason && reason.trim()) {
+      refundNotes.reason = reason.trim();
+    }
+
+    const refund = await razorpay.payments.refund(data.paymentId, {
+      amount: refundAmount,
+      notes: refundNotes,
+    });
+
+    logger.info("Refund successful", {
+      refundId: refund.id,
+      status: refund.status,
+    });
+
+    // Build timeline note with reason if provided
+    const refundNote = reason && reason.trim() ?
+      `Refund ID: ${refund.id} | Reason: ${reason.trim()}` :
+      `Refund ID: ${refund.id}`;
 
     await snap.ref.update({
       paymentStatus: "REFUND_INITIATED",
       orderStatus: "REFUND_INITIATED",
+      refundId: refund.id,
+      refundReason: reason && reason.trim() ? reason.trim() : null,
+      refundedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
       timeline: FieldValue.arrayUnion(
-        timelineEvent("REFUND_INITIATED"),
+        timelineEvent("REFUND_INITIATED", refundNote),
         timelineEvent("REFUND_REQUESTED")
       ),
     });
 
-    return res.json({success: true, refundId: refund.id});
+    return res.json({
+      success: true,
+      refundId: refund.id,
+      status: refund.status,
+      amount: data.totalAmount,
+    });
   } catch (err: unknown) {
-    logger.error("Refund failed", err);
-    const message = err instanceof Error ? err.message : "Unknown";
-    return res.status(500).json({error: message});
+    logger.error("Refund failed", {
+      error: err,
+      orderId: req.body?.orderId,
+      stack: err instanceof Error ? err.stack : undefined,
+    });
+
+    const message = err instanceof Error ? err.message : "Unknown error";
+
+    interface RazorpayError {
+      error?: {
+        description?: string;
+        code?: string;
+      };
+    }
+
+    // Handle specific Razorpay errors
+    if (err && typeof err === "object" && "error" in err) {
+      const razorpayError = err as RazorpayError;
+      return res.status(400).json({
+        error: "Refund failed",
+        message: razorpayError.error?.description || message,
+        code: razorpayError.error?.code,
+      });
+    }
+
+    return res.status(500).json({
+      error: "Refund failed",
+      message: message,
+    });
   }
 });
 
@@ -395,8 +563,9 @@ export async function razorpayWebhookHandler(
 
     const raw = req.body as Buffer;
 
+    const secrets = await getSecrets();
     const expected = crypto
-      .createHmac("sha256", WEBHOOK_SECRET)
+      .createHmac("sha256", secrets.webhookSecret)
       .update(raw)
       .digest("hex");
 
@@ -405,7 +574,7 @@ export async function razorpayWebhookHandler(
     }
 
     const event = JSON.parse(raw.toString());
-
+    logger.info("Webhook event :", event.event);
     if (event.event === "payment.captured") {
       const entity = event.payload.payment.entity;
       const orderId = entity.notes?.orderId;

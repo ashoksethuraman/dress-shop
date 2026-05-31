@@ -27,7 +27,10 @@ declare global {
 
 const ALLOWED_ORIGINS = [
   "http://localhost:3000",
-  "https://halleycomet-7cd48.web.app", // ← Added frontend domain
+  "https://halleycomet.in",
+  "https://www.halleycomet.in",
+  "https://halleycomet-7cd48.web.app",
+  "https://halleycomet-7cd48.firebaseapp.com",
   `https://${process.env.GCLOUD_PROJECT}.web.app`,
   `https://${process.env.GCLOUD_PROJECT}.firebaseapp.com`,
 ];
@@ -65,15 +68,17 @@ function cookieOptions(httpOnly: boolean) {
   return {
     httpOnly,
     secure: IS_PROD,
-    sameSite: IS_PROD ? ("none" as const) : ("lax" as const),
+    // Use "lax" for same-origin (Firebase Hosting rewrites make this same-origin)
+    // This is more secure than "none" and works perfectly with same-domain setup
+    sameSite: "lax" as const,
     maxAge: 3600 * 1000,
     path: "/",
   };
 }
 
-export function setAuthCookies(res: Response, sessionJwt: string, csrfToken: string): void {
+export function setAuthCookies(res: Response, sessionJwt: string): void {
   res.cookie("__session", sessionJwt, cookieOptions(true));
-  res.cookie("XSRF-TOKEN", csrfToken, cookieOptions(false));
+  // res.cookie("XSRF-TOKEN", csrfToken, cookieOptions(false));
 }
 
 export function clearAuthCookies(res: Response): void {
@@ -247,25 +252,27 @@ function verifyJwt(token: string): AuthUserPayload | null {
 ========================================================= */
 
 export function authenticate(req: Request, res: Response, next: NextFunction): void {
+  // Read session cookie or Authorization header
   const sessionCookie =
     (req.cookies as Record<string, string | undefined>)["__session"];
-
   const header = req.headers.authorization ?? "";
-  const token =
-    sessionCookie ?? (header.startsWith("Bearer ") ? header.slice(7) : null);
+  const token = sessionCookie ?? (header.startsWith("Bearer ") ? header.slice(7) : null);
 
   if (!token) {
+    logger.warn("[AUTH] No token provided", {path: req.path});
     res.status(401).json({error: "Authentication required."});
     return;
   }
 
   const decoded = verifyJwt(token);
   if (!decoded) {
+    logger.warn("[AUTH] Invalid or expired token", {path: req.path});
     res.status(401).json({error: "Invalid or expired token."});
     return;
   }
-  logger.info("[user data] req.user =", decoded);
+
   req.user = decoded;
+  logger.debug("[AUTH] User authenticated", {uid: decoded.uid, role: decoded.role});
   next();
 }
 
@@ -282,17 +289,12 @@ export function optionalAuth(req: Request, _res: Response, next: NextFunction): 
 }
 
 export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
-  logger.info("[requireAdmin] req.user =", {
-    user: req.user,
-  });
-  console.log("[requireAdmin] req.user =", req.user);
-
   if (!req.user || req.user.role !== "admin") {
-    logger.warn("[requireAdmin] blocked access", {
-      user: req.user,
-      reason: "not admin or missing user",
+    logger.warn("[requireAdmin] Access denied", {
+      uid: req.user?.uid,
+      role: req.user?.role,
+      path: req.path,
     });
-
     res.status(403).json({error: "Admin access required."});
     return;
   }

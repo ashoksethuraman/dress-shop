@@ -2,6 +2,74 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Custom scrollbar styles for filter horizontal scrolling */
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar {
+    height: 6px;
+  }
+  
+  .scrollbar-thumb-pink-200::-webkit-scrollbar-thumb {
+    background-color: #fbcfe8;
+    border-radius: 3px;
+  }
+  
+  .scrollbar-thumb-emerald-200::-webkit-scrollbar-thumb {
+    background-color: #a7f3d0;
+    border-radius: 3px;
+  }
+  
+  .scrollbar-track-transparent::-webkit-scrollbar-track {
+    background-color: transparent;
+  }
+  
+  .scrollbar-thumb-pink-300:hover::-webkit-scrollbar-thumb {
+    background-color: #f9a8d4;
+  }
+  
+  .scrollbar-thumb-emerald-300:hover::-webkit-scrollbar-thumb {
+    background-color: #6ee7b7;
+  }
+}
+
+/* Custom scrollbar styles */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #D9B3AF;
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #C9A3A0;
+}
+
+/* Slide down animation */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slideDown {
+  animation: slideDown 0.3s ease-out;
+}
+
 /* ── CSS custom-properties ────────────────────────────────────────────────────
    KEEP IN SYNC with tailwind.config.js  (these exist only for the handful of
    places that need them at runtime, e.g. body background, navbar border, etc.)
@@ -20,12 +88,35 @@
 }
 
 * { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: var(--bg); font-family: 'Poppins', sans-serif; color: var(--primary); }
+html, body { margin: 0; padding: 0; min-height: 100%; background: var(--bg); font-family: 'Poppins', sans-serif; color: var(--primary); }
+html { scroll-behavior: smooth; }
+body { overflow-x: hidden; }
 h1, h2, h3, h4, h5 { font-family: 'Poppins', sans-serif; }
+
+/* Remove border-radius from all buttons - keep them square */
+button, .btn, a[class*="button"], input[type="button"], input[type="submit"] {
+  border-radius: 0 !important;
+}
 
 /* Cart counter pop animation */
 @keyframes pop  { 0%,100%{transform:scale(1)} 50%{transform:scale(1.3)} }
 @keyframes bump { 0%,100%{transform:scale(1)} 30%{transform:scale(1.25)} }
+@keyframes marquee {
+  0% { 
+    transform: translateX(0);
+  }
+  100% { 
+    transform: translateX(calc(-50% - 16px));
+  }
+}
+.animate-marquee {
+  display: inline-flex;
+  animation: marquee 10s linear infinite;
+  gap: 32px;
+}
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
 .cart-counter { animation: pop 200ms ease; }
 .cart-counter.bump { animation: bump 300ms ease; }
 

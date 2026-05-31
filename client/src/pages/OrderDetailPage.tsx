@@ -240,7 +240,7 @@ export default function OrderDetailPage() {
   const shipAddr = !order.billingAndShippingSame ? order.shippingAddress : null;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6">
+    <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 py-6">
 
       {/* ── Breadcrumb ── */}
       <div className="flex items-center gap-2 mb-5 text-sm">
@@ -389,7 +389,7 @@ export default function OrderDetailPage() {
                     <p className="font-semibold text-sm text-primary">{item.title}</p>
                     <p className="text-xs text-muted">
                       Qty: {item.qty}
-                      {item.size ? ` · Size: ${item.size}` : ''} · {formatPrice(item.unitPrice)} each
+                      {item.size ? ` · Size: ${item.size}` : item.ageSize ? ` · Age: ${item.ageSize} years` : ''} · {formatPrice(item.unitPrice)} each
                     </p>
                   </div>
                   <span className="font-extrabold text-sm text-accent shrink-0">
@@ -559,15 +559,15 @@ export default function OrderDetailPage() {
                 </p>
               )}
 
-              {/* Initiate button */}
-              {isRefundEligible && !refundDone && (
+              {/* Initiate button !isOwnOrder */}
+              {/* { isRefundEligible && !refundDone && (
                 <button
                   onClick={() => { setShowRefundModal(true); setRefundError(null); }}
                   className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-sm transition-colors"
                 >
                   <FiRefreshCw size={13} /> Initiate Refund ({formatPrice(order.totalAmount)})
                 </button>
-              )}
+              )} */}
             </section>
           )}
 

@@ -76,6 +76,7 @@ function ItemRows({ items, compact }: { items: any[]; compact: boolean }) {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-gray-800 truncate">{it.title}</p>
             {it.size && <p className="text-xs text-gray-400 mt-0.5">Size: {it.size}</p>}
+            {it.ageSize && <p className="text-xs text-gray-400 mt-0.5">Age: {it.ageSize} years</p>}
             <p className="text-xs text-gray-500 mt-0.5">Qty: {it.qty} × ₹{Number(it.unitPrice ?? it.price ?? 0).toFixed(2)}</p>
           </div>
           <p className="text-sm font-bold text-gray-800 flex-shrink-0">₹{Number(it.total ?? (it.unitPrice ?? it.price ?? 0) * it.qty).toFixed(2)}</p>
@@ -197,7 +198,7 @@ function buildPdf({ order, isFailure, reason, paymentId, paymentMethod, placedOn
   tx('ITEM', L); tx('QTY', 125); tx('UNIT PRICE', 148); tx('TOTAL', R, 'right');
   ln(1); hr(210); sf(10); sc(30, 30, 30);
   order.items?.forEach((it: any) => {
-    const itemLabel = it.size ? `${it.title} (Size: ${it.size})` : it.title;
+    const itemLabel = it.size ? `${it.title} (Size: ${it.size})` : it.ageSize ? `${it.title} (Age: ${it.ageSize} years)` : it.title;
     const uPrice = Number(it.unitPrice ?? it.price ?? 0);
     const iTotal = Number(it.total ?? uPrice * it.qty);
     tx(itemLabel, L); tx(String(it.qty), 125);
@@ -253,7 +254,7 @@ export default function OrderStatusPage() {
     if (!order) return;
     let logoDataUrl: string | undefined;
     try {
-      const res = await fetch('/app-logo.png');
+      const res = await fetch('/halley-comet-logo.png');
       const blob = await res.blob();
       logoDataUrl = await new Promise<string>((resolve) => {
         const reader = new FileReader();
@@ -273,7 +274,7 @@ export default function OrderStatusPage() {
   if (!visible) return <Loader fullPage label="Loading order details…" />;
 
   if (!order) return (
-    <div className="max-w-lg mx-auto px-4 py-28 text-center">
+    <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 py-28 text-center">
       <FiPackage size={52} className="text-gray-200 mx-auto mb-5" />
       <h2 className="text-xl font-bold text-gray-700 mb-2">No order details found</h2>
       <p className="text-sm text-gray-500 mb-6">This page requires an active order session. Check your email for confirmation.</p>
@@ -286,7 +287,7 @@ export default function OrderStatusPage() {
     const title = FAILURE_TITLES[reason ?? 'payment_failed'];
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="max-w-3xl mx-auto px-4 py-8">
+        <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 py-8">
           <nav className="text-xs text-gray-400 mb-5 flex items-center gap-1.5">
             <Link to="/" className="hover:text-red-500 transition-colors">Home</Link>
             <span>›</span><span className="text-red-500 font-medium">{title}</span>
@@ -359,7 +360,7 @@ export default function OrderStatusPage() {
   /* ── SUCCESS VIEW ── */
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto px-4 py-8">
+      <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 py-8">
         <nav className="text-xs text-gray-400 mb-5 flex items-center gap-1.5">
           <Link to="/" className="hover:text-brand-dark transition-colors">Home</Link>
           <span>›</span><span className="text-brand-dark font-medium">Order Confirmed</span>

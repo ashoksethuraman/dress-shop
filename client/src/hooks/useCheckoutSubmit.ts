@@ -67,6 +67,13 @@ export function useCheckoutSubmit({
       const orderId = generateOrderId();
       const addressSame = form.billingOptionSame;
 
+      // If billing address is same as shipping, copy shipping address to billing address
+      // This ensures complete data even if billing fields were not filled
+      const formData = {
+        ...form,
+        billingAddress: addressSame ? form.shippingAddress : form.billingAddress!
+      };
+
       const normalizeAddr = (a: typeof form.shippingAddress): AddressPayload => ({
         name: `${a.firstName} ${a.lastName}`.trim(),
         line1: a.address,
@@ -79,9 +86,9 @@ export function useCheckoutSubmit({
       });
 
       const billingAddr = normalizeAddr(
-        addressSame ? form.shippingAddress : form.billingAddress!
+        addressSame ? formData.shippingAddress : formData.billingAddress!
       );
-      const shippingAddress = addressSame ? undefined : normalizeAddr(form.shippingAddress);
+      const shippingAddress = addressSame ? undefined : normalizeAddr(formData.shippingAddress);
 
       const orderPayload: CreateOrderPayload = {
         id: orderId,
@@ -94,6 +101,7 @@ export function useCheckoutSubmit({
           title: i.title,
           qty: i.qty,
           size: i.size ?? null,
+          ageSize: i.ageSize ?? null,
         })),
         totalAmount: +total.toFixed(2),
       };
@@ -108,6 +116,7 @@ export function useCheckoutSubmit({
           title: i.title,
           qty: i.qty,
           size: i.size ?? null,
+          ageSize: i.ageSize ?? null,
           unitPrice: i.price,
           total: parseFloat((i.price * i.qty).toFixed(2)),
         })),
@@ -158,99 +167,108 @@ export function useCheckoutSubmit({
       }
 
       /* ------------------- STEP 3: RAZORPAY POPUP ------------------ */
-      await initRazorpayPayment({
-        orderId,
-        amount: confirmedAmount,
-        name: `${form.shippingAddress.firstName} ${form.shippingAddress.lastName}`,
-        email: form.email,
-        phone: form.shippingAddress.phone,
-        keyId: razorpayKeyId,
-        razorpayOrderId,
+      try {
+        await initRazorpayPayment({
+          orderId,
+          amount: confirmedAmount,
+          name: `${formData.shippingAddress.firstName} ${formData.shippingAddress.lastName}`,
+          email: formData.email,
+          phone: formData.shippingAddress.phone,
+          keyId: razorpayKeyId,
+          razorpayOrderId,
 
-        /* SUCCESS (BUT NOT VERIFIED) */
-        onSuccess: async (response) => {
-          try {
-            await paymentsApi.verifyPayment({
-              orderId,
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-            });
-          } catch (err) {
-            // Store for retry (high reliability)
-            localStorage.setItem(
-              "pendingOrder",
-              JSON.stringify({
-                ...orderPayload,
-                paymentId: response.razorpay_payment_id,
-                verifyFailedAt: Date.now(),
-              })
-            );
+          /* SUCCESS (BUT NOT VERIFIED) */
+          onSuccess: async (response) => {
+            try {
+              await paymentsApi.verifyPayment({
+                orderId,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              });
+            } catch (err) {
+              // Store for retry (high reliability)
+              localStorage.setItem(
+                "pendingOrder",
+                JSON.stringify({
+                  ...orderPayload,
+                  paymentId: response.razorpay_payment_id,
+                  verifyFailedAt: Date.now(),
+                })
+              );
 
+              navigatedAway.current = true;
+              navigate("/order-success", {
+                state: {
+                  order: displayOrder,
+                  paymentId: response.razorpay_payment_id,
+                  paymentMethod: "Razorpay",
+                  verifyFailed: true,
+                },
+              });
+              clearOrderedItems();
+              return;
+            }
+
+            // Verified → finalize
             navigatedAway.current = true;
             navigate("/order-success", {
               state: {
                 order: displayOrder,
                 paymentId: response.razorpay_payment_id,
                 paymentMethod: "Razorpay",
-                verifyFailed: true,
               },
             });
             clearOrderedItems();
-            return;
-          }
+          },
 
-          // Verified → finalize
-          navigatedAway.current = true;
-          navigate("/order-success", {
-            state: {
-              order: displayOrder,
-              paymentId: response.razorpay_payment_id,
-              paymentMethod: "Razorpay",
-            },
-          });
-          clearOrderedItems();
-        },
+          /* USER CLOSED POPUP */
+          onDismiss: async () => {
+            try {
+              await paymentsApi.failPayment({
+                orderId,
+                reason: "payment_dismissed",
+              });
+            } catch {}
 
-        /* USER CLOSED POPUP */
-        onDismiss: async () => {
-          try {
-            await paymentsApi.failPayment({
-              orderId,
-              reason: "payment_dismissed",
+            navigatedAway.current = true;
+            navigate("/order-failure", {
+              state: {
+                order: displayOrder,
+                reason: "payment_dismissed",
+                description: "Payment was cancelled.",
+              },
             });
-          } catch {}
+          },
 
-          navigatedAway.current = true;
-          navigate("/order-failure", {
-            state: {
-              order: displayOrder,
-              reason: "payment_dismissed",
-              description: "Payment was cancelled.",
-            },
-          });
-        },
+          /* PAYMENT FAILED */
+          onPaymentFailed: async (error) => {
+            try {
+              await paymentsApi.failPayment({
+                orderId,
+                reason: "payment_failed",
+              });
+            } catch {}
 
-        /* PAYMENT FAILED */
-        onPaymentFailed: async (error) => {
-          try {
-            await paymentsApi.failPayment({
-              orderId,
-              reason: "payment_failed",
+            navigatedAway.current = true;
+            navigate("/order-failure", {
+              state: {
+                order: displayOrder,
+                reason: "payment_failed",
+                description: error.description,
+                errorCode: error.reason,
+              },
             });
-          } catch {}
-
-          navigatedAway.current = true;
-          navigate("/order-failure", {
-            state: {
-              order: displayOrder,
-              reason: "payment_failed",
-              description: error.description,
-              errorCode: error.reason,
-            },
-          });
-        },
-      });
+          },
+        });
+      } catch (sdkErr) {
+        // SDK loading failed
+        setPayError(
+          'Payment gateway failed to load. Please check your internet connection, disable any ad blockers, and try again.'
+        );
+        setLoading(false);
+        return;
+      }
     } catch (err) {
       setPayError(getErrorMessage(err));
       setLoading(false);

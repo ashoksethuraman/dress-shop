@@ -92,6 +92,44 @@ export const dressShopApi = createApi({
     }),
 
     /* -----------------------------------------------------------
+       PAGED PRODUCTS (server-side pagination, cached per-arg)
+    ----------------------------------------------------------- */
+    getProductsPaged: builder.query<
+      { products: Product[]; hasMore?: boolean; lastDocId?: string },
+      { includeAll?: boolean; limit?: number; lastDocId?: string; q?: string; sortBy?: string; category?: string; availability?: string; type?: string }
+    >({
+      keepUnusedDataFor: 300,
+      async queryFn(arg) {
+        try {
+          const res = await productsApi.list({
+            limit: arg?.limit,
+            lastDocId: arg?.lastDocId,
+            q: arg?.q,
+            sortBy: arg?.sortBy,
+            category: arg?.category,
+            availability: arg?.availability,
+            type: arg?.type,
+          });
+          return { data: res };
+        } catch (err: any) {
+          return {
+            error: {
+              status: 'CUSTOM_ERROR',
+              data: { message: err?.message ?? 'Failed to load products' },
+            },
+          };
+        }
+      },
+      providesTags: (result, _err, arg) =>
+        result
+          ? [
+              ...result.products.map((p) => ({ type: 'Product' as const, id: p.id })),
+              { type: 'Product', id: arg?.includeAll ? 'ADMIN_LIST' : 'LIST' },
+            ]
+          : [{ type: 'Product', id: arg?.includeAll ? 'ADMIN_LIST' : 'LIST' }],
+    }),
+
+    /* -----------------------------------------------------------
        TRACK ORDER
     ----------------------------------------------------------- */
     trackOrder: builder.query<TrackOrderResponse, string>({
@@ -167,6 +205,8 @@ export const {
   useGetProductsQuery,
   useGetProductByIdQuery,
   useSearchProductsQuery,
+  useGetProductsPagedQuery,
+  useLazyGetProductsPagedQuery,
   useLazyTrackOrderQuery,
   useGetMyOrdersQuery,
   useDeleteProductMutation,
