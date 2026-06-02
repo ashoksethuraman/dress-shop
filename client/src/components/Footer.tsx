@@ -119,9 +119,10 @@ export default function Footer() {
                 </div>
             </div>
 
-            {/* SOCIAL ICONS */}
+            {/* SOCIAL ICONS & COPYRIGHT */}
             <div className="border-t border-white/10 py-4">
-                <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 flex items-center justify-between flex-wrap gap-4">
+                <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    {/* Social Icons */}
                     <div className="flex gap-4 sm:gap-6 text-lg sm:text-xl">
                         <a 
                             href={socialUrls.whatsapp.startsWith('http') ? socialUrls.whatsapp : `https://wa.me/${socialUrls.whatsapp}`} 
@@ -160,6 +161,11 @@ export default function Footer() {
                             <FaYoutube />
                         </a>
                     </div>
+
+                    {/* Copyright Text */}
+                    <p className="text-sm text-[#d6c5be] text-center sm:text-right">
+                        © {new Date().getFullYear()} Halley Comet. All Rights Reserved
+                    </p>
                 </div>
             </div>
 
