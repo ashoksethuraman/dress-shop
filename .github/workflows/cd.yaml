@@ -1,0 +1,47 @@
+name: CD
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_target:
+        description: "What to deploy"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - hosting
+          - functions
+          - firestore
+
+jobs:
+  deploy:
+    name: Manual Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Deploy selected target
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          DEPLOY_TARGET: ${{ github.event.inputs.deploy_target }}
+        run: |
+          if [ "$DEPLOY_TARGET" = "hosting" ]; then
+            npx firebase-tools deploy --only hosting --token "$FIREBASE_TOKEN"
+          elif [ "$DEPLOY_TARGET" = "functions" ]; then
+            npx firebase-tools deploy --only functions --token "$FIREBASE_TOKEN"
+          elif [ "$DEPLOY_TARGET" = "firestore" ]; then
+            npx firebase-tools deploy --only firestore --token "$FIREBASE_TOKEN"
+          else
+            npx firebase-tools deploy --only firestore,functions,hosting --token "$FIREBASE_TOKEN"
+          fi

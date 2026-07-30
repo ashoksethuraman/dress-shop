@@ -77,7 +77,7 @@ export default function ProductCard({ product: p, isAdmin, onDelete }: Props) {
     if (selectedSize) {
       const inventory = isChildProduct ? p.ageSizeInventory : p.sizeInventory;
       if (inventory) {
-        const available = inventory[selectedSize as any];
+        const available = inventory[selectedSize as keyof typeof inventory];
         if (available !== undefined) {
           if (available === 0) { 
             setCartError(`${isChildProduct ? 'Age' : 'Size'} ${selectedSize} is out of stock.`); 
