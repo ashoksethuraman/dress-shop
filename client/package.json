@@ -30,6 +30,8 @@
     "start:emulator": "env-cmd -f .env.emulator react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
+    "test:ci": "react-scripts test --watchAll=false --runTestsByPath src/components/Alert.test.tsx src/components/Loader.test.tsx src/components/FormField.test.tsx src/components/AddressSection.test.tsx src/components/AlertModal.test.tsx",
+    "typecheck": "tsc --noEmit",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
@@ -55,6 +57,6 @@
     "env-cmd": "^11.0.0",
     "postcss": "^8.5.8",
     "tailwindcss": "^3.4.19",
-    "typescript": "^4.9.5"
+    "typescript": "^5.7.3"
   }
 }
